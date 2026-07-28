@@ -386,7 +386,7 @@ body.session-locked .arrivals-panel{opacity:.55;pointer-events:none}
   display:flex;align-items:center;justify-content:center;
   font-family:var(--font-mono);font-weight:700;font-size:.68rem;color:#fff;
 }
-.player-name-txt{font-weight:700;font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.player-name-txt{font-weight:700;font-size:.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .win-chip{font-size:.68rem;flex-shrink:0;opacity:.85}
 .games-chip{
   font-family:var(--font-mono);font-size:.6rem;font-weight:600;
