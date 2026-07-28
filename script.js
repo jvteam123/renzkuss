@@ -1256,6 +1256,7 @@ let endgameChoices = {};
 let endgameTeams = [[],[]];
 let endgameWinnerSide = null; // 'a' | 'b' | null
 let endgameScores = { a: '', b: '' }; // raw input string values
+let scoresAutoFilled = false; // true when endgameScores were filled in by tapping a winner card, not typed
 
 // Undo support: right before a game result is confirmed, we snapshot the
 // entire app state. If the wrong winner gets picked, "Undo" restores that
@@ -1283,6 +1284,7 @@ function openEndgame(court){
   endgameTeams = splitTeams(court.players);
   endgameWinnerSide = null;
   endgameScores = { a: '', b: '' };
+  scoresAutoFilled = false;
   if (state.session.scoringEnabled && court.score){
     endgameScores = { a: String(safeN(court.score.a)), b: String(safeN(court.score.b)) };
   }
@@ -1330,6 +1332,7 @@ function syncWinnerPickSelection(){
 winnerPick.addEventListener('input', (e) => {
   const input = e.target.closest('.score-input');
   if (!input) return;
+  scoresAutoFilled = false;
   endgameScores[input.dataset.side] = input.value;
   recomputeWinnerFromScores();
   // Only toggle the selected-card class — rebuilding the DOM here would
@@ -1341,6 +1344,22 @@ winnerPick.addEventListener('click', (e) => {
   const card = e.target.closest('.winner-card[data-side]');
   if (!card) return;
   const side = card.dataset.side;
+  const bothBlank = endgameScores.a === '' && endgameScores.b === '';
+  if (bothBlank || scoresAutoFilled){
+    const newSide = endgameWinnerSide === side ? null : side;
+    endgameWinnerSide = newSide;
+    if (newSide === null){
+      endgameScores = { a: '', b: '' };
+      scoresAutoFilled = false;
+    } else {
+      const target = getWinTarget();
+      endgameScores = { a: newSide === 'a' ? String(target) : '0', b: newSide === 'b' ? String(target) : '0' };
+      scoresAutoFilled = true;
+    }
+    renderWinnerPick();
+    return;
+  }
+  // Real scores were typed in already — just toggle the pick without touching them.
   endgameWinnerSide = endgameWinnerSide === side ? null : side;
   syncWinnerPickSelection();
 });
