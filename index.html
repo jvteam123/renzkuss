@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Renzku Smart Stack</title>
+<meta name="theme-color" content="#1B2A28">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none';">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-paddle" viewBox="0 0 20 28"><path fill="currentColor" d="M10 0c4.4 0 7 3 7 7.2 0 4.6-3 8-7 8s-7-3.4-7-8C3 3 5.6 0 10 0Z"/><rect fill="currentColor" x="8.2" y="14.6" width="3.6" height="12.4" rx="1.6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path fill="currentColor" d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><path fill="currentColor" d="M19.4 13a7.4 7.4 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.5 7.5 0 0 0-1.7-1L14.9 3H9.1l-.4 2.6a7.5 7.5 0 0 0-1.7 1l-2.4-1-2 3.4L4.6 11a7.4 7.4 0 0 0 0 2l-2 1.6 2 3.4 2.4-1c.5.4 1.1.75 1.7 1l.4 2.6h5.8l.4-2.6c.6-.25 1.2-.6 1.7-1l2.4 1 2-3.4-2-1.6ZM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Z"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path fill="currentColor" d="M12 6l7 8H5z"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path fill="currentColor" d="M12 18l-7-8h14z"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path fill="currentColor" d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6z"/></symbol>
+  <symbol id="i-grip" viewBox="0 0 24 24"><path fill="currentColor" d="M9 6a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm6 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3ZM9 13.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm6 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3ZM9 21a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm6 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path fill="currentColor" d="M9 6l6 6-6 6z"/></symbol>
+  <symbol id="i-stack" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 2 7l10 5 10-5zM2 12l10 5 10-5M2 17l10 5 10-5"/></symbol>
+  <symbol id="i-court" viewBox="0 0 24 24"><path fill="currentColor" d="M3 4h18v16H3zm9 0v16M3 12h18" stroke="currentColor" stroke-width="1.6" fill="none"/></symbol>
+  <symbol id="i-trophy" viewBox="0 0 24 24"><path fill="currentColor" d="M6 3h12v2h2.5v2c0 2.3-1.7 4.2-4 4.5-.7 1.6-2.1 2.8-3.8 3.2V18h3v2H8v-2h3v-3.3c-1.7-.4-3.1-1.6-3.8-3.2-2.3-.3-4-2.2-4-4.5V5H6V3Zm0 4H3.9c.2 1.1.9 2 2.1 2.3V7Zm12 0v2.3c1.2-.3 1.9-1.2 2.1-2.3H18Z"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5Zm-3 8V7a3 3 0 1 1 6 0v3H9Z"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path fill="currentColor" d="M8 5v14l11-7z"/></symbol>
+  <symbol id="i-restart" viewBox="0 0 24 24"><path fill="currentColor" d="M12 5V1L7 6l5 5V7c3.3 0 6 2.7 6 6s-2.7 6-6 6-6-2.7-6-6H4c0 4.4 3.6 8 8 8s8-3.6 8-8-3.6-8-8-8Z"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path fill="currentColor" d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-1 12H8L7 9Zm3 2v8h1v-8h-1Zm3 0v8h1v-8h-1Z"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 2a8 8 0 1 1 0 16 8 8 0 0 1 0-16Zm-1 2v6.4l4.6 2.7 1-1.7-3.6-2.1V6Z"/></symbol>
+  <symbol id="i-swap" viewBox="0 0 24 24"><path fill="currentColor" d="M7 4 3 8l4 4V9h9V7H7V4Zm10 8-4 4v-3H4v-2h9v-3l4 4Z"/></symbol>
+  <symbol id="i-expand" viewBox="0 0 24 24"><path fill="currentColor" d="M4 4h6V2H2v8h2V4Zm10-2v2h6v6h2V2h-8ZM4 14H2v8h8v-2H4v-6Zm16 6h-6v2h8v-8h-2v6Z"/></symbol>
+  <symbol id="i-collapse" viewBox="0 0 24 24"><path fill="currentColor" d="M9 3H7v4H3v2h6V3Zm6 0v6h6V7h-4V3h-2ZM3 15v2h4v4h2v-6H3Zm14 6v-4h4v-2h-6v6h2Z"/></symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24"><path fill="currentColor" d="M9 3 7.5 5H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.5L15 3H9Zm3 5.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Zm0 2a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><path fill="currentColor" d="M10 2a8 8 0 1 0 4.9 14.3l5.4 5.4 1.4-1.4-5.4-5.4A8 8 0 0 0 10 2Zm0 2a6 6 0 1 1 0 12 6 6 0 0 1 0-12Z"/></symbol>
+</svg>
+
+<header class="topbar">
+  <div class="logo">
+    <svg viewBox="0 0 20 28"><use href="#i-paddle"/></svg>
+  </div>
+  <span class="session-name">Renzku Smart Stack</span>
+  <div class="spacer"></div>
+  <span class="pill" id="stackCountPill">0 in stack</span>
+  <button class="icon-btn" id="rankingsBtn" aria-label="Rankings"><svg viewBox="0 0 24 24"><use href="#i-trophy"/></svg></button>
+  <button class="icon-btn" id="matchHistoryBtn" aria-label="Match history"><svg viewBox="0 0 24 24"><use href="#i-clock"/></svg></button>
+  <button class="icon-btn" id="settingsBtn" aria-label="Settings"><svg viewBox="0 0 24 24"><use href="#i-gear"/></svg></button>
+</header>
+
+<div class="session-banner" id="sessionBanner" hidden>
+  <div class="session-banner-inner">
+    <span class="eyebrow"><svg viewBox="0 0 24 24"><use href="#i-lock"/></svg>Session ended</span>
+    <span class="msg">The stack and courts are locked for new games. History and rankings stay open for review.</span>
+    <button type="button" class="btn solid-turf sm" id="resumeSessionBtn"><svg viewBox="0 0 24 24" style="width:12px;height:12px;vertical-align:-2px"><use href="#i-play"/></svg> Resume session</button>
+  </div>
+</div>
+
+<div class="app-shell show-stack" id="appShell">
+  <aside class="stack-rail">
+    <div class="panel-head">
+      <h2>Players</h2>
+      <span class="count-badge" id="stackBadge">0</span>
+    </div>
+    <form class="add-form" id="addForm">
+      <input id="addNameInput" type="text" placeholder="Player name (or names, comma-separated)" autocomplete="off" list="rosterList">
+      <datalist id="rosterList"></datalist>
+      <button type="submit" aria-label="Add player"><svg viewBox="0 0 24 24" style="width:16px;height:16px;vertical-align:-3px"><use href="#i-plus"/></svg> Add</button>
+    </form>
+    <details class="bulk-add-wrap" id="bulkAddWrap">
+      <summary class="bulk-add-toggle">+ Add multiple players</summary>
+      <div class="bulk-add-body">
+        <textarea id="bulkNameInput" rows="5" placeholder="Renzku&#10;Mae&#10;Anthony&#10;Jen" spellcheck="false"></textarea>
+        <button type="button" id="bulkAddBtn">Add All Players</button>
+      </div>
+    </details>
+    <p class="add-hint" id="addHint">Add players here, then check them in when they arrive to join the stack.</p>
+
+    <details class="arrivals-panel" id="arrivalsPanel" hidden>
+      <summary class="arrivals-head">
+        <svg class="arrivals-chev" viewBox="0 0 24 24"><use href="#i-chev"/></svg>
+        <span class="arrivals-title">Waiting to check in</span>
+        <span class="count-badge" id="arrivalsBadge">0</span>
+        <button type="button" class="checkin-all-btn" id="checkInAllBtn">Check in all</button>
+      </summary>
+      <div class="arrivals-list" id="arrivalsList"></div>
+    </details>
+
+    <div class="quick-add-panel" id="quickAddPanel" hidden>
+      <div class="quick-add-head">
+        <span class="quick-add-title">Quick add saved players</span>
+        <button type="button" class="quick-add-all-btn" id="quickAddAllBtn">+ Add all</button>
+      </div>
+      <div class="quick-add-chips" id="quickAddChips"></div>
+    </div>
+
+    <div class="blocks-panel" id="blocksPanel" hidden>
+      <div class="blocks-panel-title">⏳ Accumulating blocks</div>
+      <div class="block-group">
+        <div class="block-head">
+          <span class="block-head-label">🏆 Winners block</span>
+          <span class="block-head-count" id="winnersBlockCount">0/4</span>
+          <button type="button" class="block-flush-btn" data-block="winners" aria-label="Move winners block to queue now">Queue now</button>
+        </div>
+        <div class="block-list" id="winnersBlockList"></div>
+      </div>
+      <div class="block-group">
+        <div class="block-head">
+          <span class="block-head-label">💀 Losers block</span>
+          <span class="block-head-count" id="losersBlockCount">0/4</span>
+          <button type="button" class="block-flush-btn" data-block="losers" aria-label="Move losers block to queue now">Queue now</button>
+        </div>
+        <div class="block-list" id="losersBlockList"></div>
+      </div>
+    </div>
+
+    <div class="stack-list" id="stackList" aria-live="polite"></div>
+  </aside>
+
+  <main class="courts-main">
+    <h2>Courts</h2>
+    <div class="courts-grid" id="courtsGrid"></div>
+    <details class="history">
+      <summary><svg viewBox="0 0 24 24"><use href="#i-chev"/></svg> Recent games</summary>
+      <div class="history-list" id="historyList"></div>
+    </details>
+  </main>
+</div>
+
+<nav class="mobile-tabs">
+  <button id="tabStack" class="active"><svg viewBox="0 0 24 24"><use href="#i-stack"/></svg>Players</button>
+  <button id="tabCourts"><svg viewBox="0 0 24 24"><use href="#i-court"/></svg>Courts</button>
+</nav>
+
+<!-- Settings modal -->
+<div class="overlay" id="settingsOverlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Settings">
+    <h3>Settings</h3>
+    <div class="field">
+      <label for="settingsSessionName">Session name</label>
+      <input type="text" id="settingsSessionName" maxlength="40">
+    </div>
+    <div class="field">
+      <label>Game format (applies to all courts)</label>
+      <div class="seg" id="gameSizeSeg">
+        <button type="button" data-size="4" class="active">Doubles · 4</button>
+        <button type="button" data-size="2">Singles · 2</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Number of courts</label>
+      <div class="stepper">
+        <button type="button" id="courtMinus" aria-label="Fewer courts">–</button>
+        <span class="n" id="courtCountNum">4</span>
+        <button type="button" id="courtPlus" aria-label="More courts">+</button>
+      </div>
+      <div class="court-name-rows" id="courtNameRows"></div>
+    </div>
+    <div class="field toggle-row">
+      <label style="margin:0">Sound on call-up</label>
+      <label class="switch">
+        <input type="checkbox" id="soundToggle" checked>
+        <span class="track"></span>
+      </label>
+    </div>
+    <hr class="divider">
+    <div class="field">
+      <div class="toggle-row">
+        <label style="margin:0">Enable Target Games</label>
+        <label class="switch">
+          <input type="checkbox" id="targetGamesToggle">
+          <span class="track"></span>
+        </label>
+      </div>
+      <p class="add-hint" style="padding:0;margin-top:.4rem">Automatically tracks games played and prioritizes players with fewer games until everyone reaches the target.</p>
+      <div class="target-sub" id="targetGamesSub" hidden>
+        <label for="targetGamesInput">Target games per player</label>
+        <input type="number" id="targetGamesInput" min="1" max="99" step="1" value="7">
+      </div>
+    </div>
+    <hr class="divider">
+    <div class="field">
+      <div class="toggle-row">
+        <label style="margin:0">Avoid Repeating Teammates</label>
+        <label class="switch">
+          <input type="checkbox" id="avoidRepeatToggle">
+          <span class="track"></span>
+        </label>
+      </div>
+      <p class="add-hint" style="padding:0;margin-top:.4rem">When forming doubles teams, tries to pair players who haven't been teammates yet. Repeats only happen if there's no valid alternative.</p>
+      <div class="target-sub" id="fixedDuoSub" hidden>
+        <label>Fixed duo (optional)</label>
+        <p class="add-hint" style="padding:0;margin-bottom:.5rem">Lock two players as permanent teammates whenever they're both in the same match — they'll never be split up, even to avoid a repeat pairing.</p>
+        <div class="fixed-duo-add-row">
+          <select id="fixedDuoNameA"><option value="">Player A…</option></select>
+          <select id="fixedDuoNameB"><option value="">Player B…</option></select>
+          <button type="button" class="btn ghost sm" id="fixedDuoAddBtn">Add</button>
+        </div>
+        <div class="fixed-duo-list" id="fixedDuoList"></div>
+      </div>
+    </div>
+    <hr class="divider">
+    <div class="field">
+      <div class="toggle-row">
+        <label style="margin:0">Enable Scoring</label>
+        <label class="switch">
+          <input type="checkbox" id="scoringToggle">
+          <span class="track"></span>
+        </label>
+      </div>
+      <p class="add-hint" style="padding:0;margin-top:.4rem">Adds a live scoreboard to each in-progress court — serve tracking, point steppers, and side-outs — and carries the score straight into End Game.</p>
+      <div class="target-sub" id="scoringSub" hidden>
+        <label for="winningScoreInput">Winning score</label>
+        <input type="number" id="winningScoreInput" min="1" max="99" step="1" value="11">
+      </div>
+    </div>
+    <hr class="divider">
+    <div class="field">
+      <div class="field-head-row">
+        <label style="margin:0">Known players</label>
+        <span class="count-badge" id="rosterManageCount">0</span>
+      </div>
+      <div class="roster-manage-search"><input type="text" id="rosterSearchInput" placeholder="Filter saved names…"></div>
+      <div class="roster-manage-list" id="rosterManageList"></div>
+      <p class="add-hint" style="padding:0;margin-top:.45rem">Remove a name here to stop it appearing in quick-add suggestions and in "keep player names" — it won't touch anyone currently on the floor.</p>
+    </div>
+    <hr class="divider">
+    <div class="field">
+      <label>Backup</label>
+      <div class="file-row">
+        <button class="btn ghost" id="exportBtn">Export JSON</button>
+        <button class="btn ghost" id="importBtn">Import JSON</button>
+        <input type="file" id="importFile" accept="application/json" hidden>
+      </div>
+    </div>
+    <hr class="divider">
+    <div class="danger-zone">
+      <h4>Session controls</h4>
+      <button class="btn warn" id="endSessionBtn" style="width:100%;margin-bottom:.5rem"><svg viewBox="0 0 24 24" style="width:13px;height:13px;vertical-align:-2px;margin-right:.35rem"><use href="#i-lock"/></svg>End session (keep all records)</button>
+      <button class="btn ghost" id="newSessionBtn" style="width:100%;margin-bottom:.5rem"><svg viewBox="0 0 24 24" style="width:13px;height:13px;vertical-align:-2px;margin-right:.35rem"><use href="#i-restart"/></svg>Start new session (keep player names)</button>
+      <button class="btn danger" id="resetBtn" style="width:100%"><svg viewBox="0 0 24 24" style="width:13px;height:13px;vertical-align:-2px;margin-right:.35rem"><use href="#i-trash"/></svg>Erase everything (players too)</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn primary" id="settingsDone">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Rankings modal -->
+<div class="overlay" id="rankingsOverlay" hidden>
+  <div class="modal" id="rankingsModal" role="dialog" aria-modal="true" aria-label="Rankings">
+    <div class="rankings-modal-head">
+      <h3>🏆 Rankings</h3>
+      <div class="rankings-head-actions">
+        <button class="modal-icon-btn" type="button" id="rankingsExpandBtn" title="Expand to full screen" aria-label="Expand to full screen">
+          <svg viewBox="0 0 24 24"><use href="#i-expand"/></svg>
+        </button>
+        <button class="modal-icon-btn" type="button" id="rankingsShotBtn" title="Save as image" aria-label="Save rankings as image">
+          <svg viewBox="0 0 24 24"><use href="#i-camera"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="rankings-toolbar">
+      <svg viewBox="0 0 24 24"><use href="#i-search"/></svg>
+      <input type="text" id="rankingsSearch" placeholder="Search a player…" aria-label="Search rankings">
+    </div>
+    <div id="rankingsCaptureArea">
+      <p class="winner-note" id="rankingsCaptureNote" style="margin:-.1rem 0 .7rem">Games played · win–loss record · win rate.</p>
+      <div class="rankings-summary" id="rankingsSummary"></div>
+      <div class="rankings-list" id="rankingsList"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn primary" id="rankingsDone">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Match history modal -->
+<div class="overlay" id="matchHistoryOverlay" hidden>
+  <div class="modal wide" role="dialog" aria-modal="true" aria-label="Match history">
+    <h3>🕓 Match History</h3>
+    <p class="winner-note" style="margin:-.3rem 0 .8rem">Every completed match this session, in full.</p>
+    <div class="match-history-list" id="matchHistoryFullList"></div>
+    <div class="modal-actions">
+      <button class="btn primary" id="matchHistoryDone">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- End game modal -->
+<div class="overlay" id="endgameOverlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-label="End game">
+    <h3 id="endgameTitle">End game</h3>
+    <p class="section-label">Score (optional)</p>
+    <div class="winner-pick" id="winnerPick"></div>
+    <p class="winner-note">Enter both scores to auto-pick the winner, tap a side to pick manually, or leave blank to skip.</p>
+    <p class="section-label">Back to the stack?</p>
+    <p class="section-label" id="endgameLockNote" style="color:var(--clay-deep);display:none">🔒 Session ended — everyone will be marked "Done for today" instead of requeued.</p>
+    <div class="endgame-list" id="endgameList"></div>
+    <div class="modal-actions">
+      <button class="btn primary" id="endgameConfirm">Confirm &amp; clear court</button>
+      <button class="btn ghost" id="endgameCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script src="script.js" defer></script>
+</body>
+</html>
