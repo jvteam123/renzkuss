@@ -70,7 +70,7 @@ function defaultCourts(n){
 
 function freshState(){
   return {
-    session: { name: 'Renzku Smart Stack', gameSize: 4, soundOn: true, status: 'active', targetGamesEnabled: false, targetGamesPerPlayer: 7, avoidRepeatTeammates: false, fixedDuos: [], scoringEnabled: false, winningScore: 11 }, // status: 'active' | 'ended'
+    session: { name: 'Renzku Smart Stack', gameSize: 4, soundOn: true, status: 'active', targetGamesEnabled: false, targetGamesPerPlayer: 7, avoidRepeatTeammates: false, fixedDuos: [], scoringEnabled: true, winningScore: 11 }, // status: 'active' | 'ended'
     courts: defaultCourts(4),
     arrivals: [],        // {id, name, addedAt} — added but not yet checked in; not part of the live queue
     stack: [],           // {id, name, joinedAt, tag: 'new'|'queued'}
@@ -1102,7 +1102,7 @@ function scoreboardHtml(court){
       <div class="sbl-actions">
         <button type="button" class="sbl-btn" data-act="advance-serve" title="Switch to serve 2" ${(sc.firstServe || sc.serverNum !== 1 || winnerSide) ? 'disabled' : ''}>Serve 2</button>
         <button type="button" class="sbl-btn" data-act="side-out" title="Side out — switch serving team" ${((!sc.firstServe && sc.serverNum !== 2) || winnerSide) ? 'disabled' : ''}>⇄ Side Out</button>
-        <button type="button" class="sbl-btn" data-act="undo-serve" title="Undo last serve decision" ${(!sc.serveUndo || !sc.serveUndo.length) ? 'disabled' : ''}>↩</button>
+        <button type="button" class="sbl-btn" data-act="undo-serve" title="Undo last serve decision" ${(!sc.serveUndo || !sc.serveUndo.length) ? 'disabled' : ''}>UNDO</button>
       </div>
     </div>`;
 }
