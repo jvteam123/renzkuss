@@ -72,10 +72,10 @@ function freshState(){
   return {
     session: { name: 'Renzku Smart Stack', gameSize: 4, soundOn: true, status: 'active', targetGamesEnabled: false, targetGamesPerPlayer: 7, avoidRepeatTeammates: false, fixedDuos: [], scoringEnabled: false, winningScore: 11 }, // status: 'active' | 'ended'
     courts: defaultCourts(4),
-    arrivals: [],        // {id, name, addedAt} — added but not yet checked in; not part of the live queue
+    arrivals: [],        // {id, name, addedAt} ï¿½ added but not yet checked in; not part of the live queue
     stack: [],           // {id, name, joinedAt, tag: 'new'|'queued'}
-    winnersBlock: [],     // {id, name, joinedAt, tag} — accumulates until gameSize, then flushes to stack as a group (or sooner, if the group's too small to ever fill both blocks — see checkBlockFlush)
-    losersBlock: [],      // same shape — accumulates until gameSize, then flushes to stack as a group (or sooner, if the group's too small to ever fill both blocks — see checkBlockFlush)
+    winnersBlock: [],     // {id, name, joinedAt, tag} ï¿½ accumulates until gameSize, then flushes to stack as a group (or sooner, if the group's too small to ever fill both blocks ï¿½ see checkBlockFlush)
+    losersBlock: [],      // same shape ï¿½ accumulates until gameSize, then flushes to stack as a group (or sooner, if the group's too small to ever fill both blocks ï¿½ see checkBlockFlush)
     history: [],          // {id, courtName, teamA, teamB, winner, startTime, endTime}
     playerStats: {},      // name -> {wins, games}
     teammateHistory: {},   // "nameA||nameB" (sorted) -> number of times paired as teammates this session
@@ -109,10 +109,32 @@ const resumeSessionBtn = $('#resumeSessionBtn');
 const addHintEl = $('#addHint');
 
 /* ================= Toasts ================= */
-function toast(msg){
+const TOAST_ICONS = {
+  success: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>',
+  error:   '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 15h-2v-2h2Zm0-4h-2V7h2Z"/></svg>',
+  warning: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 3 1 21h22Zm1 15h-2v-2h2Zm0-4h-2V9h2Z"/></svg>',
+  info:    '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 15h-2v-7h2Zm0-9h-2V6h2Z"/></svg>'
+};
+
+// Best-effort tone detection so existing toast(msg) call sites automatically
+// pick up the right color/icon without needing to be touched individually.
+function inferToastType(msg){
+  const m = msg.toLowerCase();
+  if (/(could not|not valid|invalid|corrupted|not allowed|not enough|error)/.test(m)) return 'error';
+  if (/(session has ended|pick|enter both|select|need to be|should be)/.test(m)) return 'warning';
+  if (/(added|checked in|resumed|started|exported|imported|saved|fixed as a duo|undone|cleared|removed|erased|queue)/.test(m)) return 'success';
+  return 'info';
+}
+
+function toast(msg, type){
+  const kind = type || inferToastType(msg);
   const el = document.createElement('div');
-  el.className = 'toast';
-  el.textContent = msg;
+  el.className = 'toast toast-' + kind;
+  el.innerHTML =
+    '<span class="toast-icon">' + (TOAST_ICONS[kind] || TOAST_ICONS.info) + '</span>' +
+    '<span class="toast-msg"></span>' +
+    '<span class="toast-progress"></span>';
+  el.querySelector('.toast-msg').textContent = msg;
   toastWrap.appendChild(el);
   requestAnimationFrame(() => el.classList.add('show'));
   setTimeout(() => {
@@ -161,7 +183,7 @@ function isUnsafeName(name){
   return UNSAFE_OBJECT_KEYS.has(String(name).trim().toLowerCase());
 }
 
-const AVATAR_COLORS = ['#2F6F5E','#E4693B','#3B6EA5','#8A5FBE','#B4483E','#4E8C7A','#C68A2E','#5A7A9C'];
+const AVATAR_COLORS = ['#0038A8','#CE1126','#C79A00','#00256E','#9E0C1D','#3B6EA5','#8A5FBE','#5A7A9C'];
 function avatarColor(name){
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
@@ -188,16 +210,16 @@ function gamesChipHtml(games){
   const atTarget = state.session.targetGamesEnabled && games >= state.session.targetGamesPerPlayer;
   const cls = 'games-chip' + (atTarget ? ' at-target' : '');
   const title = atTarget
-    ? `${games} ${games === 1 ? 'game' : 'games'} played this session · target reached`
+    ? `${games} ${games === 1 ? 'game' : 'games'} played this session ï¿½ target reached`
     : `${games} ${games === 1 ? 'game' : 'games'} played this session`;
-  return `<span class="${cls}" title="${title}">${games} ${label}${atTarget ? ' · ' : ''}</span>`;
+  return `<span class="${cls}" title="${title}">${games} ${label}${atTarget ? ' ï¿½ ' : ''}</span>`;
 }
 
 /* ---- Target Games: smart match selection ----
    When enabled, picks the next match from the stack by prioritizing players
    with fewer games played (so everyone reaches the target as evenly as
    possible), while keeping FIFO order as the tie-break for equal game counts.
-   This never removes/reorders the underlying stack itself — it only decides
+   This never removes/reorders the underlying stack itself ï¿½ it only decides
    which entries get pulled for the next match. Players are never skipped
    permanently: once the below-target pool runs dry, at-/above-target players
    are pulled in normal FIFO order to keep courts moving. */
@@ -221,7 +243,7 @@ function selectMatchEntries(gameSize, sourceStack){
    (see computeTeamPairing) but which foursome gets chosen in the first
    place: if one half of a fixed duo is about to be called up but their
    partner is still waiting further back in the stack, pull the partner into
-   this match too (bumping whoever has the least claim to the spot — a
+   this match too (bumping whoever has the least claim to the spot ï¿½ a
    non-duo player, picked by lowest queue priority) so the duo actually ends
    up playing together instead of in two separate matches. Only meaningful
    for doubles, and only while "Avoid Repeating Teammates" is on, matching
@@ -237,7 +259,7 @@ function applyFixedDuoToSelection(base, pool, gameSize){
   duos.forEach(duo => {
     const names = result.map(e => e.name);
     const hasA = names.includes(duo.a), hasB = names.includes(duo.b);
-    if (hasA === hasB) return; // both already together, or neither queued for this match — nothing to adjust
+    if (hasA === hasB) return; // both already together, or neither queued for this match ï¿½ nothing to adjust
     const keepName = hasA ? duo.a : duo.b;
     const missingName = hasA ? duo.b : duo.a;
     const resultIds = new Set(result.map(e => e.id));
@@ -254,7 +276,7 @@ function applyFixedDuoToSelection(base, pool, gameSize){
       const score = (inAnyDuo ? 0 : 1e6) + stackIdx;
       if (score > bumpScore){ bumpScore = score; bumpIdx = i; }
     });
-    if (bumpIdx === -1) return; // no one safe to bump — leave the match as-is
+    if (bumpIdx === -1) return; // no one safe to bump ï¿½ leave the match as-is
     result.splice(bumpIdx, 1, partnerEntry);
   });
   // Restore stack (FIFO) order so display and team-splitting stay consistent.
@@ -272,7 +294,7 @@ function removeEntriesFromStack(entries){
    splitTeams() produces the teammate pairing with the fewest prior times
    paired together. Falls back to a repeat only when every possible pairing
    has already happened (last resort). Does not change who is selected to
-   play — only how the same four players are split into two teams. */
+   play ï¿½ only how the same four players are split into two teams. */
 function pairKey(n1, n2){ return [n1, n2].sort().join('||'); }
 function teammateCount(n1, n2){ return state.teammateHistory[pairKey(n1, n2)] || 0; }
 function recordTeammates(teamNames){
@@ -311,7 +333,7 @@ function computeTeamPairing(names){
   // Deterministic tie-break (first minimal-cost option) rather than Math.random():
   // this function is called once to render the "next up" preview and again when
   // "Call next" is actually clicked, so it must return the same answer both times
-  // for the same state — a random pick here would let the preview disagree with
+  // for the same state ï¿½ a random pick here would let the preview disagree with
   // the match that's actually formed.
   return { order: options.find(o => o.cost === minCost).order, forcedDuo: false };
 }
@@ -319,7 +341,7 @@ function orderForTeammatePairing(names){
   return computeTeamPairing(names).order;
 }
 /* Compares the "natural" pairing (players in their priority/FIFO order, before
-   avoidance) against the pairing actually chosen, and — if they differ —
+   avoidance) against the pairing actually chosen, and ï¿½ if they differ ï¿½
    describes the swap for the transparency log. Returns null when nothing
    changed (no swap needed) or the feature isn't a fit (not doubles). */
 function buildSwapInfo(naturalNames, chosenNames, forcedDuo){
@@ -348,7 +370,7 @@ function applySessionLockUI(){
   if (addBtn) addBtn.disabled = ended;
   if (addHintEl){
     addHintEl.textContent = ended
-      ? 'Session ended — the stack is locked. Resume the session to keep adding players.'
+      ? 'Session ended ï¿½ the stack is locked. Resume the session to keep adding players.'
       : 'Add players in the order they arrive. First in, first up.';
   }
   updateEndSessionBtn();
@@ -374,7 +396,7 @@ function endSession(){
   applySessionLockUI();
   renderAll();
   settingsOverlay.hidden = true;
-  toast('Session ended — all records kept for review');
+  toast('Session ended ï¿½ all records kept for review');
 }
 function resumeSession(){
   state.session.status = 'active';
@@ -425,7 +447,7 @@ function renderStack(){
 
 /* ================= Accumulating blocks (winners vs winners, losers vs losers) ================= */
 function blockListHtml(block){
-  if (block.length === 0) return '<div class="block-empty">Empty — waiting for a result.</div>';
+  if (block.length === 0) return '<div class="block-empty">Empty ï¿½ waiting for a result.</div>';
   return block.map((entry, idx) => `
     <div class="block-item" data-id="${entry.id}">
       <span class="block-item-pos">${idx+1}</span>
@@ -449,7 +471,7 @@ function renderBlocks(){
   blocksPanel.querySelector('[data-block="losers"]').disabled = state.losersBlock.length === 0 || isSessionEnded();
 }
 
-// Moves an entire block into the main queue, in order, as an intact group —
+// Moves an entire block into the main queue, in order, as an intact group ï¿½
 // this is what makes callNext() pull "winners vs winners" or "losers vs losers".
 function flushBlockToQueue(blockKey){
   const block = state[blockKey];
@@ -460,7 +482,7 @@ function flushBlockToQueue(blockKey){
 
 // Everyone currently checked in and still in the rotation: on the queue
 // itself or parked in a winners/losers block. (Players already out on a
-// court aren't counted — they'll land back in one of these once their
+// court aren't counted ï¿½ they'll land back in one of these once their
 // game ends.)
 function totalCheckedInCount(){
   return state.stack.length + state.winnersBlock.length + state.losersBlock.length;
@@ -474,7 +496,7 @@ function checkBlockFlush(){
 
   // With a small group (fewer total players than two full blocks would need,
   // i.e. under gameSize*2), the winners block and losers block can never
-  // both fill up on their own — there simply aren't enough winners or
+  // both fill up on their own ï¿½ there simply aren't enough winners or
   // losers to go around. Rather than stalling every court waiting for
   // players who will never arrive, merge whatever's blocked back into the
   // queue as soon as doing so would let a match start.
@@ -604,7 +626,7 @@ function renderRosterManageList(filter){
   const names = state.roster.slice().sort((a,b) => a.localeCompare(b))
     .filter(n => !q || n.toLowerCase().includes(q));
   if (names.length === 0){
-    list.innerHTML = `<div class="roster-manage-empty">${state.roster.length === 0 ? 'No saved players yet — add someone to the stack to get started.' : 'No names match that filter.'}</div>`;
+    list.innerHTML = `<div class="roster-manage-empty">${state.roster.length === 0 ? 'No saved players yet ï¿½ add someone to the stack to get started.' : 'No names match that filter.'}</div>`;
     return;
   }
   list.innerHTML = names.map(name => {
@@ -629,7 +651,7 @@ if (rosterManageListEl){
     const btn = e.target.closest('button[data-name]');
     if (!btn) return;
     const name = btn.dataset.name;
-    if (!confirm('Remove "' + name + '" from your saved player list? This just clears the suggestion — it won\'t affect history or rankings.')) return;
+    if (!confirm('Remove "' + name + '" from your saved player list? This just clears the suggestion ï¿½ it won\'t affect history or rankings.')) return;
     removeFromRoster(name);
     toast(name + ' removed from saved players');
   });
@@ -648,7 +670,7 @@ function isNameActive(name){
   return false;
 }
 /* Players land here first (added, but not yet on the floor). They only join the
-   live stack once someone checks them in as arrived — see checkInArrival(s) below. */
+   live stack once someone checks them in as arrived ï¿½ see checkInArrival(s) below. */
 function addNamesToArrivals(names){
   const added = [];
   const skipped = [];
@@ -667,7 +689,7 @@ function addNamesToArrivals(names){
     added.push(name);
   });
   if (added.length){
-    toast((added.length > 1 ? added.length + ' players' : added[0]) + ' added — check in when they arrive');
+    toast((added.length > 1 ? added.length + ' players' : added[0]) + ' added ï¿½ check in when they arrive');
   }
   if (skipped.length){
     toast(skipped.join(', ') + (skipped.length > 1 ? ' are' : ' is') + ' already waiting, in the stack, a block, or on a court');
@@ -680,7 +702,7 @@ function addNamesToArrivals(names){
 }
 addForm.addEventListener('submit', (e) => {
   e.preventDefault();
-  if (isSessionEnded()){ toast('Session has ended — resume it to add players'); return; }
+  if (isSessionEnded()){ toast('Session has ended ï¿½ resume it to add players'); return; }
   const raw = addNameInput.value.trim();
   if (!raw) return;
   const names = raw.split(',').map(s => s.trim()).filter(Boolean);
@@ -690,7 +712,7 @@ addForm.addEventListener('submit', (e) => {
 
 /* ---- Bulk add: one name per line ---- */
 $('#bulkAddBtn').addEventListener('click', function(){
-  if (isSessionEnded()){ toast('Session has ended — resume it to add players'); return; }
+  if (isSessionEnded()){ toast('Session has ended ï¿½ resume it to add players'); return; }
   const textarea = $('#bulkNameInput');
   const names = textarea.value.split('\n').map(s => s.trim()).filter(Boolean);
   if (!names.length) return;
@@ -761,7 +783,7 @@ if (arrivalsListEl){
   arrivalsListEl.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-act]');
     if (!btn) return;
-    if (isSessionEnded()){ toast('Session has ended — resume it to check players in'); return; }
+    if (isSessionEnded()){ toast('Session has ended ï¿½ resume it to check players in'); return; }
     const id = btn.dataset.id;
     if (btn.dataset.act === 'checkin') checkInArrival(id);
     else if (btn.dataset.act === 'remove') removeArrival(id);
@@ -772,7 +794,7 @@ if (checkInAllBtnEl){
   checkInAllBtnEl.addEventListener('click', (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (isSessionEnded()){ toast('Session has ended — resume it to check players in'); return; }
+    if (isSessionEnded()){ toast('Session has ended ï¿½ resume it to check players in'); return; }
     checkInAllArrivals();
   });
 }
@@ -797,7 +819,7 @@ function renderQuickAdd(){
 const quickAddChipsEl = $('#quickAddChips');
 if (quickAddChipsEl){
   quickAddChipsEl.addEventListener('click', (e) => {
-    if (isSessionEnded()){ toast('Session has ended — resume it to add players'); return; }
+    if (isSessionEnded()){ toast('Session has ended ï¿½ resume it to add players'); return; }
     const btn = e.target.closest('button[data-name]');
     if (!btn) return;
     addNamesToArrivals([btn.dataset.name]);
@@ -806,7 +828,7 @@ if (quickAddChipsEl){
 const quickAddAllBtnEl = $('#quickAddAllBtn');
 if (quickAddAllBtnEl){
   quickAddAllBtnEl.addEventListener('click', () => {
-    if (isSessionEnded()){ toast('Session has ended — resume it to add players'); return; }
+    if (isSessionEnded()){ toast('Session has ended ï¿½ resume it to add players'); return; }
     const available = state.roster.slice().sort((a,b) => a.localeCompare(b)).filter(n => !isNameActive(n));
     if (available.length === 0) return;
     addNamesToArrivals(available);
@@ -843,14 +865,14 @@ function playerRowHtml(name){
 function teamColHtml(names, side, gameSize){
   const slots = Math.ceil(gameSize / 2);
   const rows = names.map(n => playerRowHtml(n));
-  while (rows.length < slots) rows.push(`<span class="empty-slot">—</span>`);
+  while (rows.length < slots) rows.push(`<span class="empty-slot">ï¿½</span>`);
   return `<div class="team team-${side}">${rows.join('')}</div>`;
 }
 
 /* Sequentially allocates upcoming stack entries to each *open* court, in
    court order, without mutating the real stack. Used both to render each
    open court's "next up" preview and to decide exactly who gets called when
-   a specific court's "Call next" is clicked — keeping the two in sync so a
+   a specific court's "Call next" is clicked ï¿½ keeping the two in sync so a
    court never calls a different group of players than what it just showed. */
 function computeOpenCourtQueue(gameSize){
   const queue = new Map(); // courtId -> { taken: entries|null, remaining: number available at this point }
@@ -873,7 +895,7 @@ function computeOpenCourtQueue(gameSize){
 /* ================= Live Scoring (Settings > Enable Scoring) =================
    Optional in-progress scoreboard on each "playing" court card: point
    steppers, serve tracking (server-only scoring, side-outs, switch to
-   serve 2), and short audio cues. Purely additive — when the toggle is
+   serve 2), and short audio cues. Purely additive ï¿½ when the toggle is
    off, court.score stays null and courts render exactly as before. When a
    winner is reached (or the court is sent to End Game), the tracked score
    flows straight into the existing endgame modal. */
@@ -908,7 +930,7 @@ function scoreTone(freq, duration, type, gainPeak){
     gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
     osc.connect(gain).connect(ctx.destination);
     osc.start(t0); osc.stop(t0 + duration + 0.03);
-  }catch(e){ /* audio not available — fail silently */ }
+  }catch(e){ /* audio not available ï¿½ fail silently */ }
 }
 function pointUpTone(){ scoreTone(880, 0.13, 'sine', 0.2); }
 function pointDownTone(){ scoreTone(320, 0.12, 'sine', 0.16); }
@@ -918,7 +940,7 @@ function winTone(){ [660,880,1100].forEach((f,i) => setTimeout(() => scoreTone(f
 /* ---- Voice score announcer (Web Speech API) ----
    Speaks the standard doubles pickleball score call: the serving team's
    own score first, then the receiving team's score, then the server
-   number — e.g. "2 1 1". Side-outs are announced as "Side out" followed
+   number ï¿½ e.g. "2 1 1". Side-outs are announced as "Side out" followed
    by the new call. Follows the same "Sound on call-up" toggle as the
    point/side-out tones above. */
 if ('speechSynthesis' in window){
@@ -933,7 +955,7 @@ function speakNow(text){
     utter.rate = 1.05;
     utter.volume = 1;
     window.speechSynthesis.speak(utter);
-  }catch(e){ /* speech not available — fail silently */ }
+  }catch(e){ /* speech not available ï¿½ fail silently */ }
 }
 function speakScoreUtterance(text){
   if (!state.session.soundOn) return;
@@ -980,7 +1002,7 @@ function adjustCourtScore(court, team, delta){
   const sc = court.score;
   if (!sc || detectCourtWinner(sc)) return;
   if (sc.serving !== team){
-    toast('Only the serving team can score — Team ' + sc.serving + ' is serving.');
+    toast('Only the serving team can score ï¿½ Team ' + sc.serving + ' is serving.');
     return;
   }
   const key = team === 'A' ? 'a' : 'b';
@@ -988,7 +1010,7 @@ function adjustCourtScore(court, team, delta){
   sc[key] = Math.min(target, Math.max(0, safeN(sc[key]) + delta));
   const winnerNow = detectCourtWinner(sc);
   if (winnerNow && !sc.wonAt) sc.wonAt = Date.now(); // freeze the match clock right when the game is won
-  if (!winnerNow) sc.wonAt = null; // corrected back below target — resume the clock
+  if (!winnerNow) sc.wonAt = null; // corrected back below target ï¿½ resume the clock
   persist();
   if (delta > 0){
     pointUpTone();
@@ -1000,7 +1022,7 @@ function adjustCourtScore(court, team, delta){
   }
   renderCourts();
 }
-// Lets you pick which team serves first — only allowed before any point
+// Lets you pick which team serves first ï¿½ only allowed before any point
 // has been scored on a brand-new game (firstServe still true, 0-0).
 function setInitialServer(court, team){
   const sc = court.score;
@@ -1050,8 +1072,8 @@ function scoreboardHtml(court){
   const serveLabel = sc.firstServe ? '1st Serve' : ('Serve ' + sc.serverNum);
   const target = getWinTarget();
   const canPickFirstServer = sc.firstServe && safeN(sc.a) === 0 && safeN(sc.b) === 0;
-  const serveTagA = servingA ? ` ·  ${serveLabel}` : (canPickFirstServer ? `<button type="button" class="serve-set-btn" data-act="set-first-server" data-team="A">Make 1st server</button>` : '');
-  const serveTagB = servingB ? ` ·  ${serveLabel}` : (canPickFirstServer ? `<button type="button" class="serve-set-btn" data-act="set-first-server" data-team="B">Make 1st server</button>` : '');
+  const serveTagA = servingA ? ` ï¿½  ${serveLabel}` : (canPickFirstServer ? `<button type="button" class="serve-set-btn" data-act="set-first-server" data-team="A">Make 1st server</button>` : '');
+  const serveTagB = servingB ? ` ï¿½  ${serveLabel}` : (canPickFirstServer ? `<button type="button" class="serve-set-btn" data-act="set-first-server" data-team="B">Make 1st server</button>` : '');
   return `
     <div class="scoreboard-live ${winnerSide ? 'has-winner' : ''}">
       <div class="sbl-row">
@@ -1076,7 +1098,7 @@ function scoreboardHtml(court){
       </div>
       <div class="sbl-actions">
         <button type="button" class="sbl-btn" data-act="advance-serve" title="Switch to serve 2" ${(sc.firstServe || sc.serverNum !== 1 || winnerSide) ? 'disabled' : ''}>Serve 2</button>
-        <button type="button" class="sbl-btn" data-act="side-out" title="Side out — switch serving team" ${((!sc.firstServe && sc.serverNum !== 2) || winnerSide) ? 'disabled' : ''}> Side Out</button>
+        <button type="button" class="sbl-btn" data-act="side-out" title="Side out ï¿½ switch serving team" ${((!sc.firstServe && sc.serverNum !== 2) || winnerSide) ? 'disabled' : ''}> Side Out</button>
         <button type="button" class="sbl-btn" data-act="undo-serve" title="Undo last serve decision" ${(!sc.serveUndo || !sc.serveUndo.length) ? 'disabled' : ''}></button>
       </div>
     </div>`;
@@ -1108,7 +1130,7 @@ function renderCourts(){
       const lastResultHtml = court.lastResult ? `
         <div class="last-result">
           <svg viewBox="0 0 24 24"><use href="#i-paddle"/></svg>
-          <span>${court.lastResult.winnerNames ? `${esc(court.lastResult.winnerNames.join(' & '))} won last${court.lastResult.scoreLine ? ' · ' + esc(court.lastResult.scoreLine) : ''}` : 'Last game finished'}</span>
+          <span>${court.lastResult.winnerNames ? `${esc(court.lastResult.winnerNames.join(' & '))} won last${court.lastResult.scoreLine ? ' ï¿½ ' + esc(court.lastResult.scoreLine) : ''}` : 'Last game finished'}</span>
           ${canUndo ? `<button type="button" class="undo-result-btn" data-act="undo-result" title="Wrong winner? Undo and pick again">Undo</button>` : ''}
         </div>` : '';
       const ended = isSessionEnded();
@@ -1170,7 +1192,7 @@ courtsGrid.addEventListener('click', (e) => {
   const court = state.courts.find(c => c.id === card.dataset.id);
   if (!court) return;
   if (btn.dataset.act === 'call'){
-    if (isSessionEnded()){ toast('Session has ended — resume it to start new matches'); return; }
+    if (isSessionEnded()){ toast('Session has ended ï¿½ resume it to start new matches'); return; }
     callNext(court);
   }
   if (btn.dataset.act === 'end') openEndgame(court);
@@ -1241,18 +1263,18 @@ function undoLastResult(courtId){
   if (!lastUndo || lastUndo.courtId !== courtId) return;
   let restored;
   try{ restored = JSON.parse(lastUndo.snapshot); }
-  catch(e){ toast('Could not undo — snapshot was corrupted'); lastUndo = null; return; }
+  catch(e){ toast('Could not undo ï¿½ snapshot was corrupted'); lastUndo = null; return; }
   state = restored;
   lastUndo = null;
   const court = state.courts.find(c => c.id === courtId);
   renderAll(); persist();
-  toast('Undone — pick the winner again');
+  toast('Undone ï¿½ pick the winner again');
   if (court) openEndgame(court);
 }
 
 function openEndgame(court){
   endgameCourtId = court.id;
-  endgameTitle.textContent = 'End game — ' + court.name;
+  endgameTitle.textContent = 'End game ï¿½ ' + court.name;
   endgameChoices = {};
   court.players.forEach(name => { endgameChoices[name] = isSessionEnded() ? 'done' : 'requeue'; });
   endgameTeams = splitTeams(court.players);
@@ -1275,27 +1297,27 @@ function renderWinnerPick(){
     <div class="winner-card ${endgameWinnerSide==='a'?'selected':''}" data-side="a">
       <span class="trophy"></span>
       <div class="team-label">${label} 1</div>
-      <div class="team-names">${a.map(esc).join(' &amp; ') || '—'}</div>
-      <input class="score-input" type="number" min="0" step="1" inputmode="numeric" placeholder="–" data-side="a" value="${esc(endgameScores.a)}" aria-label="${label} 1 score">
+      <div class="team-names">${a.map(esc).join(' &amp; ') || 'ï¿½'}</div>
+      <input class="score-input" type="number" min="0" step="1" inputmode="numeric" placeholder="ï¿½" data-side="a" value="${esc(endgameScores.a)}" aria-label="${label} 1 score">
     </div>
     <div class="winner-card ${endgameWinnerSide==='b'?'selected':''}" data-side="b">
       <span class="trophy"></span>
       <div class="team-label">${label} 2</div>
-      <div class="team-names">${b.map(esc).join(' &amp; ') || '—'}</div>
-      <input class="score-input" type="number" min="0" step="1" inputmode="numeric" placeholder="–" data-side="b" value="${esc(endgameScores.b)}" aria-label="${label} 2 score">
+      <div class="team-names">${b.map(esc).join(' &amp; ') || 'ï¿½'}</div>
+      <input class="score-input" type="number" min="0" step="1" inputmode="numeric" placeholder="ï¿½" data-side="b" value="${esc(endgameScores.b)}" aria-label="${label} 2 score">
     </div>
   `;
 }
-// Scores drive the winner automatically — same rule as the tournament bracket:
+// Scores drive the winner automatically ï¿½ same rule as the tournament bracket:
 // higher score wins, equal scores clear the pick, and an empty field is just "not entered yet".
 function recomputeWinnerFromScores(){
   const va = endgameScores.a, vb = endgameScores.b;
-  if (va === '' || vb === '') return; // incomplete — leave any manual pick alone
+  if (va === '' || vb === '') return; // incomplete ï¿½ leave any manual pick alone
   const sa = Number(va), sb = Number(vb);
   if (isNaN(sa) || isNaN(sb)) return;
   if (sa > sb) endgameWinnerSide = 'a';
   else if (sb > sa) endgameWinnerSide = 'b';
-  else endgameWinnerSide = null; // tied — caught properly at confirm time
+  else endgameWinnerSide = null; // tied ï¿½ caught properly at confirm time
 }
 function syncWinnerPickSelection(){
   winnerPick.querySelectorAll('.winner-card[data-side]').forEach(card => {
@@ -1307,7 +1329,7 @@ winnerPick.addEventListener('input', (e) => {
   if (!input) return;
   endgameScores[input.dataset.side] = input.value;
   recomputeWinnerFromScores();
-  // Only toggle the selected-card class — rebuilding the DOM here would
+  // Only toggle the selected-card class ï¿½ rebuilding the DOM here would
   // destroy and recreate the input mid-keystroke, losing focus and caret position.
   syncWinnerPickSelection();
 });
@@ -1361,17 +1383,17 @@ $('#endgameConfirm').addEventListener('click', () => {
       return;
     }
     if (finalScoreA === finalScoreB){
-      toast('Tie scores are not allowed — adjust the score or clear both to skip');
+      toast('Tie scores are not allowed ï¿½ adjust the score or clear both to skip');
       return;
     }
   } else if (endgameWinnerSide !== null){
-    // Winner picked manually (by tapping a side) with no scores typed in —
-    // record a default 11–5 scoreline so it still counts toward average score.
+    // Winner picked manually (by tapping a side) with no scores typed in ï¿½
+    // record a default 11ï¿½5 scoreline so it still counts toward average score.
     finalScoreA = endgameWinnerSide === 'a' ? 11 : 5;
     finalScoreB = endgameWinnerSide === 'b' ? 11 : 5;
   }
   if (endgameWinnerSide === null){
-    if (!confirm('No winner selected — this game won\'t count toward rankings, and players won\'t be sorted into the winners/losers blocks. Clear the court anyway?')) return;
+    if (!confirm('No winner selected ï¿½ this game won\'t count toward rankings, and players won\'t be sorted into the winners/losers blocks. Clear the court anyway?')) return;
   }
   // Snapshot state now, before anything is mutated, so a wrong pick can be undone.
   lastUndo = { courtId: court.id, snapshot: JSON.stringify(state) };
@@ -1408,12 +1430,12 @@ $('#endgameConfirm').addEventListener('click', () => {
     if (choice === 'requeue'){
       const entry = { id: nextId('p'), name, joinedAt: Date.now(), tag: 'queued' };
       if (winnerNames){
-        // A winner was recorded — sort into the winners/losers block so the
+        // A winner was recorded ï¿½ sort into the winners/losers block so the
         // queue later pairs winners vs winners and losers vs losers.
         if (winnerNames.includes(name)) state.winnersBlock.push(entry);
         else state.losersBlock.push(entry);
       } else {
-        // No winner recorded (skipped/tie) — nothing to sort by, go straight to the queue.
+        // No winner recorded (skipped/tie) ï¿½ nothing to sort by, go straight to the queue.
         state.stack.push(entry);
       }
     }
@@ -1439,8 +1461,8 @@ function renderHistory(){
   }
   historyList.innerHTML = state.history.slice(0,8).map(h => {
     const dur = fmtClock(h.endTime - h.startTime);
-    const a = (h.teamA||[]).map(esc).join(' &amp; ') || '—';
-    const b = (h.teamB||[]).map(esc).join(' &amp; ') || '—';
+    const a = (h.teamA||[]).map(esc).join(' &amp; ') || 'ï¿½';
+    const b = (h.teamB||[]).map(esc).join(' &amp; ') || 'ï¿½';
     const matchup = h.winner === 'a' ? `<b>${a}</b> defeated ${b}`
                   : h.winner === 'b' ? `<b>${b}</b> defeated ${a}`
                   : `${a} vs ${b}`;
@@ -1448,7 +1470,7 @@ function renderHistory(){
     const scoreTxt = (h.scoreA != null && h.scoreB != null)
       ? ` (${h.winner === 'a' ? h.scoreA + '-' + h.scoreB : h.scoreB + '-' + h.scoreA})`
       : '';
-    return `<div class="history-row"><span>${trophy}<b>${esc(h.courtName)}</b> — ${matchup}${scoreTxt}</span><span>${dur}</span></div>`;
+    return `<div class="history-row"><span>${trophy}<b>${esc(h.courtName)}</b> ï¿½ ${matchup}${scoreTxt}</span><span>${dur}</span></div>`;
   }).join('');
 }
 
@@ -1476,13 +1498,13 @@ function swapNoteHtml(swapInfo){
 }
 
 function matchFullRowHtml(h){
-  const a = (h.teamA||[]).map(esc).join(' &amp; ') || '—';
-  const b = (h.teamB||[]).map(esc).join(' &amp; ') || '—';
+  const a = (h.teamA||[]).map(esc).join(' &amp; ') || 'ï¿½';
+  const b = (h.teamB||[]).map(esc).join(' &amp; ') || 'ï¿½';
   const aWon = h.winner === 'a', bWon = h.winner === 'b';
   const scoreTxt = (h.scoreA != null && h.scoreB != null)
     ? (h.winner === 'a' ? `${h.scoreA}-${h.scoreB}` : `${h.scoreB}-${h.scoreA}`)
     : 'No score recorded';
-  const dur = (h.startTime && h.endTime) ? fmtClock(h.endTime - h.startTime) : '—';
+  const dur = (h.startTime && h.endTime) ? fmtClock(h.endTime - h.startTime) : 'ï¿½';
   const showSwap = state.session.avoidRepeatTeammates && h.swapInfo;
   return `<div class="match-full-row">
     <div class="match-full-head">
@@ -1494,7 +1516,7 @@ function matchFullRowHtml(h){
       <span class="match-full-vs">vs</span>
       <span class="${bWon?'match-team-won':''}">${bWon?' ':''}${b}</span>
     </div>
-    <div class="match-full-meta">${scoreTxt} · ${dur} on court</div>
+    <div class="match-full-meta">${scoreTxt} ï¿½ ${dur} on court</div>
     ${showSwap ? swapNoteHtml(h.swapInfo) : ''}
   </div>`;
 }
@@ -1667,7 +1689,7 @@ rankingsShotBtn.addEventListener('click', async () => {
     toast('Rankings image saved');
   } catch(err){
     console.error(err);
-    toast('Could not create the image — check your connection and try again');
+    toast('Could not create the image ï¿½ check your connection and try again');
   } finally {
     rankingsShotBtn.disabled = false;
     rankingsShotBtn.classList.remove('spinning');
@@ -1724,8 +1746,8 @@ function allKnownNames(){
 function renderFixedDuoNameOptions(){
   const names = allKnownNames();
   const opts = names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
-  fixedDuoNameA.innerHTML = '<option value="">Player A…</option>' + opts;
-  fixedDuoNameB.innerHTML = '<option value="">Player B…</option>' + opts;
+  fixedDuoNameA.innerHTML = '<option value="">Player Aï¿½</option>' + opts;
+  fixedDuoNameB.innerHTML = '<option value="">Player Bï¿½</option>' + opts;
 }
 function renderFixedDuoList(){
   const duos = state.session.fixedDuos || [];
@@ -1810,7 +1832,7 @@ $('#courtMinus').addEventListener('click', () => {
   const last = state.courts[state.courts.length - 1];
   if (last.status === 'playing'){
     if (!confirm(last.name + ' is currently in play. Remove it anyway? The players on it will be put back at the front of the stack.')) return;
-    // Don't lose the players who were mid-game — send them back to the front of the queue.
+    // Don't lose the players who were mid-game ï¿½ send them back to the front of the queue.
     const returning = last.players.map(name => ({ id: nextId('p'), name, joinedAt: Date.now(), tag: 'queued' }));
     state.stack.unshift(...returning);
   }
@@ -1918,7 +1940,7 @@ $('#importFile').addEventListener('change', async (e) => {
 });
 
 $('#newSessionBtn').addEventListener('click', () => {
-  if (!confirm('Start a new session? This clears the stack, courts, blocks, and rankings — but keeps your list of player names so you can re-add them quickly. This cannot be undone. Continue?')) return;
+  if (!confirm('Start a new session? This clears the stack, courts, blocks, and rankings ï¿½ but keeps your list of player names so you can re-add them quickly. This cannot be undone. Continue?')) return;
   state.arrivals = [];
   state.stack = [];
   state.winnersBlock = [];
@@ -1933,11 +1955,11 @@ $('#newSessionBtn').addEventListener('click', () => {
   settingsOverlay.hidden = true;
   renderRosterList();
   renderAll();
-  toast('New session started — player list kept');
+  toast('New session started ï¿½ player list kept');
 });
 
 $('#resetBtn').addEventListener('click', () => {
-  if (!confirm('This erases everything — stack, courts, history, rankings, and your player list. This cannot be undone. Continue?')) return;
+  if (!confirm('This erases everything ï¿½ stack, courts, history, rankings, and your player list. This cannot be undone. Continue?')) return;
   state = freshState();
   persist();
   applySessionLockUI();
