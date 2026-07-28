@@ -1,20 +1,24 @@
 :root{
-  --court:#F1F5F0;
-  --ink:#152420;
-  --turf:#2F6F5E;
-  --turf-deep:#204E42;
-  --turf-pale:#DCEBE4;
-  --clay:#E4693B;
-  --clay-deep:#C6522A;
-  --slate:#6B7A78;
-  --line:#DCE3DE;
+  /* ---- Philippine flag theme: blue field, red field, gold sun/stars, white ---- */
+  --court:#F2F5FA;
+  --ink:#0A1E3D;
+  --turf:#0038A8;          /* flag blue — primary */
+  --turf-deep:#00256E;
+  --turf-pale:#DEE7F7;
+  --clay:#CE1126;          /* flag red — secondary/accent */
+  --clay-deep:#9E0C1D;
+  --gold:#FCD116;          /* flag gold — sun & stars accent */
+  --gold-deep:#C79A00;
+  --gold-pale:#FFF6D6;
+  --slate:#5C6B82;
+  --line:#DBE2EE;
   --surface:#FFFFFF;
-  --danger:#B4483E;
-  --danger-pale:#F7E4E1;
+  --danger:#C6272E;
+  --danger-pale:#FAE1E2;
   --radius:14px;
   --radius-sm:9px;
-  --shadow-sm:0 1px 3px rgba(21,36,32,.08), 0 1px 2px rgba(21,36,32,.06);
-  --shadow-md:0 8px 24px rgba(21,36,32,.12);
+  --shadow-sm:0 1px 3px rgba(10,30,61,.08), 0 1px 2px rgba(10,30,61,.06);
+  --shadow-md:0 8px 26px rgba(10,30,61,.14);
   --font-display:'Archivo Black', Impact, sans-serif;
   --font-body:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono:'IBM Plex Mono', 'SF Mono', Consolas, monospace;
@@ -35,19 +39,37 @@ input,select{font-family:inherit}
 :focus-visible{outline:3px solid var(--clay);outline-offset:2px}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
 
+/* ---------- Flag strip ---------- */
+.flag-strip{
+  height:5px;width:100%;position:sticky;top:0;z-index:41;
+  background:linear-gradient(90deg, var(--turf) 0 50%, var(--clay) 50% 100%);
+}
+.flag-strip::after{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(circle at 6% 50%, var(--gold) 0 2px, transparent 2.5px);
+}
+
 /* ---------- Topbar ---------- */
 .topbar{
   display:flex;align-items:center;gap:.85rem;
   padding:.75rem 1rem;
-  background:var(--ink);color:#fff;
-  position:sticky;top:0;z-index:40;
+  background:linear-gradient(120deg, var(--ink) 0%, var(--turf-deep) 65%, var(--turf) 130%);
+  color:#fff;
+  position:sticky;top:5px;z-index:40;
   box-shadow:var(--shadow-sm);
   overflow-x:auto;
   scrollbar-width:none;
 }
 .topbar::-webkit-scrollbar{display:none}
-.topbar .logo{display:flex;align-items:center;gap:.5rem;flex-shrink:0}
-.topbar .logo svg{width:26px;height:34px}
+.topbar .logo{
+  display:flex;align-items:center;justify-content:center;gap:.5rem;flex-shrink:0;
+  position:relative;
+}
+.topbar .logo::before{
+  content:'';position:absolute;inset:-6px;border-radius:50%;
+  background:radial-gradient(circle, rgba(252,209,22,.35) 0%, transparent 70%);
+}
+.topbar .logo svg{width:26px;height:34px;color:var(--gold);position:relative}
 .topbar .session-name{
   font-family:var(--font-display);
   font-size:1.05rem;letter-spacing:.02em;
@@ -58,7 +80,8 @@ input,select{font-family:inherit}
 .topbar .spacer{flex:1}
 .topbar .pill{
   font-family:var(--font-mono);font-size:.72rem;font-weight:600;
-  background:rgba(255,255,255,.1);color:#cfe6dd;
+  background:rgba(255,255,255,.1);color:var(--gold-pale);
+  border:1px solid rgba(252,209,22,.35);
   padding:.32rem .6rem;border-radius:99px;white-space:nowrap;
 }
 .icon-btn{
@@ -311,18 +334,18 @@ body.session-locked .arrivals-panel{opacity:.55;pointer-events:none}
   content:'';display:block;height:6px;margin:0 -1.05rem;background:var(--turf);
 }
 .court-card.playing::before{background:var(--clay)}
-.court-card.playing{border-color:var(--ink);background:#152420;color:#fff}
+.court-card.playing{border-color:var(--ink);background:#0E2748;color:#fff}
 
 .court-top{display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding-top:.85rem}
 .court-top-right{display:flex;align-items:center;gap:.4rem;flex-shrink:0}
 .timer-chip{
   font-family:var(--font-mono);font-size:.66rem;font-weight:700;letter-spacing:.02em;
-  color:#9fc4b8;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);
+  color:#A9C3EA;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);
   padding:.25rem .5rem;border-radius:99px;white-space:nowrap;
 }
 .court-name-wrap{display:flex;align-items:center;gap:.4rem;min-width:0}
 .court-name-wrap svg{width:14px;height:14px;color:var(--slate);flex-shrink:0}
-.court-card.playing .court-name-wrap svg{color:#7fa89c}
+.court-card.playing .court-name-wrap svg{color:#7F9FD1}
 .court-name{
   font-family:var(--font-display);font-size:1rem;background:transparent;border:none;
   color:inherit;max-width:100%;border-bottom:2px solid transparent;padding:1px 0;min-width:0;
@@ -336,7 +359,7 @@ body.session-locked .arrivals-panel{opacity:.55;pointer-events:none}
 }
 .status-badge::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}
 .status-badge.open{background:var(--turf-pale);color:var(--turf-deep)}
-.status-badge.playing{background:rgba(228,105,59,.18);color:#ffb595}
+.status-badge.playing{background:rgba(206,17,38,.18);color:#FF97A0}
 
 /* --- Matchup: two team columns with a vs divider, tennis-net style --- */
 .matchup{
@@ -355,7 +378,7 @@ body.session-locked .arrivals-panel{opacity:.55;pointer-events:none}
   font-family:var(--font-mono);font-size:.62rem;font-weight:700;color:var(--slate);
   background:var(--surface);padding:.15rem .3rem;border-radius:5px;letter-spacing:.05em;
 }
-.court-card.playing .vs-divider::after{background:#152420;color:#7fa89c}
+.court-card.playing .vs-divider::after{background:#0E2748;color:#7F9FD1}
 
 .player-col{display:flex;flex-direction:column;gap:1px;min-width:0}
 .player-row{display:flex;align-items:center;gap:.45rem;min-width:0}
@@ -374,7 +397,7 @@ body.session-locked .arrivals-panel{opacity:.55;pointer-events:none}
   color:var(--slate);flex-shrink:0;opacity:.85;
 }
 .empty-slot{font-size:.78rem;color:var(--slate);font-style:italic}
-.court-card.playing .empty-slot{color:#7fa89c}
+.court-card.playing .empty-slot{color:#7F9FD1}
 
 .last-result{
   font-size:.72rem;color:var(--slate);padding:.4rem .6rem;background:var(--court);border-radius:8px;
@@ -400,20 +423,20 @@ body.session-locked .arrivals-panel{opacity:.55;pointer-events:none}
   background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);border-radius:10px;
   padding:.65rem .7rem;margin-bottom:.7rem;
 }
-.scoreboard-live.has-winner{border-color:var(--clay);background:rgba(228,105,59,.16)}
+.scoreboard-live.has-winner{border-color:var(--clay);background:rgba(206,17,38,.16)}
 .sbl-row{display:flex;gap:.6rem}
 .sbl-team{flex:1;display:flex;flex-direction:column;align-items:center;gap:.35rem;min-width:0}
 .sbl-label{
   font-family:var(--font-mono);font-size:.6rem;font-weight:700;letter-spacing:.03em;
-  color:#9fc4b8;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;
+  color:#A9C3EA;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;
 }
 .serve-set-btn{
   font-family:var(--font-mono);font-size:.58rem;font-weight:700;letter-spacing:.02em;
-  text-transform:uppercase;color:#ffb595;background:rgba(228,105,59,.16);
-  border:1px solid rgba(228,105,59,.5);border-radius:6px;padding:.2rem .4rem;cursor:pointer;
+  text-transform:uppercase;color:#FF97A0;background:rgba(206,17,38,.16);
+  border:1px solid rgba(206,17,38,.5);border-radius:6px;padding:.2rem .4rem;cursor:pointer;
   white-space:nowrap;
 }
-.serve-set-btn:hover{background:rgba(228,105,59,.3)}
+.serve-set-btn:hover{background:rgba(206,17,38,.3)}
 .sbl-stepper{display:flex;align-items:center;gap:.55rem}
 .sbl-num{font-family:var(--font-mono);font-size:1.5rem;font-weight:700;min-width:1.6ch;text-align:center;color:#fff}
 .score-btn{
@@ -428,7 +451,7 @@ body.session-locked .arrivals-panel{opacity:.55;pointer-events:none}
 .sbl-actions{display:flex;gap:.4rem;margin-top:.6rem}
 .sbl-btn{
   flex:1;font-family:var(--font-mono);font-size:.64rem;font-weight:700;letter-spacing:.02em;
-  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.18);color:#dcece5;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.18);color:#DCE6F5;
   border-radius:7px;padding:.42rem .3rem;cursor:pointer;text-transform:uppercase;
 }
 .sbl-btn:hover:not(:disabled){background:rgba(255,255,255,.16)}
@@ -594,7 +617,7 @@ body.session-locked .arrivals-panel{opacity:.55;pointer-events:none}
 /* ---------- Session banner (read-only / ended state) ----------
    Styled like court-closure hazard tape — diagonal stripe edges framing
    a plain notice, echoing how a real court gets physically closed off. */
-.session-banner{background:#FCEEE8}
+.session-banner{background:#FBE3E5}
 .session-banner::before,.session-banner::after{
   content:'';display:block;height:7px;
   background:repeating-linear-gradient(135deg, var(--clay) 0 10px, var(--clay-deep) 10px 20px);
@@ -634,7 +657,7 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn,bod
   padding:.7rem .6rem;cursor:pointer;text-align:center;transition:border-color .15s,background .15s;
 }
 .winner-card:hover{border-color:var(--turf)}
-.winner-card.selected{border-color:var(--clay);background:#FCEEE8}
+.winner-card.selected{border-color:var(--clay);background:#FBE3E5}
 .winner-card .trophy{font-size:1.1rem;display:block;margin-bottom:.3rem;opacity:.35}
 .winner-card.selected .trophy{opacity:1}
 .winner-card .team-label{font-family:var(--font-mono);font-size:.62rem;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.2rem}
@@ -697,7 +720,8 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn,bod
   font-family:var(--font-mono);font-weight:700;font-size:.85rem;color:var(--slate);
   width:22px;text-align:center;flex-shrink:0;
 }
-.rank-row.top1 .rank-num{color:#B4870B}
+.rank-row.top1{background:var(--gold-pale);border-color:#EBD27A}
+.rank-row.top1 .rank-num{color:var(--gold-deep)}
 .rank-row.top2 .rank-num{color:#8A8F92}
 .rank-row.top3 .rank-num{color:#B4712F}
 .rank-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:.28rem}
@@ -745,13 +769,42 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn,bod
 }
 
 /* ---------- Toasts ---------- */
-.toast-wrap{position:fixed;bottom:1.2rem;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:.5rem;align-items:center;width:100%;pointer-events:none}
+.toast-wrap{position:fixed;bottom:1.2rem;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column-reverse;gap:.5rem;align-items:center;width:100%;pointer-events:none}
 .toast{
-  background:var(--ink);color:#fff;padding:.6rem 1rem;border-radius:99px;font-size:.82rem;font-weight:600;
-  box-shadow:var(--shadow-md);opacity:0;transform:translateY(10px);transition:opacity .2s,transform .2s;
-  max-width:90vw;
+  position:relative;overflow:hidden;
+  display:flex;align-items:center;gap:.55rem;
+  background:var(--ink);color:#fff;padding:.62rem 1.1rem .62rem .85rem;border-radius:99px;
+  font-size:.82rem;font-weight:600;line-height:1.3;
+  box-shadow:var(--shadow-md);opacity:0;transform:translateY(10px) scale(.97);
+  transition:opacity .22s,transform .22s;
+  max-width:90vw;border:1px solid rgba(255,255,255,.08);
 }
-.toast.show{opacity:1;transform:translateY(0)}
+.toast.show{opacity:1;transform:translateY(0) scale(1)}
+.toast-icon{
+  flex-shrink:0;width:19px;height:19px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.14);color:#fff;
+}
+.toast-icon svg{width:11px;height:11px}
+.toast-msg{flex:1;min-width:0}
+.toast::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--gold);
+}
+.toast.toast-success::before{background:#3FC97A}
+.toast.toast-success .toast-icon{background:rgba(63,201,122,.22);color:#8CF0B3}
+.toast.toast-error::before{background:var(--clay)}
+.toast.toast-error .toast-icon{background:rgba(206,17,38,.22);color:#FF9DA9}
+.toast.toast-warning::before{background:var(--gold)}
+.toast.toast-warning .toast-icon{background:rgba(252,209,22,.2);color:var(--gold)}
+.toast.toast-info::before{background:var(--turf)}
+.toast.toast-info .toast-icon{background:rgba(0,56,168,.24);color:#9DBBF2}
+.toast-progress{
+  position:absolute;left:4px;right:0;bottom:0;height:2px;
+  background:rgba(255,255,255,.22);transform-origin:left;
+  animation:toast-shrink 2.2s linear forwards;
+}
+@keyframes toast-shrink{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+@media (prefers-reduced-motion:reduce){.toast-progress{animation:none;display:none}}
 
 /* ---------- Mobile ---------- */
 .mobile-tabs{display:none}
