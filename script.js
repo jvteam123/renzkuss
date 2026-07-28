@@ -1344,8 +1344,8 @@ winnerPick.addEventListener('click', (e) => {
   const card = e.target.closest('.winner-card[data-side]');
   if (!card) return;
   const side = card.dataset.side;
-  const bothBlank = endgameScores.a === '' && endgameScores.b === '';
-  if (bothBlank || scoresAutoFilled){
+  const noRealScore = (endgameScores.a === '' || endgameScores.a === '0') && (endgameScores.b === '' || endgameScores.b === '0');
+  if (noRealScore || scoresAutoFilled){
     const newSide = endgameWinnerSide === side ? null : side;
     endgameWinnerSide = newSide;
     if (newSide === null){
