@@ -44,10 +44,6 @@ input,select{font-family:inherit}
   height:5px;width:100%;position:sticky;top:0;z-index:41;
   background:linear-gradient(90deg, var(--turf) 0 50%, var(--clay) 50% 100%);
 }
-.flag-strip::after{
-  content:'';position:absolute;inset:0;
-  background:radial-gradient(circle at 6% 50%, var(--gold) 0 2px, transparent 2.5px);
-}
 
 /* ---------- Topbar ---------- */
 .topbar{
@@ -430,11 +426,18 @@ body.session-locked .arrivals-panel{opacity:.55;pointer-events:none}
   font-family:var(--font-mono);font-size:.6rem;font-weight:700;letter-spacing:.03em;
   color:#A9C3EA;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;
 }
+.sbl-servewrap{
+  min-height:1.35rem;display:flex;align-items:center;justify-content:center;
+}
+.serve-indicator{
+  font-family:var(--font-mono);font-size:.6rem;font-weight:700;letter-spacing:.02em;
+  color:#A9C3EA;text-transform:uppercase;white-space:nowrap;
+}
 .serve-set-btn{
   font-family:var(--font-mono);font-size:.58rem;font-weight:700;letter-spacing:.02em;
   text-transform:uppercase;color:#FF97A0;background:rgba(206,17,38,.16);
   border:1px solid rgba(206,17,38,.5);border-radius:6px;padding:.2rem .4rem;cursor:pointer;
-  white-space:nowrap;
+  white-space:nowrap;line-height:1;
 }
 .serve-set-btn:hover{background:rgba(206,17,38,.3)}
 .sbl-stepper{display:flex;align-items:center;gap:.55rem}
