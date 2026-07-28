@@ -171,6 +171,12 @@ function esc(s){
   }[ch]));
 }
 
+// Display-only: uppercases a name for the court card, without touching the
+// underlying stored name (used as-is everywhere else — stack, rankings, history, etc).
+function titleCaseName(name){
+  return String(name).toUpperCase();
+}
+
 // Defense-in-depth: player names are free text and end up as object keys
 // (state.playerStats[name], etc). A name literally equal to "__proto__",
 // "constructor", or "prototype" would otherwise let bracket assignment
@@ -858,7 +864,7 @@ function playerRowHtml(name){
   const games = stats ? (stats.games || 0) : 0;
   const gamesChip = gamesChipHtml(games);
   return `<span class="player-col">
-    <span class="player-row">${avatarHtml(name)}<span class="player-name-txt">${esc(name)}</span>${winChip}</span>
+    <span class="player-row">${avatarHtml(name)}<span class="player-name-txt">${esc(titleCaseName(name))}</span>${winChip}</span>
     <span class="player-games-row">${gamesChip}</span>
   </span>`;
 }
