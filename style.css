@@ -926,11 +926,9 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn,bod
 .paddle .name-col{flex:1 1 auto;min-width:0}
 .paddle .pos{width:20px}
 @media (max-width:1180px){
-  /* The up/down steppers duplicate what drag-and-drop already does. On a
-     narrow rail (tablet sidebar or a phone) they were the difference
-     between a readable name and "James" clipping down to "Jame". The
-     drag handle still reorders fine by touch, so both go here. */
-  .paddle .reorder{display:none}
+  /* The paddle icon is purely decorative — dropping it frees enough room
+     to keep the name readable without losing the up/down reorder buttons
+     (which, unlike drag-and-drop, work reliably even mid-scroll). */
   .paddle .glyph{display:none}
 }
 
