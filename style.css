@@ -22,9 +22,12 @@
   --font-display:'Archivo Black', Impact, sans-serif;
   --font-body:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono:'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+  --touch:44px;            /* min. comfortable touch target */
+  --touch-sm:36px;
 }
 *{box-sizing:border-box}
 html,body{height:100%}
+html{-webkit-text-size-adjust:100%}
 body{
   margin:0;
   background:var(--court);
@@ -38,6 +41,24 @@ input,select{font-family:inherit}
 ::selection{background:var(--turf-pale)}
 :focus-visible{outline:3px solid var(--clay);outline-offset:2px}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+
+/* ---------- Touch-device baseline (tablet/mobile polish) ----------
+   Kills the tap-highlight flash and 300ms delay on every interactive
+   element, and guarantees form fields never trip iOS Safari's
+   auto-zoom-on-focus (which needs 16px+ to stay off). */
+button,a,.icon-btn,.panel-action-btn,.btn,select,[role="button"]{
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+}
+@media (max-width:1024px){
+  input[type=text],input[type=number],input[type=search],select,textarea{
+    font-size:16px;
+  }
+}
+.stack-list,.rankings-list,.arrivals-list,.block-list,.block-group,
+.match-history-list,.roster-manage-list,.court-name-rows,.overlay,
+.quick-add-panel,.rankings-toolbar{
+  -webkit-overflow-scrolling:touch;
+}
 
 /* ---------- Flag strip ---------- */
 .flag-strip{
@@ -856,10 +877,49 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn,bod
 @keyframes toast-shrink{from{transform:scaleX(1)}to{transform:scaleX(0)}}
 @media (prefers-reduced-motion:reduce){.toast-progress{animation:none;display:none}}
 
-/* ---------- Mobile ---------- */
+/* ---------- Large screens: keep the shell from over-stretching ---------- */
+@media (min-width:1440px){
+  .app-shell{max-width:1680px;margin:0 auto}
+}
+
+/* ---------- Tablet (landscape iPad / Android tablet) ----------
+   Between the full desktop rail and the phone tab-bar layout: keep the
+   two-pane view but tighten it up so it doesn't feel like a stretched
+   desktop screen. */
+@media (min-width:881px) and (max-width:1180px){
+  .app-shell{grid-template-columns:272px 1fr}
+  .courts-grid{grid-template-columns:repeat(auto-fill, minmax(250px,1fr))}
+  .courts-main{padding:1rem 1rem 3.5rem}
+}
+
+/* ---------- Touch devices: real tap targets everywhere ----------
+   Applies on any device without a fine pointer (tablets, phones) rather
+   than by screen width alone, so a large touch tablet still gets it. */
+@media (pointer:coarse){
+  .icon-btn{width:var(--touch);height:var(--touch)}
+  .modal-icon-btn{width:40px;height:40px}
+  .remove-btn,.paddle .remove-btn,.arrival-remove-btn,.roster-manage-row .rm-del{
+    width:var(--touch-sm);height:var(--touch-sm)
+  }
+  .paddle .reorder button{width:30px;height:22px}
+  .paddle .drag-handle{padding:6px}
+  .stepper button{width:42px;height:42px}
+  .score-btn{width:32px;height:32px}
+  .seg button{padding:.75rem .6rem}
+  .panel-action-btn{padding:.55rem .85rem}
+  .switch{width:48px;height:27px}
+  .switch .track::before{width:21px;height:21px}
+  .switch input:checked + .track::before{transform:translateX(21px)}
+  .quick-add-chip,.arrival-checkin-btn,.checkin-all-btn,.block-flush-btn{padding-top:.4rem;padding-bottom:.4rem}
+  .btn{min-height:var(--touch);display:inline-flex;align-items:center;justify-content:center}
+  .btn.sm{min-height:var(--touch-sm)}
+  .court-cta{min-height:var(--touch)}
+}
+
+/* ---------- Mobile / narrow tablet portrait ---------- */
 .mobile-tabs{display:none}
 @media (max-width:880px){
-  .app-shell{grid-template-columns:1fr;padding-bottom:64px}
+  .app-shell{grid-template-columns:1fr;padding-bottom:calc(64px + env(safe-area-inset-bottom))}
   .stack-rail{
     position:static;height:auto;min-height:0;border-right:none;border-bottom:1px solid var(--line);
     display:none;
@@ -868,7 +928,9 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn,bod
   .app-shell.show-courts .courts-main{display:block}
   .app-shell.show-stack .courts-main{display:none}
   .app-shell.show-courts .stack-rail{display:none}
-  .stack-list{max-height:60vh}
+  .stack-list{max-height:none}
+  .courts-main{padding:1rem .9rem 2.5rem}
+  .courts-grid{grid-template-columns:repeat(auto-fill, minmax(260px,1fr));gap:.85rem}
   .mobile-tabs{
     display:flex;position:fixed;bottom:0;left:0;right:0;background:var(--ink);z-index:50;
     box-shadow:0 -2px 10px rgba(0,0,0,.15);padding-bottom:env(safe-area-inset-bottom);
@@ -876,19 +938,49 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn,bod
   .mobile-tabs button{
     flex:1;border:none;background:none;color:#8fada2;padding:.75rem;font-weight:700;font-size:.8rem;
     cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:.2rem;
+    min-height:var(--touch);
   }
   .mobile-tabs button.active{color:#fff}
   .mobile-tabs button svg{width:18px;height:18px}
   .topbar .session-name{max-width:32vw}
 }
+
+/* ---------- Modals as bottom sheets on phones ----------
+   A centered card modal on a 6" screen reads as "unfinished web form";
+   docking it to the bottom edge with a drag-grabber reads as a native
+   app component and is easier to reach one-handed. */
+@media (max-width:640px){
+  .overlay{align-items:flex-end;padding:0}
+  .modal{
+    max-width:100%;width:100%;border-radius:20px 20px 0 0;
+    max-height:92vh;margin:0;
+    padding:1.5rem 1.1rem calc(1.5rem + env(safe-area-inset-bottom));
+    animation:sheet-up .22s ease-out;
+  }
+  .modal::before{
+    content:'';display:block;width:36px;height:4px;border-radius:99px;
+    background:var(--line);margin:-.5rem auto 1rem;
+  }
+  .modal.wide{max-width:100%}
+  .modal.rankings-full{
+    height:100%;max-height:100%;border-radius:0;animation:none;
+  }
+  .modal.rankings-full::before{display:none}
+  .modal-actions{flex-direction:column-reverse}
+  .modal-actions .btn{width:100%}
+}
+@keyframes sheet-up{from{transform:translateY(24px);opacity:0}to{transform:translateY(0);opacity:1}}
+
 @media (max-width:480px){
   .topbar{gap:.4rem;padding:.65rem .6rem}
   .topbar .logo{display:none}
   .topbar .session-name{max-width:26vw;font-size:.95rem}
   .topbar .pill{display:none}
-  .icon-btn{width:34px;height:34px;border-radius:9px}
+  .icon-btn{width:36px;height:36px;border-radius:9px}
   .icon-btn svg{width:17px;height:17px}
+  .winner-pick{grid-template-columns:1fr 1fr;gap:.5rem}
 }
 @media (prefers-reduced-motion:reduce){
   *{transition:none !important;animation:none !important}
+  .modal{animation:none}
 }
