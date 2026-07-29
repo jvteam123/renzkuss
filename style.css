@@ -153,6 +153,17 @@ button,a,.icon-btn,.panel-action-btn,.btn,select,[role="button"]{
 .panel-action-btn.solid{border-color:var(--turf);background:var(--turf);color:#fff}
 .panel-action-btn.solid:hover{background:var(--turf-deep);border-color:var(--turf-deep)}
 .panel-action-btn .count-badge.sm{background:rgba(255,255,255,.35);color:inherit}
+.panel-action-btn.has-waiting{
+  border-color:var(--turf);color:var(--turf-deep);
+  animation:checkin-glow 1.6s ease-in-out infinite;
+}
+@keyframes checkin-glow{
+  0%,100%{box-shadow:0 0 0 0 rgba(0,56,168,.45)}
+  50%{box-shadow:0 0 0 7px rgba(0,56,168,0)}
+}
+@media (prefers-reduced-motion:reduce){
+  .panel-action-btn.has-waiting{animation:none;box-shadow:0 0 0 3px rgba(0,56,168,.35)}
+}
 .add-form{
   display:flex;flex-wrap:wrap;gap:.4rem;padding:0;margin-bottom:.7rem;
 }
