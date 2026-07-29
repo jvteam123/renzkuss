@@ -143,6 +143,10 @@ const appShell = $('#appShell');
 const sessionBanner = $('#sessionBanner');
 const resumeSessionBtn = $('#resumeSessionBtn');
 const addHintEl = $('#addHint');
+const addPlayerOverlay = $('#addPlayerOverlay');
+const addPlayerTabBtn = $('#addPlayerTabBtn');
+const checkInOverlay = $('#checkInOverlay');
+const checkInTabBtn = $('#checkInTabBtn');
 
 /* ================= Toasts ================= */
 const TOAST_ICONS = {
@@ -453,7 +457,7 @@ function renderStack(){
   stackCountPill.textContent = state.stack.length + ' in stack';
   stackList.innerHTML = '';
   if (state.stack.length === 0){
-    stackList.innerHTML = '<div class="stack-empty">The stack is empty.<br>Add a player above to get the queue going.</div>';
+    stackList.innerHTML = '<div class="stack-empty">The stack is empty.<br>Tap "Add Player" to get the queue going.</div>';
     return;
   }
   const gameSize = state.session.gameSize;
@@ -513,17 +517,25 @@ function renderStack(){
    an Advanced winner never end up bundled into the same "group" even though
    they share one underlying block array (level is looked up per entry via
    getPlayerLevel, same as everywhere else). */
+function blockItemsHtml(entries){
+  return entries.map((entry, idx) => `
+    <div class="block-item" data-id="${entry.id}">
+      <span class="block-item-pos">${idx+1}</span>
+      <span class="block-item-name">${esc(entry.name)}</span>
+    </div>
+  `).join('');
+}
 function blockListHtml(block, gameSize, blockKey){
   if (block.length === 0) return '<div class="block-empty">Empty — waiting for a result.</div>';
   const levels = PLAYER_LEVELS.filter(lvl => block.some(e => getPlayerLevel(e.name) === lvl));
+  // A single-level block is fully covered by the block header's own count
+  // and "Queue now" button, so skip the per-level sub-header here — showing
+  // both would just be two identical controls stacked on top of each other.
+  if (levels.length <= 1){
+    return blockItemsHtml(block);
+  }
   return levels.map(level => {
     const entries = block.filter(e => getPlayerLevel(e.name) === level);
-    const rows = entries.map((entry, idx) => `
-      <div class="block-item" data-id="${entry.id}">
-        <span class="block-item-pos">${idx+1}</span>
-        <span class="block-item-name">${esc(entry.name)}</span>
-      </div>
-    `).join('');
     return `
       <div class="block-level-group">
         <div class="block-level-head">
@@ -531,7 +543,7 @@ function blockListHtml(block, gameSize, blockKey){
           <span class="block-level-count">${entries.length}/${gameSize}</span>
           <button type="button" class="block-level-flush-btn" data-block-flush="${blockKey}" data-level-flush="${esc(level)}" aria-label="Move ${esc(level)} group to queue now">Queue now</button>
         </div>
-        ${rows}
+        ${blockItemsHtml(entries)}
       </div>
     `;
   }).join('');
@@ -882,18 +894,18 @@ function removeArrival(id){
   toast(name + ' removed');
   renderAll(); persist();
 }
-let prevArrivalsCount = 0;
 function renderArrivals(){
-  const panel = $('#arrivalsPanel');
   const badge = $('#arrivalsBadge');
   const listEl = $('#arrivalsList');
   const allBtn = $('#checkInAllBtn');
-  if (!panel || !listEl) return;
-  if (badge) badge.textContent = state.arrivals.length;
-  panel.hidden = state.arrivals.length === 0;
-  if (prevArrivalsCount === 0 && state.arrivals.length > 0) panel.open = true;
-  prevArrivalsCount = state.arrivals.length;
+  const emptyNote = $('#arrivalsEmptyNote');
+  if (!listEl) return;
+  if (badge){
+    badge.textContent = state.arrivals.length;
+    badge.hidden = state.arrivals.length === 0;
+  }
   if (allBtn) allBtn.disabled = state.arrivals.length === 0 || isSessionEnded();
+  if (emptyNote) emptyNote.hidden = state.arrivals.length > 0;
   listEl.innerHTML = state.arrivals.map(entry => `
     <div class="arrival-row" data-id="${entry.id}">
       <span class="arrival-name">${esc(entry.name)}</span>
@@ -924,6 +936,22 @@ if (checkInAllBtnEl){
     checkInAllArrivals();
   });
 }
+
+/* ---- Add Player / Check In modals ---- */
+function openAddPlayerModal(){
+  renderQuickAdd();
+  addPlayerOverlay.hidden = false;
+  addNameInput.focus();
+}
+addPlayerTabBtn.addEventListener('click', openAddPlayerModal);
+$('#addPlayerDone').addEventListener('click', () => { addPlayerOverlay.hidden = true; });
+
+function openCheckInModal(){
+  renderArrivals();
+  checkInOverlay.hidden = false;
+}
+checkInTabBtn.addEventListener('click', openCheckInModal);
+$('#checkInDone').addEventListener('click', () => { checkInOverlay.hidden = true; });
 
 /* ---- Quick add from saved roster (handy after a New Session reset) ---- */
 function renderQuickAdd(){
@@ -1277,7 +1305,7 @@ function renderCourts(){
       card.innerHTML = `
         <div class="court-top">
           <span class="court-name-wrap">${courtIcon}<input class="court-name" value="${esc(court.name)}" data-act="rename" maxlength="24" aria-label="Court name"></span>
-          <select class="court-level-select ${levelClass(court.level)}" data-act="level" aria-label="Court skill level">${levelSelectOptionsHtml(court.level || 'Open')}</select>
+          <span class="level-badge court-level-badge ${levelClass(court.level)}" aria-label="Court skill level">${esc(court.level || 'Open')}</span>
           <span class="status-badge open">Open</span>
         </div>
         ${lastResultHtml}
@@ -1303,7 +1331,7 @@ function renderCourts(){
       card.innerHTML = `
         <div class="court-top">
           <span class="court-name-wrap">${courtIcon}<input class="court-name" value="${esc(court.name)}" data-act="rename" maxlength="24" aria-label="Court name"></span>
-          <select class="court-level-select ${levelClass(court.level)}" data-act="level" aria-label="Court skill level">${levelSelectOptionsHtml(court.level || 'Open')}</select>
+          <span class="level-badge court-level-badge ${levelClass(court.level)}" aria-label="Court skill level">${esc(court.level || 'Open')}</span>
           <span class="court-top-right">
             <span class="status-badge playing">On court</span>
             ${timerChip}
@@ -1340,16 +1368,6 @@ courtsGrid.addEventListener('click', (e) => {
 });
 
 courtsGrid.addEventListener('change', (e) => {
-  const levelSelect = e.target.closest('select[data-act="level"]');
-  if (levelSelect){
-    const card = levelSelect.closest('.court-card');
-    const court = state.courts.find(c => c.id === card.dataset.id);
-    if (!court) return;
-    court.level = PLAYER_LEVELS.includes(levelSelect.value) ? levelSelect.value : 'Open';
-    persist();
-    renderAll();
-    return;
-  }
   const input = e.target.closest('input[data-act="rename"]');
   if (!input) return;
   const card = input.closest('.court-card');
