@@ -64,44 +64,15 @@
     <div class="panel-head">
       <h2>Players</h2>
       <span class="count-badge" id="stackBadge">0</span>
-    </div>
-    <form class="add-form" id="addForm">
-      <input id="addNameInput" type="text" placeholder="Player name (or names, comma-separated)" autocomplete="off" list="rosterList">
-      <datalist id="rosterList"></datalist>
-      <select id="addLevelSelect" aria-label="Skill level for new player(s)">
-        <option value="Open" selected>Open</option>
-        <option value="Beginner">Beginner</option>
-        <option value="Advanced Beginner">Advanced Beginner</option>
-        <option value="Intermediate">Intermediate</option>
-        <option value="Advanced">Advanced</option>
-      </select>
-      <button type="submit" aria-label="Add player"><svg viewBox="0 0 24 24" style="width:16px;height:16px;vertical-align:-3px"><use href="#i-plus"/></svg> Add</button>
-    </form>
-    <details class="bulk-add-wrap" id="bulkAddWrap">
-      <summary class="bulk-add-toggle">+ Add multiple players</summary>
-      <div class="bulk-add-body">
-        <textarea id="bulkNameInput" rows="5" placeholder="Renzku&#10;Mae&#10;Anthony&#10;Jen" spellcheck="false"></textarea>
-        <button type="button" id="bulkAddBtn">Add All Players</button>
+      <div class="panel-head-actions">
+        <button type="button" class="panel-action-btn" id="checkInTabBtn">
+          <svg viewBox="0 0 24 24"><use href="#i-play"/></svg>Check In
+          <span class="count-badge sm" id="arrivalsBadge" hidden>0</span>
+        </button>
+        <button type="button" class="panel-action-btn solid" id="addPlayerTabBtn">
+          <svg viewBox="0 0 24 24"><use href="#i-plus"/></svg>Add Player
+        </button>
       </div>
-    </details>
-    <p class="add-hint" id="addHint">Add players here, then check them in when they arrive to join the stack.</p>
-
-    <details class="arrivals-panel" id="arrivalsPanel" hidden>
-      <summary class="arrivals-head">
-        <svg class="arrivals-chev" viewBox="0 0 24 24"><use href="#i-chev"/></svg>
-        <span class="arrivals-title">Waiting to check in</span>
-        <span class="count-badge" id="arrivalsBadge">0</span>
-        <button type="button" class="checkin-all-btn" id="checkInAllBtn">Check in all</button>
-      </summary>
-      <div class="arrivals-list" id="arrivalsList"></div>
-    </details>
-
-    <div class="quick-add-panel" id="quickAddPanel" hidden>
-      <div class="quick-add-head">
-        <span class="quick-add-title">Quick add saved players</span>
-        <button type="button" class="quick-add-all-btn" id="quickAddAllBtn">+ Add all</button>
-      </div>
-      <div class="quick-add-chips" id="quickAddChips"></div>
     </div>
 
     <div class="blocks-panel" id="blocksPanel" hidden>
@@ -109,7 +80,7 @@
       <div class="block-group">
         <div class="block-head">
           <span class="block-head-label">🏆 Winners block</span>
-          <span class="block-head-count" id="winnersBlockCount">0/4</span>
+          <span class="block-head-count" id="winnersBlockCount">0 waiting</span>
           <button type="button" class="block-flush-btn" data-block="winners" aria-label="Move winners block to queue now">Queue now</button>
         </div>
         <div class="block-list" id="winnersBlockList"></div>
@@ -117,7 +88,7 @@
       <div class="block-group">
         <div class="block-head">
           <span class="block-head-label">💀 Losers block</span>
-          <span class="block-head-count" id="losersBlockCount">0/4</span>
+          <span class="block-head-count" id="losersBlockCount">0 waiting</span>
           <button type="button" class="block-flush-btn" data-block="losers" aria-label="Move losers block to queue now">Queue now</button>
         </div>
         <div class="block-list" id="losersBlockList"></div>
@@ -142,6 +113,59 @@
   <button id="tabCourts"><svg viewBox="0 0 24 24"><use href="#i-court"/></svg>Courts</button>
 </nav>
 
+<!-- Add player modal -->
+<div class="overlay" id="addPlayerOverlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Add player">
+    <h3>Add player</h3>
+    <form class="add-form" id="addForm">
+      <input id="addNameInput" type="text" placeholder="Player name (or names, comma-separated)" autocomplete="off" list="rosterList">
+      <datalist id="rosterList"></datalist>
+      <select id="addLevelSelect" aria-label="Skill level for new player(s)">
+        <option value="Open" selected>Open</option>
+        <option value="Beginner">Beginner</option>
+        <option value="Advanced Beginner">Advanced Beginner</option>
+        <option value="Intermediate">Intermediate</option>
+        <option value="Advanced">Advanced</option>
+      </select>
+      <button type="submit" aria-label="Add player"><svg viewBox="0 0 24 24" style="width:16px;height:16px;vertical-align:-3px"><use href="#i-plus"/></svg> Add</button>
+    </form>
+    <p class="add-hint" id="addHint" style="padding:0;margin:0 0 .8rem">Add players here, then check them in when they arrive to join the stack.</p>
+    <details class="bulk-add-wrap" id="bulkAddWrap">
+      <summary class="bulk-add-toggle">+ Add multiple players</summary>
+      <div class="bulk-add-body">
+        <textarea id="bulkNameInput" rows="5" placeholder="Renzku&#10;Mae&#10;Anthony&#10;Jen" spellcheck="false"></textarea>
+        <button type="button" id="bulkAddBtn">Add All Players</button>
+      </div>
+    </details>
+    <div class="quick-add-panel" id="quickAddPanel" hidden>
+      <div class="quick-add-head">
+        <span class="quick-add-title">Quick add saved players</span>
+        <button type="button" class="quick-add-all-btn" id="quickAddAllBtn">+ Add all</button>
+      </div>
+      <div class="quick-add-chips" id="quickAddChips"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn primary" id="addPlayerDone">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Check in modal -->
+<div class="overlay" id="checkInOverlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Check in players">
+    <h3>Check in players</h3>
+    <p class="winner-note" style="margin:-.3rem 0 .8rem">Move waiting players into the live stack once they're at the courts.</p>
+    <div class="checkin-modal-toolbar">
+      <button type="button" class="checkin-all-btn" id="checkInAllBtn">Check in all</button>
+    </div>
+    <div class="arrivals-list" id="arrivalsList"></div>
+    <p class="stack-empty" id="arrivalsEmptyNote">Nobody's waiting to check in right now.</p>
+    <div class="modal-actions">
+      <button class="btn primary" id="checkInDone">Done</button>
+    </div>
+  </div>
+</div>
+
 <!-- Settings modal -->
 <div class="overlay" id="settingsOverlay" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-label="Settings">
@@ -165,6 +189,7 @@
         <button type="button" id="courtPlus" aria-label="More courts">+</button>
       </div>
       <div class="court-name-rows" id="courtNameRows"></div>
+      <p class="add-hint" style="padding:0;margin-top:.45rem">Set each court's name and skill level here — the level shown on the court card is display-only.</p>
     </div>
     <div class="field toggle-row">
       <label style="margin:0">Sound on call-up</label>
