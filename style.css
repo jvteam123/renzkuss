@@ -388,6 +388,7 @@ button.level-badge{cursor:pointer}
   padding:0 1.05rem 1.05rem;box-shadow:var(--shadow-sm);
   display:flex;flex-direction:column;min-height:236px;overflow:hidden;
   transition:box-shadow .15s, transform .15s;
+  container-type:inline-size;container-name:court;
 }
 .court-card:hover{box-shadow:var(--shadow-md);transform:translateY(-1px)}
 .court-card::before{
@@ -458,6 +459,27 @@ button.level-badge{cursor:pointer}
 }
 .empty-slot{font-size:.78rem;color:var(--slate);font-style:italic}
 .court-card.playing .empty-slot{color:#7F9FD1}
+
+/* --- Narrow card fallback: stack teams instead of splitting the width ---
+   Card width depends on how many columns the grid decides to show, which
+   varies by viewport, sidebar width, and font. Rather than re-tuning pixel
+   breakpoints every time a name clips, react to the card's own measured
+   width: below ~360px, drop the side-by-side split and give each team the
+   full card width. */
+@container court (max-width:360px){
+  .matchup{flex-direction:column;align-items:stretch;gap:.6rem;min-height:0}
+  .matchup .team{flex:none}
+  .matchup .team.team-b{align-items:flex-start;text-align:left}
+  .team-b .player-row{flex-direction:row}
+  .team-b .player-games-row{justify-content:flex-start}
+  .matchup .vs-divider{
+    width:100%;height:1px;margin:0;align-self:stretch;flex-shrink:0;
+    background:repeating-linear-gradient(90deg, var(--line) 0 4px, transparent 4px 9px);
+  }
+  .court-card.playing .matchup .vs-divider{
+    background:repeating-linear-gradient(90deg, rgba(255,255,255,.25) 0 4px, transparent 4px 9px);
+  }
+}
 
 .last-result{
   font-size:.72rem;color:var(--slate);padding:.4rem .6rem;background:var(--court);border-radius:8px;
@@ -888,7 +910,7 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn,bod
    desktop screen. */
 @media (min-width:881px) and (max-width:1180px){
   .app-shell{grid-template-columns:300px 1fr}
-  .courts-grid{grid-template-columns:repeat(auto-fill, minmax(250px,1fr))}
+  .courts-grid{grid-template-columns:repeat(auto-fill, minmax(320px,1fr))}
   .courts-main{padding:1rem 1rem 3.5rem}
 }
 
@@ -946,7 +968,7 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn,bod
   .app-shell.show-courts .stack-rail{display:none}
   .stack-list{max-height:none}
   .courts-main{padding:1rem .9rem 2.5rem}
-  .courts-grid{grid-template-columns:repeat(auto-fill, minmax(260px,1fr));gap:.85rem}
+  .courts-grid{grid-template-columns:repeat(auto-fill, minmax(280px,1fr));gap:.85rem}
   .mobile-tabs{
     display:flex;position:fixed;bottom:0;left:0;right:0;background:var(--ink);z-index:50;
     box-shadow:0 -2px 10px rgba(0,0,0,.15);padding-bottom:env(safe-area-inset-bottom);
