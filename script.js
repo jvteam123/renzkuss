@@ -961,6 +961,7 @@ function renderArrivals(){
     badge.textContent = state.arrivals.length;
     badge.hidden = state.arrivals.length === 0;
   }
+  if (checkInTabBtn) checkInTabBtn.classList.toggle('has-waiting', state.arrivals.length > 0 && !isSessionEnded());
   if (allBtn) allBtn.disabled = state.arrivals.length === 0 || isSessionEnded();
   if (emptyNote) emptyNote.hidden = state.arrivals.length > 0;
   listEl.innerHTML = state.arrivals.map(entry => `
