@@ -209,7 +209,7 @@ function esc(s){
 
 // Display-only: uppercases a name for the court card, without touching the
 // underlying stored name (used as-is everywhere else — stack, rankings, history, etc).
-function titleCaseName(name){
+function courtCardName(name){
   return String(name).toUpperCase();
 }
 
@@ -984,7 +984,7 @@ function playerRowHtml(name){
   const games = stats ? (stats.games || 0) : 0;
   const gamesChip = gamesChipHtml(games);
   return `<span class="player-col">
-    <span class="player-row">${avatarHtml(name)}<span class="player-name-txt">${esc(titleCaseName(name))}</span>${winChip}</span>
+    <span class="player-row">${avatarHtml(name)}<span class="player-name-txt">${esc(courtCardName(name))}</span>${winChip}</span>
     <span class="player-games-row">${gamesChip}</span>
   </span>`;
 }
@@ -1230,7 +1230,7 @@ function scoreboardHtml(court){
       <div class="sbl-actions">
         <button type="button" class="sbl-btn" data-act="advance-serve" title="Switch to serve 2" ${(sc.firstServe || sc.serverNum !== 1 || winnerSide) ? 'disabled' : ''}>Serve 2</button>
         <button type="button" class="sbl-btn" data-act="side-out" title="Side out — switch serving team" ${((!sc.firstServe && sc.serverNum !== 2) || winnerSide) ? 'disabled' : ''}>⇄ Side Out</button>
-        <button type="button" class="sbl-btn" data-act="undo-serve" title="Undo last serve decision" ${(!sc.serveUndo || !sc.serveUndo.length) ? 'disabled' : ''}>UNDO</button>
+        <button type="button" class="sbl-btn" data-act="undo-serve" title="Undo last serve decision" ${(!sc.serveUndo || !sc.serveUndo.length || winnerSide) ? 'disabled' : ''}>UNDO</button>
       </div>
     </div>`;
 }
@@ -1994,7 +1994,7 @@ courtNameRows.addEventListener('change', (e) => {
     if (state.courts[idx]) state.courts[idx].level = PLAYER_LEVELS.includes(select.value) ? select.value : 'Open';
     select.className = levelClass(state.courts[idx] ? state.courts[idx].level : 'Open');
     persist();
-    renderCourts();
+    renderAll();
   }
 });
 
@@ -2122,6 +2122,9 @@ $('#importFile').addEventListener('change', async (e) => {
     if (!parsed.session.targetGamesPerPlayer || parsed.session.targetGamesPerPlayer < 1) parsed.session.targetGamesPerPlayer = 7;
     if (typeof parsed.session.avoidRepeatTeammates !== 'boolean') parsed.session.avoidRepeatTeammates = false;
     if (!Array.isArray(parsed.session.fixedDuos)) parsed.session.fixedDuos = [];
+    if (typeof parsed.session.scoringEnabled !== 'boolean') parsed.session.scoringEnabled = false;
+    if (!parsed.session.winningScore || parsed.session.winningScore < 1) parsed.session.winningScore = 11;
+    parsed.courts.forEach(c => { if (!('score' in c)) c.score = null; });
     if (!parsed.playerLevels || typeof parsed.playerLevels !== 'object') parsed.playerLevels = {};
     parsed.courts.forEach(c => { if (!c.level || !PLAYER_LEVELS.includes(c.level)) c.level = 'Open'; });
     state = parsed;
