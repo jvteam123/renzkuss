@@ -120,13 +120,18 @@ input,select{font-family:inherit}
   padding:.15rem .55rem;border-radius:99px;
 }
 .add-form{
-  display:flex;gap:.4rem;padding:0 1.1rem .8rem;
+  display:flex;flex-wrap:wrap;gap:.4rem;padding:0 1.1rem .8rem;
 }
 .add-form input{
-  flex:1;min-width:0;border:1.5px solid var(--line);border-radius:var(--radius-sm);
+  flex:1;min-width:120px;border:1.5px solid var(--line);border-radius:var(--radius-sm);
   padding:.6rem .7rem;font-size:.88rem;background:var(--court);color:var(--ink);
 }
 .add-form input:focus{border-color:var(--turf);background:#fff}
+.add-form select{
+  flex-shrink:0;border:1.5px solid var(--line);border-radius:var(--radius-sm);
+  padding:.6rem .5rem;font-size:.78rem;background:var(--court);color:var(--ink);
+  max-width:9.5rem;
+}
 .add-form button{
   border:none;background:var(--turf);color:#fff;border-radius:var(--radius-sm);
   padding:0 .95rem;font-weight:700;font-size:.85rem;cursor:pointer;
@@ -255,6 +260,33 @@ body.session-locked .arrivals-panel{opacity:.55;pointer-events:none}
 }
 .paddle .tag-pill.new{background:var(--turf-pale);color:var(--turf-deep)}
 .paddle .tag-pill.queued{background:#EFE9DC;color:#8a6d2f}
+
+/* ---- Skill levels: player badges + court-level selects ----
+   Open matches with anything, so it uses a neutral gray; the rest step
+   through the site's palette from calm (Beginner) to intense (Advanced). */
+.level-badge{
+  font-family:var(--font-mono);font-size:.6rem;font-weight:700;letter-spacing:.03em;
+  text-transform:uppercase;padding:.08rem .45rem;border-radius:99px;width:fit-content;
+  border:none;cursor:pointer;line-height:1.5;
+}
+.lvl-open{background:#EAEEF5;color:var(--slate)}
+.lvl-beginner{background:var(--turf-pale);color:var(--turf-deep)}
+.lvl-advanced-beginner{background:var(--gold-pale);color:var(--gold-deep)}
+.lvl-intermediate{background:#FCE7D6;color:#B35900}
+.lvl-advanced{background:var(--danger-pale);color:var(--danger)}
+.court-level-select{
+  font-family:var(--font-mono);font-size:.62rem;font-weight:700;letter-spacing:.02em;
+  text-transform:uppercase;border:none;border-radius:99px;padding:.2rem .5rem;
+  cursor:pointer;flex-shrink:0;
+}
+.court-name-row{display:flex;gap:.4rem;align-items:center}
+.court-name-row input{
+  flex:1;min-width:0;border:1.5px solid var(--line);border-radius:8px;padding:.45rem .6rem;font-size:.82rem;
+}
+.court-name-row select{
+  flex-shrink:0;max-width:8.5rem;border:1.5px solid var(--line);border-radius:8px;
+  padding:.45rem .4rem;font-size:.72rem;background:var(--surface);color:var(--ink);
+}
 .paddle .reorder{display:flex;flex-direction:column;gap:1px}
 .paddle .reorder button{
   border:none;background:none;color:var(--slate);cursor:pointer;
@@ -332,7 +364,7 @@ body.session-locked .arrivals-panel{opacity:.55;pointer-events:none}
 .court-card.playing::before{background:var(--clay)}
 .court-card.playing{border-color:var(--ink);background:#0E2748;color:#fff}
 
-.court-top{display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding-top:.85rem}
+.court-top{display:flex;align-items:center;justify-content:space-between;gap:.5rem .4rem;padding-top:.85rem;flex-wrap:wrap}
 .court-top-right{display:flex;align-items:center;gap:.4rem;flex-shrink:0}
 .timer-chip{
   font-family:var(--font-mono);font-size:.66rem;font-weight:700;letter-spacing:.02em;
@@ -546,7 +578,6 @@ body.session-locked .arrivals-panel{opacity:.55;pointer-events:none}
 .stepper button:hover{border-color:var(--turf);color:var(--turf-deep)}
 .stepper .n{font-family:var(--font-mono);font-weight:600;font-size:1.1rem;min-width:2ch;text-align:center}
 .court-name-rows{display:flex;flex-direction:column;gap:.4rem;margin-top:.6rem;max-height:180px;overflow-y:auto}
-.court-name-rows input{width:100%;border:1.5px solid var(--line);border-radius:8px;padding:.45rem .6rem;font-size:.82rem}
 .toggle-row{display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding:.3rem 0}
 .target-sub{margin-top:.7rem;padding:.75rem .8rem;background:var(--court);border-radius:var(--radius-sm);border:1.5px solid var(--line)}
 .target-sub label{margin-bottom:.35rem}
