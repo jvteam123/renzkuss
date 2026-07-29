@@ -460,45 +460,81 @@ function renderStack(){
   const openQueue = computeOpenCourtQueue(gameSize);
   const nextUpIds = new Set();
   openQueue.forEach(slot => { if (slot.taken) slot.taken.forEach(e => nextUpIds.add(e.id)); });
-  state.stack.forEach((entry, idx) => {
-    const row = document.createElement('div');
-    row.className = 'paddle' + (nextUpIds.has(entry.id) ? ' next-up' : '');
-    row.draggable = false;
-    row.dataset.id = entry.id;
-    const stats = state.playerStats[entry.name];
-    const winChip = (stats && stats.wins > 0) ? `<span class="win-chip">🏆${stats.wins}</span>` : '';
-    const games = stats ? (stats.games || 0) : 0;
-    const gamesChip = gamesChipHtml(games);
-    const tag = entry.tag === 'queued' ? '<span class="tag-pill queued">Queued</span>' : '<span class="tag-pill new">New</span>';
-    const levelBadge = `<button type="button" class="level-badge ${levelClass(getPlayerLevel(entry.name))}" data-act="cycle-level" title="Tap to change skill level">${esc(getPlayerLevel(entry.name))}</button>`;
-    row.innerHTML = `
-      <span class="drag-handle" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#i-grip"/></svg></span>
-      <span class="pos">${idx+1}</span>
-      <svg class="glyph" viewBox="0 0 20 28"><use href="#i-paddle"/></svg>
-      <span class="name-col">
-        <span class="name">${esc(entry.name)}${winChip}</span>
-        <span class="sub-row">${tag}${levelBadge}${gamesChip}</span>
-      </span>
-      <span class="reorder">
-        <button type="button" data-act="up" aria-label="Move up"><svg viewBox="0 0 24 24"><use href="#i-up"/></svg></button>
-        <button type="button" data-act="down" aria-label="Move down"><svg viewBox="0 0 24 24"><use href="#i-down"/></svg></button>
-      </span>
-      <button type="button" class="remove-btn" data-act="remove" aria-label="Remove ${esc(entry.name)}"><svg viewBox="0 0 24 24"><use href="#i-x"/></svg></button>
+
+  // The stack is really a set of separate per-level queues sharing one
+  // panel: group entries by level (preserving each level's own FIFO order)
+  // so it's visually — and, via the up/down handlers below, functionally —
+  // a distinct line per court type instead of one mixed-level list.
+  const levelsPresent = PLAYER_LEVELS.filter(lvl => state.stack.some(e => getPlayerLevel(e.name) === lvl));
+  levelsPresent.forEach(level => {
+    const groupEntries = state.stack.filter(e => getPlayerLevel(e.name) === level);
+    const groupWrap = document.createElement('div');
+    groupWrap.className = 'stack-group';
+    groupWrap.innerHTML = `
+      <div class="stack-group-head">
+        <span class="level-badge ${levelClass(level)}">${esc(level)}</span>
+        <span class="stack-group-count">${groupEntries.length} in queue</span>
+      </div>
     `;
-    stackList.appendChild(row);
-    attachDrag(row);
+    groupEntries.forEach((entry, idx) => {
+      const row = document.createElement('div');
+      row.className = 'paddle' + (nextUpIds.has(entry.id) ? ' next-up' : '');
+      row.draggable = false;
+      row.dataset.id = entry.id;
+      const stats = state.playerStats[entry.name];
+      const winChip = (stats && stats.wins > 0) ? `<span class="win-chip">🏆${stats.wins}</span>` : '';
+      const games = stats ? (stats.games || 0) : 0;
+      const gamesChip = gamesChipHtml(games);
+      const tag = entry.tag === 'queued' ? '<span class="tag-pill queued">Queued</span>' : '<span class="tag-pill new">New</span>';
+      const levelBadge = `<button type="button" class="level-badge ${levelClass(getPlayerLevel(entry.name))}" data-act="cycle-level" title="Tap to change skill level">${esc(getPlayerLevel(entry.name))}</button>`;
+      row.innerHTML = `
+        <span class="drag-handle" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#i-grip"/></svg></span>
+        <span class="pos">${idx+1}</span>
+        <svg class="glyph" viewBox="0 0 20 28"><use href="#i-paddle"/></svg>
+        <span class="name-col">
+          <span class="name">${esc(entry.name)}${winChip}</span>
+          <span class="sub-row">${tag}${levelBadge}${gamesChip}</span>
+        </span>
+        <span class="reorder">
+          <button type="button" data-act="up" aria-label="Move up"><svg viewBox="0 0 24 24"><use href="#i-up"/></svg></button>
+          <button type="button" data-act="down" aria-label="Move down"><svg viewBox="0 0 24 24"><use href="#i-down"/></svg></button>
+        </span>
+        <button type="button" class="remove-btn" data-act="remove" aria-label="Remove ${esc(entry.name)}"><svg viewBox="0 0 24 24"><use href="#i-x"/></svg></button>
+      `;
+      groupWrap.appendChild(row);
+      attachDrag(row);
+    });
+    stackList.appendChild(groupWrap);
   });
 }
 
-/* ================= Accumulating blocks (winners vs winners, losers vs losers) ================= */
-function blockListHtml(block){
+/* ================= Accumulating blocks (winners vs winners, losers vs losers) =================
+   Each level accumulates and flushes independently — a Beginner winner and
+   an Advanced winner never end up bundled into the same "group" even though
+   they share one underlying block array (level is looked up per entry via
+   getPlayerLevel, same as everywhere else). */
+function blockListHtml(block, gameSize, blockKey){
   if (block.length === 0) return '<div class="block-empty">Empty — waiting for a result.</div>';
-  return block.map((entry, idx) => `
-    <div class="block-item" data-id="${entry.id}">
-      <span class="block-item-pos">${idx+1}</span>
-      <span class="block-item-name">${esc(entry.name)}</span>
-    </div>
-  `).join('');
+  const levels = PLAYER_LEVELS.filter(lvl => block.some(e => getPlayerLevel(e.name) === lvl));
+  return levels.map(level => {
+    const entries = block.filter(e => getPlayerLevel(e.name) === level);
+    const rows = entries.map((entry, idx) => `
+      <div class="block-item" data-id="${entry.id}">
+        <span class="block-item-pos">${idx+1}</span>
+        <span class="block-item-name">${esc(entry.name)}</span>
+      </div>
+    `).join('');
+    return `
+      <div class="block-level-group">
+        <div class="block-level-head">
+          <span class="level-badge ${levelClass(level)}">${esc(level)}</span>
+          <span class="block-level-count">${entries.length}/${gameSize}</span>
+          <button type="button" class="block-level-flush-btn" data-block-flush="${blockKey}" data-level-flush="${esc(level)}" aria-label="Move ${esc(level)} group to queue now">Queue now</button>
+        </div>
+        ${rows}
+      </div>
+    `;
+  }).join('');
 }
 
 function renderBlocks(){
@@ -507,10 +543,10 @@ function renderBlocks(){
   blocksPanel.hidden = !hasAny;
   if (!hasAny) return;
 
-  winnersBlockCount.textContent = state.winnersBlock.length + '/' + gameSize;
-  losersBlockCount.textContent = state.losersBlock.length + '/' + gameSize;
-  winnersBlockList.innerHTML = blockListHtml(state.winnersBlock);
-  losersBlockList.innerHTML = blockListHtml(state.losersBlock);
+  winnersBlockCount.textContent = state.winnersBlock.length + ' waiting';
+  losersBlockCount.textContent = state.losersBlock.length + ' waiting';
+  winnersBlockList.innerHTML = blockListHtml(state.winnersBlock, gameSize, 'winnersBlock');
+  losersBlockList.innerHTML = blockListHtml(state.losersBlock, gameSize, 'losersBlock');
 
   blocksPanel.querySelector('[data-block="winners"]').disabled = state.winnersBlock.length === 0 || isSessionEnded();
   blocksPanel.querySelector('[data-block="losers"]').disabled = state.losersBlock.length === 0 || isSessionEnded();
@@ -524,6 +560,16 @@ function flushBlockToQueue(blockKey){
   block.forEach(entry => state.stack.push(entry));
   state[blockKey] = [];
 }
+// Same idea, but only for one level's slice of the block — leaves every
+// other level's entries sitting in the block untouched.
+function flushBlockLevelToQueue(blockKey, level){
+  const block = state[blockKey];
+  const matching = block.filter(e => getPlayerLevel(e.name) === level);
+  if (matching.length === 0) return;
+  const matchIds = new Set(matching.map(e => e.id));
+  state[blockKey] = block.filter(e => !matchIds.has(e.id));
+  matching.forEach(entry => state.stack.push(entry));
+}
 
 // Everyone currently checked in and still in the rotation: on the queue
 // itself or parked in a winners/losers block. (Players already out on a
@@ -532,28 +578,49 @@ function flushBlockToQueue(blockKey){
 function totalCheckedInCount(){
   return state.stack.length + state.winnersBlock.length + state.losersBlock.length;
 }
+function countOfLevel(arr, level){
+  return arr.filter(e => getPlayerLevel(e.name) === level).length;
+}
 
-// Auto-flush any block once it reaches gameSize players.
+// Auto-flush any block once it reaches gameSize players — evaluated
+// separately per skill level, so (say) 4 Beginner winners flush into the
+// queue as their own group without waiting on, or mixing with, Advanced
+// winners still accumulating in the same block.
 function checkBlockFlush(){
   const gameSize = state.session.gameSize;
-  if (state.winnersBlock.length >= gameSize) flushBlockToQueue('winnersBlock');
-  if (state.losersBlock.length >= gameSize) flushBlockToQueue('losersBlock');
+  const levels = new Set();
+  state.winnersBlock.forEach(e => levels.add(getPlayerLevel(e.name)));
+  state.losersBlock.forEach(e => levels.add(getPlayerLevel(e.name)));
+  levels.forEach(level => {
+    if (countOfLevel(state.winnersBlock, level) >= gameSize) flushBlockLevelToQueue('winnersBlock', level);
+    if (countOfLevel(state.losersBlock, level) >= gameSize) flushBlockLevelToQueue('losersBlock', level);
 
-  // With a small group (fewer total players than two full blocks would need,
-  // i.e. under gameSize*2), the winners block and losers block can never
-  // both fill up on their own — there simply aren't enough winners or
-  // losers to go around. Rather than stalling every court waiting for
-  // players who will never arrive, merge whatever's blocked back into the
-  // queue as soon as doing so would let a match start.
-  const hasBlocked = state.winnersBlock.length > 0 || state.losersBlock.length > 0;
-  if (hasBlocked && state.stack.length < gameSize && totalCheckedInCount() >= gameSize){
-    flushBlockToQueue('winnersBlock');
-    flushBlockToQueue('losersBlock');
-  }
+    // With a small group of this level (fewer total players than two full
+    // blocks would need), the winners block and losers block can never both
+    // fill up on their own for that level — there simply aren't enough
+    // winners or losers of that level to go around. Rather than stalling
+    // that level's courts waiting for players who will never arrive, merge
+    // whatever's blocked for this level back into the queue as soon as
+    // doing so would let a match start.
+    const hasBlocked = countOfLevel(state.winnersBlock, level) > 0 || countOfLevel(state.losersBlock, level) > 0;
+    const stackLevelCount = countOfLevel(state.stack, level);
+    const totalLevelCount = stackLevelCount + countOfLevel(state.winnersBlock, level) + countOfLevel(state.losersBlock, level);
+    if (hasBlocked && stackLevelCount < gameSize && totalLevelCount >= gameSize){
+      flushBlockLevelToQueue('winnersBlock', level);
+      flushBlockLevelToQueue('losersBlock', level);
+    }
+  });
 }
 
 blocksPanel.addEventListener('click', (e) => {
   if (isSessionEnded()) return;
+  const levelBtn = e.target.closest('button[data-level-flush]');
+  if (levelBtn){
+    flushBlockLevelToQueue(levelBtn.dataset.blockFlush, levelBtn.dataset.levelFlush);
+    toast(levelBtn.dataset.levelFlush + ' group moved to queue');
+    renderAll(); persist();
+    return;
+  }
   const btn = e.target.closest('button[data-block]');
   if (!btn || btn.disabled) return;
   const key = btn.dataset.block === 'winners' ? 'winnersBlock' : 'losersBlock';
@@ -581,10 +648,16 @@ stackList.addEventListener('click', (e) => {
     if (!confirm('Remove ' + entry.name + ' from the stack?')) return;
     const [removed] = state.stack.splice(idx, 1);
     toast(removed.name + ' removed from stack');
-  } else if (act === 'up' && idx > 0){
-    [state.stack[idx-1], state.stack[idx]] = [state.stack[idx], state.stack[idx-1]];
-  } else if (act === 'down' && idx < state.stack.length - 1){
-    [state.stack[idx+1], state.stack[idx]] = [state.stack[idx], state.stack[idx+1]];
+  } else if (act === 'up'){
+    const lvl = getPlayerLevel(state.stack[idx].name);
+    let j = idx - 1;
+    while (j >= 0 && getPlayerLevel(state.stack[j].name) !== lvl) j--;
+    if (j >= 0) [state.stack[j], state.stack[idx]] = [state.stack[idx], state.stack[j]];
+  } else if (act === 'down'){
+    const lvl = getPlayerLevel(state.stack[idx].name);
+    let j = idx + 1;
+    while (j < state.stack.length && getPlayerLevel(state.stack[j].name) !== lvl) j++;
+    if (j < state.stack.length) [state.stack[j], state.stack[idx]] = [state.stack[idx], state.stack[j]];
   }
   renderAll(); persist();
 });
@@ -607,7 +680,7 @@ function attachDrag(row){
     const dy = e.clientY - startY;
     row.style.transform = `translateY(${dy}px)`;
     row.style.zIndex = 10;
-    const siblings = [...stackList.children];
+    const siblings = [...stackList.querySelectorAll('.paddle')];
     const myIdx = siblings.indexOf(row);
     const target = document.elementFromPoint(e.clientX, e.clientY);
     const targetRow = target && target.closest ? target.closest('.paddle') : null;
@@ -1710,7 +1783,24 @@ function renderRankings(){
     rankingsList.innerHTML = `<div class="rankings-empty">No players match "${esc(rankingsSearchTerm)}".</div>`;
     return;
   }
-  rankingsList.innerHTML = rows.map(r => rankRowHtml(r, allRows.indexOf(r) + 1)).join('');
+
+  // Each player's current skill level gets its own leaderboard section (its
+  // own #1/MVP and rank numbering), so a session mixing Beginner and
+  // Advanced play doesn't end up with one merged ranking across levels.
+  const levels = PLAYER_LEVELS.filter(lvl => rows.some(r => getPlayerLevel(r.name) === lvl));
+  rankingsList.innerHTML = levels.map(level => {
+    const levelRows = rows.filter(r => getPlayerLevel(r.name) === level);
+    const body = levelRows.map((r, i) => rankRowHtml(r, i + 1)).join('');
+    return `
+      <div class="rank-level-group">
+        <div class="rank-level-head">
+          <span class="level-badge ${levelClass(level)}">${esc(level)}</span>
+          <span class="rank-level-count">${levelRows.length} ${levelRows.length === 1 ? 'player' : 'players'}</span>
+        </div>
+        ${body}
+      </div>
+    `;
+  }).join('');
 }
 
 function setRankingsExpandIcon(){
