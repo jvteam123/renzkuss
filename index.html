@@ -255,13 +255,21 @@
     </div>
     <hr class="divider">
     <div class="field">
-      <div class="field-head-row">
-        <label style="margin:0">Known players</label>
-        <span class="count-badge" id="rosterManageCount">0</span>
-      </div>
-      <div class="roster-manage-search"><input type="text" id="rosterSearchInput" placeholder="Filter saved names…"></div>
-      <div class="roster-manage-list" id="rosterManageList"></div>
-      <p class="add-hint" style="padding:0;margin-top:.45rem">Remove a name here to stop it appearing in quick-add suggestions and in "keep player names" — it won't touch anyone currently on the floor.</p>
+      <details class="roster-manage-wrap" id="rosterManageWrap">
+        <summary class="roster-manage-toggle">
+          <svg viewBox="0 0 24 24"><use href="#i-chev"/></svg>
+          <span>Known players</span>
+          <span class="count-badge" id="rosterManageCount">0</span>
+        </summary>
+        <div class="roster-manage-body">
+          <div class="roster-manage-search"><input type="text" id="rosterSearchInput" placeholder="Filter saved names…"></div>
+          <div class="roster-manage-list" id="rosterManageList"></div>
+          <div class="roster-manage-actions">
+            <button type="button" class="btn danger sm" id="rosterClearAllBtn">Clear all known players</button>
+          </div>
+          <p class="add-hint" style="padding:0;margin-top:.45rem">Remove a name here to stop it appearing in quick-add suggestions and in "keep player names" — it won't touch anyone currently on the floor.</p>
+        </div>
+      </details>
     </div>
     <hr class="divider">
     <div class="field">
