@@ -125,7 +125,7 @@
       <input id="addNameInput" type="text" placeholder="Player name (or names, comma-separated)" autocomplete="off" list="rosterList">
       <datalist id="rosterList"></datalist>
       <select id="addLevelSelect" aria-label="Skill level for new player(s)">
-        <option value="Open" selected>Open</option>
+        <option value="Open" selected>Open Play</option>
         <option value="Beginner">Beginner</option>
         <option value="Advanced Beginner">Advanced Beginner</option>
         <option value="Intermediate">Intermediate</option>
@@ -339,6 +339,18 @@
     <div class="modal-actions">
       <button class="btn primary" id="endgameConfirm">Confirm &amp; clear court</button>
       <button class="btn ghost" id="endgameCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm modal (replaces native browser confirm() popups) -->
+<div class="overlay confirm-overlay" id="confirmOverlay" hidden>
+  <div class="modal confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
+    <h3 id="confirmTitle">Please confirm</h3>
+    <p id="confirmMessage" class="confirm-message"></p>
+    <div class="modal-actions">
+      <button type="button" class="btn primary" id="confirmOkBtn">Confirm</button>
+      <button type="button" class="btn ghost" id="confirmCancelBtn">Cancel</button>
     </div>
   </div>
 </div>
