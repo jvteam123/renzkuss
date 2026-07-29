@@ -65,16 +65,23 @@ async function loadPersisted(){
    Levels are a per-player-name attribute (not per queue-entry), so a
    player's level sticks with them across the whole session — through
    arrivals, the stack, a block, a match, and back into the stack again.
-   Courts each have their own assigned level; "Open" (on either side)
-   matches with anything, so courts/players left at the default behave
-   exactly as if this feature didn't exist. */
+   Courts each have their own assigned level, and matching is strict —
+   a player only lands on a court whose level matches theirs exactly,
+   "Open Play" included: an Open Play player only joins an Open Play
+   court, and an Open Play court only takes Open Play players. */
 const PLAYER_LEVELS = ['Open', 'Beginner', 'Advanced Beginner', 'Intermediate', 'Advanced'];
+// Internal level keys stay stable (data model, class names, saved sessions);
+// this map only swaps in a friendlier label wherever a level is displayed.
+const LEVEL_LABELS = { 'Open': 'Open Play' };
+function levelLabel(level){
+  return LEVEL_LABELS[level] || level;
+}
 function levelClass(level){
   return 'lvl-' + String(level || 'Open').toLowerCase().replace(/\s+/g, '-');
 }
 function levelsMatch(playerLevel, courtLevel){
   const pl = playerLevel || 'Open', cl = courtLevel || 'Open';
-  return cl === 'Open' || pl === 'Open' || pl === cl;
+  return pl === cl;
 }
 function getPlayerLevel(name){
   return (state.playerLevels && state.playerLevels[name]) || 'Open';
@@ -84,14 +91,14 @@ function setPlayerLevel(name, level){
   state.playerLevels[name] = PLAYER_LEVELS.includes(level) ? level : 'Open';
 }
 function levelSelectOptionsHtml(selected){
-  return PLAYER_LEVELS.map(l => `<option value="${esc(l)}"${l === selected ? ' selected' : ''}>${esc(l)}</option>`).join('');
+  return PLAYER_LEVELS.map(l => `<option value="${esc(l)}"${l === selected ? ' selected' : ''}>${esc(levelLabel(l))}</option>`).join('');
 }
 function cyclePlayerLevel(name){
   const cur = getPlayerLevel(name);
   const idx = PLAYER_LEVELS.indexOf(cur);
   const next = PLAYER_LEVELS[(idx + 1) % PLAYER_LEVELS.length];
   setPlayerLevel(name, next);
-  toast(name + ' set to ' + next);
+  toast(name + ' set to ' + levelLabel(next));
   renderAll(); persist();
 }
 
@@ -182,6 +189,41 @@ function toast(msg, type){
     setTimeout(() => el.remove(), 250);
   }, 2200);
 }
+
+/* ================= Confirm dialog (replaces native confirm()) ================= */
+const confirmOverlay = $('#confirmOverlay');
+const confirmTitleEl = $('#confirmTitle');
+const confirmMessageEl = $('#confirmMessage');
+const confirmOkBtn = $('#confirmOkBtn');
+const confirmCancelBtn = $('#confirmCancelBtn');
+let confirmResolve = null;
+/* Returns a Promise<boolean> — true if the user confirmed, false if they
+   cancelled, dismissed via backdrop click, or pressed Escape. Callers use
+   `if (!(await showConfirm('...'))) return;` in place of window.confirm(). */
+function showConfirm(message, opts){
+  opts = opts || {};
+  return new Promise((resolve) => {
+    confirmResolve = resolve;
+    confirmTitleEl.textContent = opts.title || 'Please confirm';
+    confirmMessageEl.textContent = message;
+    confirmOkBtn.textContent = opts.confirmLabel || 'Confirm';
+    confirmCancelBtn.textContent = opts.cancelLabel || 'Cancel';
+    confirmOkBtn.className = 'btn ' + (opts.danger ? 'danger' : 'primary');
+    confirmOverlay.hidden = false;
+    confirmOkBtn.focus();
+  });
+}
+function closeConfirm(result){
+  if (confirmOverlay.hidden) return;
+  confirmOverlay.hidden = true;
+  const resolve = confirmResolve;
+  confirmResolve = null;
+  if (resolve) resolve(result);
+}
+confirmOkBtn.addEventListener('click', () => closeConfirm(true));
+confirmCancelBtn.addEventListener('click', () => closeConfirm(false));
+confirmOverlay.addEventListener('click', (e) => { if (e.target === confirmOverlay) closeConfirm(false); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !confirmOverlay.hidden) closeConfirm(false); });
 
 /* ================= Sound ================= */
 let audioCtx = null;
@@ -435,8 +477,8 @@ function updateEndSessionBtn(){
   }
 }
 
-function endSession(){
-  if (!confirm('End this session? No new matches can be started and the stack will be locked, but the stack, courts, history and rankings all stay exactly as they are for review. You can resume anytime.')) return;
+async function endSession(){
+  if (!(await showConfirm('No new matches can be started and the stack will be locked, but the stack, courts, history and rankings all stay exactly as they are for review. You can resume anytime.', {title: 'End this session?', confirmLabel: 'End session'}))) return;
   state.session.status = 'ended';
   persist();
   applySessionLockUI();
@@ -476,7 +518,7 @@ function renderStack(){
     groupWrap.className = 'stack-group';
     groupWrap.innerHTML = `
       <div class="stack-group-head">
-        <span class="level-badge ${levelClass(level)}">${esc(level)}</span>
+        <span class="level-badge ${levelClass(level)}">${esc(levelLabel(level))}</span>
         <span class="stack-group-count">${groupEntries.length} in queue</span>
       </div>
     `;
@@ -490,7 +532,7 @@ function renderStack(){
       const games = stats ? (stats.games || 0) : 0;
       const gamesChip = gamesChipHtml(games);
       const tag = entry.tag === 'queued' ? '<span class="tag-pill queued">Queued</span>' : '<span class="tag-pill new">New</span>';
-      const levelBadge = `<button type="button" class="level-badge ${levelClass(getPlayerLevel(entry.name))}" data-act="cycle-level" title="Tap to change skill level">${esc(getPlayerLevel(entry.name))}</button>`;
+      const levelBadge = `<button type="button" class="level-badge ${levelClass(getPlayerLevel(entry.name))}" data-act="cycle-level" title="Tap to change skill level">${esc(levelLabel(getPlayerLevel(entry.name)))}</button>`;
       row.innerHTML = `
         <span class="drag-handle" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#i-grip"/></svg></span>
         <span class="pos">${idx+1}</span>
@@ -539,9 +581,9 @@ function blockListHtml(block, gameSize, blockKey){
     return `
       <div class="block-level-group">
         <div class="block-level-head">
-          <span class="level-badge ${levelClass(level)}">${esc(level)}</span>
+          <span class="level-badge ${levelClass(level)}">${esc(levelLabel(level))}</span>
           <span class="block-level-count">${entries.length}/${gameSize}</span>
-          <button type="button" class="block-level-flush-btn" data-block-flush="${blockKey}" data-level-flush="${esc(level)}" aria-label="Move ${esc(level)} group to queue now">Queue now</button>
+          <button type="button" class="block-level-flush-btn" data-block-flush="${blockKey}" data-level-flush="${esc(level)}" aria-label="Move ${esc(levelLabel(level))} group to queue now">Queue now</button>
         </div>
         ${blockItemsHtml(entries)}
       </div>
@@ -642,7 +684,7 @@ blocksPanel.addEventListener('click', (e) => {
   renderAll(); persist();
 });
 
-stackList.addEventListener('click', (e) => {
+stackList.addEventListener('click', async (e) => {
   if (isSessionEnded()) return;
   const btn = e.target.closest('button[data-act]');
   if (!btn) return;
@@ -657,7 +699,7 @@ stackList.addEventListener('click', (e) => {
   }
   if (act === 'remove'){
     const entry = state.stack[idx];
-    if (!confirm('Remove ' + entry.name + ' from the stack?')) return;
+    if (!(await showConfirm('Remove ' + entry.name + ' from the stack?', {title: 'Remove player?', confirmLabel: 'Remove', danger: true}))) return;
     const [removed] = state.stack.splice(idx, 1);
     toast(removed.name + ' removed from stack');
   } else if (act === 'up'){
@@ -781,11 +823,11 @@ function renderRosterManageList(filter){
 }
 const rosterManageListEl = $('#rosterManageList');
 if (rosterManageListEl){
-  rosterManageListEl.addEventListener('click', (e) => {
+  rosterManageListEl.addEventListener('click', async (e) => {
     const btn = e.target.closest('button[data-name]');
     if (!btn) return;
     const name = btn.dataset.name;
-    if (!confirm('Remove "' + name + '" from your saved player list? This just clears the suggestion — it won\'t affect history or rankings.')) return;
+    if (!(await showConfirm('This just clears the suggestion — it won\'t affect history or rankings.', {title: 'Remove "' + name + '" from saved players?', confirmLabel: 'Remove', danger: true}))) return;
     removeFromRoster(name);
     toast(name + ' removed from saved players');
   });
@@ -861,22 +903,22 @@ $('#bulkAddBtn').addEventListener('click', function(){
 });
 
 /* ---- Check-in: moves a waiting arrival into the live stack ---- */
-function checkInArrival(id){
+async function checkInArrival(id){
   const idx = state.arrivals.findIndex(a => a.id === id);
   if (idx === -1) return;
   const entry = state.arrivals[idx];
-  if (!confirm('Check in ' + entry.name + ' and add them to the stack?')) return;
+  if (!(await showConfirm('Add ' + entry.name + ' to the live stack now?', {title: 'Check in ' + entry.name + '?', confirmLabel: 'Check in'}))) return;
   state.arrivals.splice(idx, 1);
   state.stack.push({ id: nextId('p'), name: entry.name, joinedAt: Date.now(), tag: 'new' });
   checkBlockFlush();
   toast(entry.name + ' checked in and added to the stack');
   renderAll(); persist();
 }
-function checkInAllArrivals(){
+async function checkInAllArrivals(){
   if (state.arrivals.length === 0) return;
   const names = state.arrivals.map(a => a.name);
   const label = names.length > 1 ? names.length + ' players' : names[0];
-  if (!confirm('Check in ' + label + ' and add them to the stack?')) return;
+  if (!(await showConfirm('Add ' + label + ' to the live stack now?', {title: 'Check in ' + label + '?', confirmLabel: 'Check in'}))) return;
   state.arrivals.forEach(entry => {
     state.stack.push({ id: nextId('p'), name: entry.name, joinedAt: Date.now(), tag: 'new' });
   });
@@ -885,11 +927,11 @@ function checkInAllArrivals(){
   toast(label + ' checked in and added to the stack');
   renderAll(); persist();
 }
-function removeArrival(id){
+async function removeArrival(id){
   const idx = state.arrivals.findIndex(a => a.id === id);
   if (idx === -1) return;
   const name = state.arrivals[idx].name;
-  if (!confirm('Remove ' + name + ' from the waiting-to-check-in list?')) return;
+  if (!(await showConfirm('Remove ' + name + ' from the waiting-to-check-in list?', {title: 'Remove from arrivals?', confirmLabel: 'Remove', danger: true}))) return;
   state.arrivals.splice(idx, 1);
   toast(name + ' removed');
   renderAll(); persist();
@@ -909,7 +951,7 @@ function renderArrivals(){
   listEl.innerHTML = state.arrivals.map(entry => `
     <div class="arrival-row" data-id="${entry.id}">
       <span class="arrival-name">${esc(entry.name)}</span>
-      <button type="button" class="level-badge ${levelClass(getPlayerLevel(entry.name))}" data-act="cycle-level" data-name="${esc(entry.name)}" title="Tap to change skill level">${esc(getPlayerLevel(entry.name))}</button>
+      <button type="button" class="level-badge ${levelClass(getPlayerLevel(entry.name))}" data-act="cycle-level" data-name="${esc(entry.name)}" title="Tap to change skill level">${esc(levelLabel(getPlayerLevel(entry.name)))}</button>
       <button type="button" class="arrival-checkin-btn" data-act="checkin" data-id="${entry.id}">Check in</button>
       <button type="button" class="arrival-remove-btn" data-act="remove" data-id="${entry.id}" aria-label="Remove ${esc(entry.name)}"><svg viewBox="0 0 24 24"><use href="#i-x"/></svg></button>
     </div>
@@ -1299,13 +1341,13 @@ function renderCourts(){
         const [a, b] = splitTeams(names);
         matchupHtml = `<div class="matchup">${teamColHtml(a,'a',gameSize)}<div class="vs-divider"></div>${teamColHtml(b,'b',gameSize)}</div>`;
       } else {
-        const lvlNote = (court.level && court.level !== 'Open') ? ` ${court.level}` : '';
+        const lvlNote = court.level ? ` ${levelLabel(court.level)}` : '';
         matchupHtml = `<div class="matchup" style="align-items:center;justify-content:center"><span class="empty-slot">Needs ${Math.max(0, gameSize - slot.remaining)} more${lvlNote} in the stack</span></div>`;
       }
       card.innerHTML = `
         <div class="court-top">
           <span class="court-name-wrap">${courtIcon}<input class="court-name" value="${esc(court.name)}" data-act="rename" maxlength="24" aria-label="Court name"></span>
-          <span class="level-badge court-level-badge ${levelClass(court.level)}" aria-label="Court skill level">${esc(court.level || 'Open')}</span>
+          <span class="level-badge court-level-badge ${levelClass(court.level)}" aria-label="Court skill level">${esc(levelLabel(court.level || 'Open'))}</span>
           <span class="status-badge open">Open</span>
         </div>
         ${lastResultHtml}
@@ -1331,7 +1373,7 @@ function renderCourts(){
       card.innerHTML = `
         <div class="court-top">
           <span class="court-name-wrap">${courtIcon}<input class="court-name" value="${esc(court.name)}" data-act="rename" maxlength="24" aria-label="Court name"></span>
-          <span class="level-badge court-level-badge ${levelClass(court.level)}" aria-label="Court skill level">${esc(court.level || 'Open')}</span>
+          <span class="level-badge court-level-badge ${levelClass(court.level)}" aria-label="Court skill level">${esc(levelLabel(court.level || 'Open'))}</span>
           <span class="court-top-right">
             <span class="status-badge playing">On court</span>
             ${timerChip}
@@ -1541,7 +1583,7 @@ endgameList.addEventListener('click', (e) => {
   renderEndgameList();
 });
 $('#endgameCancel').addEventListener('click', () => { endgameOverlay.hidden = true; });
-$('#endgameConfirm').addEventListener('click', () => {
+$('#endgameConfirm').addEventListener('click', async () => {
   const court = state.courts.find(c => c.id === endgameCourtId);
   if (!court) { endgameOverlay.hidden = true; return; }
 
@@ -1574,7 +1616,7 @@ $('#endgameConfirm').addEventListener('click', () => {
     finalScoreB = endgameWinnerSide === 'b' ? 11 : 5;
   }
   if (endgameWinnerSide === null){
-    if (!confirm('No winner selected — this game won\'t count toward rankings, and players won\'t be sorted into the winners/losers blocks. Clear the court anyway?')) return;
+    if (!(await showConfirm('This game won\'t count toward rankings, and players won\'t be sorted into the winners/losers blocks.', {title: 'No winner selected — clear the court anyway?', confirmLabel: 'Clear court', danger: true}))) return;
   }
   // Snapshot state now, before anything is mutated, so a wrong pick can be undone.
   lastUndo = { courtId: court.id, snapshot: JSON.stringify(state) };
@@ -1845,7 +1887,7 @@ function renderRankings(){
     return `
       <div class="rank-level-group">
         <div class="rank-level-head">
-          <span class="level-badge ${levelClass(level)}">${esc(level)}</span>
+          <span class="level-badge ${levelClass(level)}">${esc(levelLabel(level))}</span>
           <span class="rank-level-count">${levelRows.length} ${levelRows.length === 1 ? 'player' : 'players'}</span>
         </div>
         ${body}
@@ -2073,11 +2115,11 @@ $('#courtPlus').addEventListener('click', () => {
   courtCountNum.textContent = state.courts.length;
   renderCourtNameRows(); persist(); renderAll();
 });
-$('#courtMinus').addEventListener('click', () => {
+$('#courtMinus').addEventListener('click', async () => {
   if (state.courts.length <= 1) return;
   const last = state.courts[state.courts.length - 1];
   if (last.status === 'playing'){
-    if (!confirm(last.name + ' is currently in play. Remove it anyway? The players on it will be put back at the front of the stack.')) return;
+    if (!(await showConfirm('The players on it will be put back at the front of the stack.', {title: last.name + ' is currently in play — remove it anyway?', confirmLabel: 'Remove court', danger: true}))) return;
     // Don't lose the players who were mid-game — send them back to the front of the queue.
     const returning = last.players.map(name => ({ id: nextId('p'), name, joinedAt: Date.now(), tag: 'queued' }));
     state.stack.unshift(...returning);
@@ -2149,7 +2191,7 @@ $('#importBtn').addEventListener('click', () => $('#importFile').click());
 $('#importFile').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
-  if (!confirm('Importing a backup will overwrite all current data (stack, courts, history, rankings). Continue?')){
+  if (!(await showConfirm('This will overwrite all current data (stack, courts, history, rankings).', {title: 'Import backup?', confirmLabel: 'Import', danger: true}))){
     e.target.value = '';
     return;
   }
@@ -2190,8 +2232,8 @@ $('#importFile').addEventListener('change', async (e) => {
   e.target.value = '';
 });
 
-$('#newSessionBtn').addEventListener('click', () => {
-  if (!confirm('Start a new session? This clears the stack, courts, blocks, and rankings — but keeps your list of player names so you can re-add them quickly. This cannot be undone. Continue?')) return;
+$('#newSessionBtn').addEventListener('click', async () => {
+  if (!(await showConfirm('This clears the stack, courts, blocks, and rankings — but keeps your list of player names so you can re-add them quickly. This cannot be undone.', {title: 'Start a new session?', confirmLabel: 'Start new session', danger: true}))) return;
   state.arrivals = [];
   state.stack = [];
   state.winnersBlock = [];
@@ -2209,8 +2251,8 @@ $('#newSessionBtn').addEventListener('click', () => {
   toast('New session started — player list kept');
 });
 
-$('#resetBtn').addEventListener('click', () => {
-  if (!confirm('This erases everything — stack, courts, history, rankings, and your player list. This cannot be undone. Continue?')) return;
+$('#resetBtn').addEventListener('click', async () => {
+  if (!(await showConfirm('This erases everything — stack, courts, history, rankings, and your player list. This cannot be undone.', {title: 'Erase everything?', confirmLabel: 'Erase everything', danger: true}))) return;
   state = freshState();
   persist();
   applySessionLockUI();
