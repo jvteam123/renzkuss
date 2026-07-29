@@ -694,6 +694,19 @@ button.level-badge{cursor:pointer}
 .field-head-row{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:.35rem}
 
 /* ---------- Roster management (Settings) ---------- */
+.roster-manage-wrap{border:1.5px solid var(--line);border-radius:10px;overflow:hidden}
+.roster-manage-toggle{
+  display:flex;align-items:center;gap:.5rem;padding:.6rem .75rem;
+  font-weight:700;font-size:.85rem;color:var(--ink);cursor:pointer;user-select:none;list-style:none;
+}
+.roster-manage-toggle::-webkit-details-marker{display:none}
+.roster-manage-toggle:hover{background:var(--court)}
+.roster-manage-toggle svg{width:12px;height:12px;flex-shrink:0;color:var(--slate);transition:transform .15s}
+.roster-manage-wrap[open] .roster-manage-toggle svg{transform:rotate(90deg)}
+.roster-manage-toggle span:first-of-type{flex:1;min-width:0}
+.roster-manage-body{padding:0 .75rem .75rem}
+.roster-manage-actions{display:flex;margin-top:.5rem}
+.roster-manage-actions .btn{width:100%}
 .roster-manage-search input{
   width:100%;border:1.5px solid var(--line);border-radius:var(--radius-sm);
   padding:.55rem .7rem;font-size:.82rem;background:var(--court);color:var(--ink);margin-bottom:.5rem;
