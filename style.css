@@ -479,6 +479,14 @@ button.level-badge{cursor:pointer}
   .court-card.playing .matchup .vs-divider{
     background:repeating-linear-gradient(90deg, rgba(255,255,255,.25) 0 4px, transparent 4px 9px);
   }
+  /* Header wrapping was putting the skill-level pill ("Open") top-right
+     where people read it as the game status, while the real status pill
+     ("On court" + timer) got bumped to its own line below — reading like
+     a contradiction. Keep name+status glued together on line one; let the
+     level pill be the one that drops down if space is tight. */
+  .court-top>.court-name-wrap{order:1}
+  .court-top>.status-badge,.court-top>.court-top-right{order:2}
+  .court-top>.court-level-badge{order:3;margin-left:auto}
 }
 
 .last-result{
