@@ -193,10 +193,12 @@ button,a,.icon-btn,.panel-action-btn,.btn,select,[role="button"]{
 .quick-add-title{
   font-family:var(--font-mono);font-size:.68rem;font-weight:700;letter-spacing:.03em;
   text-transform:uppercase;color:var(--turf-deep);
+  min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
 .quick-add-all-btn{
   border:none;background:var(--turf);color:#fff;font-size:.7rem;font-weight:700;
   padding:.2rem .55rem;border-radius:99px;cursor:pointer;flex-shrink:0;transition:background .15s;
+  white-space:nowrap;
 }
 .quick-add-all-btn:hover{background:var(--turf-deep)}
 .quick-add-chips{display:flex;flex-wrap:wrap;gap:.4rem}
@@ -966,7 +968,10 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn,bod
   .switch{width:48px;height:27px}
   .switch .track::before{width:21px;height:21px}
   .switch input:checked + .track::before{transform:translateX(21px)}
-  .quick-add-chip,.arrival-checkin-btn,.checkin-all-btn,.block-flush-btn{padding-top:.4rem;padding-bottom:.4rem}
+  .quick-add-chip,.quick-add-all-btn,.arrival-checkin-btn,.checkin-all-btn,.block-flush-btn{
+    min-height:var(--touch-sm);padding:.5rem .75rem;font-size:.82rem;
+  }
+  .quick-add-chip svg{width:13px;height:13px}
   .btn{min-height:var(--touch);display:inline-flex;align-items:center;justify-content:center}
   .btn.sm{min-height:var(--touch-sm)}
   .court-cta{min-height:var(--touch)}
