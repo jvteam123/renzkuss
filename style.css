@@ -160,11 +160,6 @@ button,a,.icon-btn,.panel-action-btn,.btn,select,[role="button"]{
   flex:1;min-width:120px;border:1.5px solid var(--line);border-radius:var(--radius-sm);
   padding:.6rem .7rem;font-size:.88rem;background:var(--court);color:var(--ink);
 }
-/* Chrome for Android draws a native dropdown affordance on inputs with a
-   `list` attribute, positioned inside the field — without reserved space
-   it sits on top of the placeholder/typed text instead of beside it. */
-.add-form input[list]{padding-right:2.4rem}
-.add-form input[list]::-webkit-calendar-picker-indicator{display:none}
 .add-form input:focus{border-color:var(--turf);background:#fff}
 .add-form select{
   flex-shrink:0;border:1.5px solid var(--line);border-radius:var(--radius-sm);
