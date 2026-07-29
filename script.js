@@ -1375,7 +1375,7 @@ courtsGrid.addEventListener('change', (e) => {
   if (!court) return;
   court.name = input.value.trim() || court.name;
   persist();
-  renderHistory();
+  renderUpNext();
 });
 
 function callNext(court){
@@ -1634,25 +1634,58 @@ $('#endgameConfirm').addEventListener('click', () => {
   renderAll(); persist();
 });
 
-/* ================= History ================= */
-function renderHistory(){
-  if (state.history.length === 0){
-    historyList.innerHTML = '<div class="history-row" style="justify-content:center">No games finished yet.</div>';
+/* ================= Up Next (queue preview) =================
+   The courts-page panel used to repeat the last few finished games, which
+   is already covered in full by the Match History modal. Far more useful
+   here: who's queued up behind whatever's already previewed on the open
+   court cards above — the players who'll get called next once a court
+   frees up. */
+function renderUpNext(){
+  if (state.courts.length === 0){
+    historyList.innerHTML = '<div class="history-row" style="justify-content:center">Add a court to see who plays next.</div>';
     return;
   }
-  historyList.innerHTML = state.history.slice(0,8).map(h => {
-    const dur = fmtClock(h.endTime - h.startTime);
-    const a = (h.teamA||[]).map(esc).join(' &amp; ') || '—';
-    const b = (h.teamB||[]).map(esc).join(' &amp; ') || '—';
-    const matchup = h.winner === 'a' ? `<b>${a}</b> defeated ${b}`
-                  : h.winner === 'b' ? `<b>${b}</b> defeated ${a}`
-                  : `${a} vs ${b}`;
-    const trophy = h.winner ? '🏆 ' : '';
-    const scoreTxt = (h.scoreA != null && h.scoreB != null)
-      ? ` (${h.winner === 'a' ? h.scoreA + '-' + h.scoreB : h.scoreB + '-' + h.scoreA})`
-      : '';
-    return `<div class="history-row"><span>${trophy}<b>${esc(h.courtName)}</b> — ${matchup}${scoreTxt}</span><span>${dur}</span></div>`;
-  }).join('');
+  const gameSize = state.session.gameSize;
+  // Whatever the open court cards above are already previewing doesn't need
+  // repeating here — start the "on deck" view from whoever's left after that.
+  const openQueue = computeOpenCourtQueue(gameSize);
+  const claimed = new Set();
+  openQueue.forEach(slot => { if (slot.taken) slot.taken.forEach(e => claimed.add(e.id)); });
+  const onDeck = state.stack.filter(e => !claimed.has(e.id));
+
+  if (onDeck.length === 0){
+    historyList.innerHTML = state.stack.length === 0
+      ? '<div class="history-row" style="justify-content:center">The stack is empty — add players to fill the next match.</div>'
+      : '<div class="history-row" style="justify-content:center">Everyone waiting is already lined up for an open court.</div>';
+    return;
+  }
+
+  const rows = [];
+  let previewStack = onDeck.slice();
+  let groupNum = 1;
+  while (previewStack.length >= gameSize && groupNum <= 3){
+    const chosen = selectMatchEntries(gameSize, previewStack);
+    const chosenIds = new Set(chosen.map(e => e.id));
+    previewStack = previewStack.filter(e => !chosenIds.has(e.id));
+    const names = orderForTeammatePairing(chosen.map(p => p.name));
+    let matchup;
+    if (gameSize === 2){
+      matchup = `${esc(names[0])} vs ${esc(names[1])}`;
+    } else {
+      const [a, b] = splitTeams(names);
+      matchup = `${a.map(esc).join(' &amp; ')} vs ${b.map(esc).join(' &amp; ')}`;
+    }
+    rows.push(`<div class="history-row"><span>⏭ <b>On deck ${groupNum}</b> — ${matchup}</span></div>`);
+    groupNum++;
+  }
+  if (previewStack.length > 0){
+    rows.push(`<div class="history-row" style="justify-content:center">+${previewStack.length} more waiting</div>`);
+  }
+  if (rows.length === 0){
+    const need = gameSize - onDeck.length;
+    rows.push(`<div class="history-row" style="justify-content:center">Waiting on ${need} more player${need === 1 ? '' : 's'} for the next match.</div>`);
+  }
+  historyList.innerHTML = rows.join('');
 }
 
 /* ================= Match History modal (full detail + swap log) ================= */
@@ -2203,7 +2236,7 @@ function renderAll(){
   renderBlocks();
   renderStack();
   renderCourts();
-  renderHistory();
+  renderUpNext();
   renderArrivals();
   renderQuickAdd();
 }
