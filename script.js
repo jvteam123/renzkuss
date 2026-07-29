@@ -61,10 +61,44 @@ async function loadPersisted(){
   return saved;
 }
 
+/* ================= Player skill levels & court types =================
+   Levels are a per-player-name attribute (not per queue-entry), so a
+   player's level sticks with them across the whole session — through
+   arrivals, the stack, a block, a match, and back into the stack again.
+   Courts each have their own assigned level; "Open" (on either side)
+   matches with anything, so courts/players left at the default behave
+   exactly as if this feature didn't exist. */
+const PLAYER_LEVELS = ['Open', 'Beginner', 'Advanced Beginner', 'Intermediate', 'Advanced'];
+function levelClass(level){
+  return 'lvl-' + String(level || 'Open').toLowerCase().replace(/\s+/g, '-');
+}
+function levelsMatch(playerLevel, courtLevel){
+  const pl = playerLevel || 'Open', cl = courtLevel || 'Open';
+  return cl === 'Open' || pl === 'Open' || pl === cl;
+}
+function getPlayerLevel(name){
+  return (state.playerLevels && state.playerLevels[name]) || 'Open';
+}
+function setPlayerLevel(name, level){
+  if (!state.playerLevels) state.playerLevels = {};
+  state.playerLevels[name] = PLAYER_LEVELS.includes(level) ? level : 'Open';
+}
+function levelSelectOptionsHtml(selected){
+  return PLAYER_LEVELS.map(l => `<option value="${esc(l)}"${l === selected ? ' selected' : ''}>${esc(l)}</option>`).join('');
+}
+function cyclePlayerLevel(name){
+  const cur = getPlayerLevel(name);
+  const idx = PLAYER_LEVELS.indexOf(cur);
+  const next = PLAYER_LEVELS[(idx + 1) % PLAYER_LEVELS.length];
+  setPlayerLevel(name, next);
+  toast(name + ' set to ' + next);
+  renderAll(); persist();
+}
+
 /* ================= State ================= */
 function defaultCourts(n){
   return Array.from({length:n}, (_, i) => ({
-    id: 'c'+(i+1), name: 'Court '+(i+1), status:'open', players: [], startTime: null, lastResult: null, swapInfo: null, score: null
+    id: 'c'+(i+1), name: 'Court '+(i+1), level: 'Open', status:'open', players: [], startTime: null, lastResult: null, swapInfo: null, score: null
   }));
 }
 
@@ -79,6 +113,7 @@ function freshState(){
     history: [],          // {id, courtName, teamA, teamB, winner, startTime, endTime}
     playerStats: {},      // name -> {wins, games}
     teammateHistory: {},   // "nameA||nameB" (sorted) -> number of times paired as teammates this session
+    playerLevels: {},      // name -> skill level ('Open'|'Beginner'|'Advanced Beginner'|'Intermediate'|'Advanced')
     roster: []             // known player names, kept across "new session" resets for quick re-adding
   };
 }
@@ -100,6 +135,7 @@ const winnersBlockCount = $('#winnersBlockCount');
 const losersBlockCount = $('#losersBlockCount');
 const addForm = $('#addForm');
 const addNameInput = $('#addNameInput');
+const addLevelSelect = $('#addLevelSelect');
 const courtsGrid = $('#courtsGrid');
 const historyList = $('#historyList');
 const toastWrap = $('#toastWrap');
@@ -421,7 +457,9 @@ function renderStack(){
     return;
   }
   const gameSize = state.session.gameSize;
-  const nextUpIds = new Set(selectMatchEntries(gameSize).map(e => e.id));
+  const openQueue = computeOpenCourtQueue(gameSize);
+  const nextUpIds = new Set();
+  openQueue.forEach(slot => { if (slot.taken) slot.taken.forEach(e => nextUpIds.add(e.id)); });
   state.stack.forEach((entry, idx) => {
     const row = document.createElement('div');
     row.className = 'paddle' + (nextUpIds.has(entry.id) ? ' next-up' : '');
@@ -432,13 +470,14 @@ function renderStack(){
     const games = stats ? (stats.games || 0) : 0;
     const gamesChip = gamesChipHtml(games);
     const tag = entry.tag === 'queued' ? '<span class="tag-pill queued">Queued</span>' : '<span class="tag-pill new">New</span>';
+    const levelBadge = `<button type="button" class="level-badge ${levelClass(getPlayerLevel(entry.name))}" data-act="cycle-level" title="Tap to change skill level">${esc(getPlayerLevel(entry.name))}</button>`;
     row.innerHTML = `
       <span class="drag-handle" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#i-grip"/></svg></span>
       <span class="pos">${idx+1}</span>
       <svg class="glyph" viewBox="0 0 20 28"><use href="#i-paddle"/></svg>
       <span class="name-col">
         <span class="name">${esc(entry.name)}${winChip}</span>
-        <span class="sub-row">${tag}${gamesChip}</span>
+        <span class="sub-row">${tag}${levelBadge}${gamesChip}</span>
       </span>
       <span class="reorder">
         <button type="button" data-act="up" aria-label="Move up"><svg viewBox="0 0 24 24"><use href="#i-up"/></svg></button>
@@ -533,6 +572,10 @@ stackList.addEventListener('click', (e) => {
   const idx = state.stack.findIndex(p => p.id === id);
   if (idx === -1) return;
   const act = btn.dataset.act;
+  if (act === 'cycle-level'){
+    cyclePlayerLevel(state.stack[idx].name);
+    return;
+  }
   if (act === 'remove'){
     const entry = state.stack[idx];
     if (!confirm('Remove ' + entry.name + ' from the stack?')) return;
@@ -677,7 +720,8 @@ function isNameActive(name){
 }
 /* Players land here first (added, but not yet on the floor). They only join the
    live stack once someone checks them in as arrived — see checkInArrival(s) below. */
-function addNamesToArrivals(names){
+function addNamesToArrivals(names, level){
+  const lvl = PLAYER_LEVELS.includes(level) ? level : 'Open';
   const added = [];
   const skipped = [];
   const rejected = [];
@@ -691,6 +735,7 @@ function addNamesToArrivals(names){
       return;
     }
     state.arrivals.push({ id: nextId('a'), name, addedAt: Date.now() });
+    setPlayerLevel(name, lvl);
     registerRoster(name);
     added.push(name);
   });
@@ -713,7 +758,7 @@ addForm.addEventListener('submit', (e) => {
   if (!raw) return;
   const names = raw.split(',').map(s => s.trim()).filter(Boolean);
   addNameInput.value = '';
-  addNamesToArrivals(names);
+  addNamesToArrivals(names, addLevelSelect ? addLevelSelect.value : 'Open');
 });
 
 /* ---- Bulk add: one name per line ---- */
@@ -726,7 +771,7 @@ $('#bulkAddBtn').addEventListener('click', function(){
   // Collapse the details panel after adding
   const wrap = $('#bulkAddWrap');
   if (wrap) wrap.removeAttribute('open');
-  addNamesToArrivals(names);
+  addNamesToArrivals(names, addLevelSelect ? addLevelSelect.value : 'Open');
   toast(names.length + ' player' + (names.length > 1 ? 's' : '') + ' added');
 });
 
@@ -779,6 +824,7 @@ function renderArrivals(){
   listEl.innerHTML = state.arrivals.map(entry => `
     <div class="arrival-row" data-id="${entry.id}">
       <span class="arrival-name">${esc(entry.name)}</span>
+      <button type="button" class="level-badge ${levelClass(getPlayerLevel(entry.name))}" data-act="cycle-level" data-name="${esc(entry.name)}" title="Tap to change skill level">${esc(getPlayerLevel(entry.name))}</button>
       <button type="button" class="arrival-checkin-btn" data-act="checkin" data-id="${entry.id}">Check in</button>
       <button type="button" class="arrival-remove-btn" data-act="remove" data-id="${entry.id}" aria-label="Remove ${esc(entry.name)}"><svg viewBox="0 0 24 24"><use href="#i-x"/></svg></button>
     </div>
@@ -793,6 +839,7 @@ if (arrivalsListEl){
     const id = btn.dataset.id;
     if (btn.dataset.act === 'checkin') checkInArrival(id);
     else if (btn.dataset.act === 'remove') removeArrival(id);
+    else if (btn.dataset.act === 'cycle-level') cyclePlayerLevel(btn.dataset.name);
   });
 }
 const checkInAllBtnEl = $('#checkInAllBtn');
@@ -828,7 +875,7 @@ if (quickAddChipsEl){
     if (isSessionEnded()){ toast('Session has ended — resume it to add players'); return; }
     const btn = e.target.closest('button[data-name]');
     if (!btn) return;
-    addNamesToArrivals([btn.dataset.name]);
+    addNamesToArrivals([btn.dataset.name], addLevelSelect ? addLevelSelect.value : 'Open');
   });
 }
 const quickAddAllBtnEl = $('#quickAddAllBtn');
@@ -837,7 +884,7 @@ if (quickAddAllBtnEl){
     if (isSessionEnded()){ toast('Session has ended — resume it to add players'); return; }
     const available = state.roster.slice().sort((a,b) => a.localeCompare(b)).filter(n => !isNameActive(n));
     if (available.length === 0) return;
-    addNamesToArrivals(available);
+    addNamesToArrivals(available, addLevelSelect ? addLevelSelect.value : 'Open');
   });
 }
 
@@ -885,9 +932,11 @@ function computeOpenCourtQueue(gameSize){
   let previewStack = state.stack.slice();
   state.courts.forEach(court => {
     if (court.status !== 'open') return;
-    const remaining = previewStack.length;
+    const courtLevel = court.level || 'Open';
+    const candidatePool = previewStack.filter(e => levelsMatch(getPlayerLevel(e.name), courtLevel));
+    const remaining = candidatePool.length;
     if (remaining >= gameSize){
-      const taken = selectMatchEntries(gameSize, previewStack);
+      const taken = selectMatchEntries(gameSize, candidatePool);
       const takenIds = new Set(taken.map(e => e.id));
       previewStack = previewStack.filter(e => !takenIds.has(e.id));
       queue.set(court.id, { taken, remaining });
@@ -1149,11 +1198,13 @@ function renderCourts(){
         const [a, b] = splitTeams(names);
         matchupHtml = `<div class="matchup">${teamColHtml(a,'a',gameSize)}<div class="vs-divider"></div>${teamColHtml(b,'b',gameSize)}</div>`;
       } else {
-        matchupHtml = `<div class="matchup" style="align-items:center;justify-content:center"><span class="empty-slot">Needs ${Math.max(0, gameSize - slot.remaining)} more in the stack</span></div>`;
+        const lvlNote = (court.level && court.level !== 'Open') ? ` ${court.level}` : '';
+        matchupHtml = `<div class="matchup" style="align-items:center;justify-content:center"><span class="empty-slot">Needs ${Math.max(0, gameSize - slot.remaining)} more${lvlNote} in the stack</span></div>`;
       }
       card.innerHTML = `
         <div class="court-top">
           <span class="court-name-wrap">${courtIcon}<input class="court-name" value="${esc(court.name)}" data-act="rename" maxlength="24" aria-label="Court name"></span>
+          <select class="court-level-select ${levelClass(court.level)}" data-act="level" aria-label="Court skill level">${levelSelectOptionsHtml(court.level || 'Open')}</select>
           <span class="status-badge open">Open</span>
         </div>
         ${lastResultHtml}
@@ -1179,6 +1230,7 @@ function renderCourts(){
       card.innerHTML = `
         <div class="court-top">
           <span class="court-name-wrap">${courtIcon}<input class="court-name" value="${esc(court.name)}" data-act="rename" maxlength="24" aria-label="Court name"></span>
+          <select class="court-level-select ${levelClass(court.level)}" data-act="level" aria-label="Court skill level">${levelSelectOptionsHtml(court.level || 'Open')}</select>
           <span class="court-top-right">
             <span class="status-badge playing">On court</span>
             ${timerChip}
@@ -1215,6 +1267,16 @@ courtsGrid.addEventListener('click', (e) => {
 });
 
 courtsGrid.addEventListener('change', (e) => {
+  const levelSelect = e.target.closest('select[data-act="level"]');
+  if (levelSelect){
+    const card = levelSelect.closest('.court-card');
+    const court = state.courts.find(c => c.id === card.dataset.id);
+    if (!court) return;
+    court.level = PLAYER_LEVELS.includes(levelSelect.value) ? levelSelect.value : 'Open';
+    persist();
+    renderAll();
+    return;
+  }
   const input = e.target.closest('input[data-act="rename"]');
   if (!input) return;
   const card = input.closest('.court-card');
@@ -1821,14 +1883,29 @@ fixedDuoList.addEventListener('click', (e) => {
   toast('Fixed duo removed');
 });
 function renderCourtNameRows(){
-  courtNameRows.innerHTML = state.courts.map((c,i) => `<input type="text" value="${esc(c.name)}" data-idx="${i}" maxlength="24">`).join('');
+  courtNameRows.innerHTML = state.courts.map((c,i) => `
+    <div class="court-name-row">
+      <input type="text" value="${esc(c.name)}" data-idx="${i}" maxlength="24">
+      <select class="${levelClass(c.level)}" data-level-idx="${i}" aria-label="${esc(c.name)} skill level">${levelSelectOptionsHtml(c.level || 'Open')}</select>
+    </div>
+  `).join('');
 }
 courtNameRows.addEventListener('change', (e) => {
   const input = e.target.closest('input[data-idx]');
-  if (!input) return;
-  const idx = Number(input.dataset.idx);
-  if (state.courts[idx]) state.courts[idx].name = input.value.trim() || state.courts[idx].name;
-  persist();
+  if (input){
+    const idx = Number(input.dataset.idx);
+    if (state.courts[idx]) state.courts[idx].name = input.value.trim() || state.courts[idx].name;
+    persist();
+    return;
+  }
+  const select = e.target.closest('select[data-level-idx]');
+  if (select){
+    const idx = Number(select.dataset.levelIdx);
+    if (state.courts[idx]) state.courts[idx].level = PLAYER_LEVELS.includes(select.value) ? select.value : 'Open';
+    select.className = levelClass(state.courts[idx] ? state.courts[idx].level : 'Open');
+    persist();
+    renderCourts();
+  }
 });
 
 $('#settingsBtn').addEventListener('click', openSettings);
@@ -1851,7 +1928,7 @@ gameSizeSeg.addEventListener('click', (e) => {
 $('#courtPlus').addEventListener('click', () => {
   if (state.courts.length >= 24) return;
   const n = state.courts.length + 1;
-  state.courts.push({ id: nextId('c'), name: 'Court ' + n, status:'open', players:[], startTime:null, lastResult:null, swapInfo:null, score:null });
+  state.courts.push({ id: nextId('c'), name: 'Court ' + n, level: 'Open', status:'open', players:[], startTime:null, lastResult:null, swapInfo:null, score:null });
   courtCountNum.textContent = state.courts.length;
   renderCourtNameRows(); persist(); renderAll();
 });
@@ -1955,6 +2032,8 @@ $('#importFile').addEventListener('change', async (e) => {
     if (!parsed.session.targetGamesPerPlayer || parsed.session.targetGamesPerPlayer < 1) parsed.session.targetGamesPerPlayer = 7;
     if (typeof parsed.session.avoidRepeatTeammates !== 'boolean') parsed.session.avoidRepeatTeammates = false;
     if (!Array.isArray(parsed.session.fixedDuos)) parsed.session.fixedDuos = [];
+    if (!parsed.playerLevels || typeof parsed.playerLevels !== 'object') parsed.playerLevels = {};
+    parsed.courts.forEach(c => { if (!c.level || !PLAYER_LEVELS.includes(c.level)) c.level = 'Open'; });
     state = parsed;
     persist();
     renderRosterList();
@@ -2050,6 +2129,8 @@ function renderAll(){
     if (typeof state.session.scoringEnabled !== 'boolean') state.session.scoringEnabled = false;
     if (!state.session.winningScore || state.session.winningScore < 1) state.session.winningScore = 11;
     state.courts.forEach(c => { if (!('score' in c)) c.score = null; });
+    if (!state.playerLevels || typeof state.playerLevels !== 'object') state.playerLevels = {};
+    state.courts.forEach(c => { if (!c.level || !PLAYER_LEVELS.includes(c.level)) c.level = 'Open'; });
   }
   renderRosterList();
   renderAll();
