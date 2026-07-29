@@ -337,17 +337,22 @@ button.level-badge{cursor:pointer}
   text-transform:uppercase;color:var(--slate);
 }
 .block-group{display:flex;flex-direction:column;gap:.35rem}
-.block-head{display:flex;align-items:center;gap:.4rem}
-.block-head-label{font-weight:700;font-size:.78rem;color:var(--ink)}
+.block-head{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
+.block-head-label{
+  font-weight:700;font-size:.78rem;color:var(--ink);
+  flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
 .block-head-count{
   font-family:var(--font-mono);font-weight:600;font-size:.68rem;
   color:var(--turf-deep);background:var(--turf-pale);
   padding:.05rem .45rem;border-radius:99px;
+  white-space:nowrap;flex-shrink:0;
 }
 .block-flush-btn{
   margin-left:auto;border:1.5px solid var(--line);background:var(--surface);color:var(--slate);
   font-size:.66rem;font-weight:700;padding:.15rem .5rem;border-radius:99px;cursor:pointer;
   transition:border-color .15s,color .15s;
+  white-space:nowrap;flex-shrink:0;
 }
 .block-flush-btn:hover{border-color:var(--turf);color:var(--turf-deep)}
 .block-flush-btn:disabled{opacity:.4;cursor:default}
@@ -365,14 +370,17 @@ button.level-badge{cursor:pointer}
 .block-empty{font-size:.72rem;color:var(--slate);padding:.15rem .1rem}
 .block-level-group{display:flex;flex-direction:column;gap:.3rem}
 .block-level-group + .block-level-group{margin-top:.5rem;padding-top:.5rem;border-top:1px dashed var(--line)}
-.block-level-head{display:flex;align-items:center;gap:.4rem}
+.block-level-head{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
+.block-level-head .level-badge{flex-shrink:0}
 .block-level-count{
   font-family:var(--font-mono);font-weight:600;font-size:.64rem;color:var(--slate);
+  white-space:nowrap;flex-shrink:0;
 }
 .block-level-flush-btn{
   margin-left:auto;border:1.5px solid var(--line);background:var(--surface);color:var(--slate);
   font-size:.62rem;font-weight:700;padding:.1rem .45rem;border-radius:99px;cursor:pointer;
   transition:border-color .15s,color .15s;
+  white-space:nowrap;flex-shrink:0;
 }
 .block-level-flush-btn:hover{border-color:var(--turf);color:var(--turf-deep)}
 
@@ -619,6 +627,8 @@ button.level-badge{cursor:pointer}
   padding:1.6rem 1.4rem 1.8rem;margin:auto;
 }
 .modal h3{font-family:var(--font-display);font-size:1.1rem;margin:0 0 1rem}
+.confirm-modal{max-width:400px}
+.confirm-message{margin:0 0 1.2rem;color:var(--slate);line-height:1.5;font-size:.95rem}
 .field{margin-bottom:1rem}
 .field label{display:block;font-size:.78rem;font-weight:700;color:var(--slate);margin-bottom:.35rem;text-transform:uppercase;letter-spacing:.03em}
 .field input[type=text],.field input[type=number],.field select{
