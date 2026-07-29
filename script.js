@@ -832,6 +832,21 @@ if (rosterManageListEl){
     toast(name + ' removed from saved players');
   });
 }
+const rosterClearAllBtn = $('#rosterClearAllBtn');
+if (rosterClearAllBtn){
+  rosterClearAllBtn.addEventListener('click', async () => {
+    if (state.roster.length === 0) return;
+    if (!(await showConfirm('This clears every saved suggestion — it won\'t affect history, rankings, or anyone currently on the floor.', {title: 'Clear all ' + state.roster.length + ' known players?', confirmLabel: 'Clear all', danger: true}))) return;
+    state.roster = [];
+    if (Array.isArray(state.session.fixedDuos)) state.session.fixedDuos = [];
+    renderRosterList();
+    renderRosterManageList($('#rosterSearchInput') ? $('#rosterSearchInput').value : '');
+    if (!settingsOverlay.hidden){ renderFixedDuoNameOptions(); renderFixedDuoList(); }
+    renderCourts();
+    persist();
+    toast('All known players cleared');
+  });
+}
 const rosterSearchInputEl = $('#rosterSearchInput');
 if (rosterSearchInputEl){
   rosterSearchInputEl.addEventListener('input', (e) => renderRosterManageList(e.target.value));
