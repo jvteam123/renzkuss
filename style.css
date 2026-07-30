@@ -25,6 +25,69 @@
   --touch:44px;            /* min. comfortable touch target */
   --touch-sm:36px;
 }
+
+/* ---------- Dark mode ----------
+   Applied by toggling data-theme="dark" on <html> (see script.js). All
+   color roles are re-pointed here; because nearly every component below
+   is already built on these custom properties, redefining them here is
+   enough to re-skin the whole app. The handful of places that hardcoded
+   a literal white or pale color instead of a variable get their own
+   override underneath. */
+html[data-theme="dark"]{
+  --court:#0B1220;
+  --ink:#E8ECF5;
+  --turf:#5B8DEF;
+  --turf-deep:#9CBEFF;
+  --turf-pale:rgba(91,141,239,.16);
+  --clay:#FF6B75;
+  --clay-deep:#FFB3B9;
+  --gold:#FCD116;
+  --gold-deep:#FFDE70;
+  --gold-pale:rgba(252,209,22,.14);
+  --slate:#8FA0B8;
+  --line:#263242;
+  --surface:#141D2B;
+  --danger:#FF6B75;
+  --danger-pale:rgba(255,107,117,.15);
+  --shadow-sm:0 1px 3px rgba(0,0,0,.45), 0 1px 2px rgba(0,0,0,.35);
+  --shadow-md:0 10px 30px rgba(0,0,0,.55);
+  color-scheme:dark;
+}
+html[data-theme="dark"] body{background:var(--court);color:var(--ink)}
+/* Surfaces that were hardcoded to a literal white/pale color instead of
+   a variable, so the blanket redefinition above can't reach them. */
+html[data-theme="dark"] .panel-action-btn,
+html[data-theme="dark"] .add-form input:focus,
+html[data-theme="dark"] .bulk-add-body textarea,
+html[data-theme="dark"] .quick-add-chip,
+html[data-theme="dark"] .modal,
+html[data-theme="dark"] .field input:focus,
+html[data-theme="dark"] .field select:focus,
+html[data-theme="dark"] .stepper button,
+html[data-theme="dark"] .fixed-duo-add-row select,
+html[data-theme="dark"] .fixed-duo-row,
+html[data-theme="dark"] .roster-manage-search input:focus,
+html[data-theme="dark"] .endgame-row .choice button,
+html[data-theme="dark"] .endgame-row .choice button:disabled:hover,
+html[data-theme="dark"] .winner-card .score-input,
+html[data-theme="dark"] .modal-icon-btn,
+html[data-theme="dark"] .modal-icon-btn:disabled,
+html[data-theme="dark"] .rankings-toolbar:focus-within,
+html[data-theme="dark"] .rank-row{
+  background:var(--surface);
+}
+html[data-theme="dark"] .session-banner{background:rgba(255,107,117,.1)}
+html[data-theme="dark"] .session-banner .eyebrow{background:var(--surface)}
+html[data-theme="dark"] .session-banner .msg{color:var(--clay-deep)}
+html[data-theme="dark"] .winner-card.selected{background:rgba(255,107,117,.14)}
+html[data-theme="dark"] .lvl-open{background:rgba(255,255,255,.06);color:var(--slate)}
+html[data-theme="dark"] .lvl-intermediate{background:rgba(255,140,0,.16);color:#FFB870}
+html[data-theme="dark"] .paddle .tag-pill.queued{background:rgba(255,200,100,.14);color:#E0BC7E}
+html[data-theme="dark"] .rank-row.top1{border-color:rgba(252,209,22,.4)}
+html[data-theme="dark"] .mvp-badge{background:rgba(252,209,22,.14);color:#FFD35C;border-color:rgba(252,209,22,.35)}
+html[data-theme="dark"] .toast-progress{background:rgba(255,255,255,.14)}
+html[data-theme="dark"] ::selection{background:rgba(91,141,239,.35)}
+
 *{box-sizing:border-box}
 html,body{height:100%}
 html{-webkit-text-size-adjust:100%}
@@ -35,6 +98,7 @@ body{
   font-family:var(--font-body);
   -webkit-font-smoothing:antialiased;
   overscroll-behavior:none;
+  transition:background-color .2s,color .2s;
 }
 button{font-family:inherit}
 input,select{font-family:inherit}
@@ -676,7 +740,7 @@ button.level-badge{cursor:pointer}
 .fixed-duo-add-row select:focus{border-color:var(--turf)}
 .fixed-duo-list{display:flex;flex-direction:column;gap:.4rem;margin-top:.6rem}
 .fixed-duo-row{
-  display:flex;align-items:center;gap:.5rem;background:#fff;border:1px solid rgba(47,111,94,.25);
+  display:flex;align-items:center;gap:.5rem;background:#fff;border:1px solid var(--line);
   border-radius:8px;padding:.45rem .6rem;
 }
 .fixed-duo-row .fd-names{flex:1;min-width:0;font-size:.8rem;font-weight:700;color:var(--turf-deep);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
