@@ -5,6 +5,12 @@
   --brand-ink:#0A1E3D;     /* fixed dark navy — same in both themes; a few high-contrast
                               bars (topbar, toasts, mobile tab bar) are deliberately always
                               dark, unlike --ink which flips to a light text color in dark mode */
+  --brand-turf:#0038A8;    /* fixed — --turf itself gets lightened in dark mode for on-page
+                              contrast, but the topbar's brand gradient should stay put */
+  --brand-turf-deep:#00256E;
+  --brand-gold-pale:#FFF6D6; /* fixed — the topbar pill's text needs a light cream regardless
+                                of theme; --gold-pale becomes a translucent tint in dark mode,
+                                which isn't legible as solid text */
   --turf:#0038A8;          /* flag blue — primary */
   --turf-deep:#00256E;
   --turf-pale:#DEE7F7;
@@ -137,7 +143,7 @@ button,a,.icon-btn,.panel-action-btn,.btn,select,[role="button"]{
 .topbar{
   display:flex;align-items:center;gap:.85rem;
   padding:.75rem 1rem;
-  background:linear-gradient(120deg, var(--brand-ink) 0%, var(--turf-deep) 65%, var(--turf) 130%);
+  background:linear-gradient(120deg, var(--brand-ink) 0%, var(--brand-turf-deep) 65%, var(--brand-turf) 130%);
   color:#fff;
   position:sticky;top:5px;z-index:40;
   box-shadow:var(--shadow-sm);
@@ -164,7 +170,7 @@ button,a,.icon-btn,.panel-action-btn,.btn,select,[role="button"]{
 .topbar .spacer{flex:1}
 .topbar .pill{
   font-family:var(--font-mono);font-size:.72rem;font-weight:600;
-  background:rgba(255,255,255,.1);color:var(--gold-pale);
+  background:rgba(255,255,255,.1);color:var(--brand-gold-pale);
   border:1px solid rgba(252,209,22,.35);
   padding:.32rem .6rem;border-radius:99px;white-space:nowrap;
 }
