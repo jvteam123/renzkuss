@@ -132,6 +132,27 @@ function nextId(prefix){ return prefix + (Date.now().toString(36)) + (uid++); }
 
 /* ================= DOM refs ================= */
 const $ = (sel) => document.querySelector(sel);
+
+/* ================= Theme (dark mode) =================
+   Preference is stored separately from the queue/app state so it can be
+   applied the instant script.js runs, without waiting on IndexedDB. */
+const THEME_KEY = 'paddleStackTheme';
+function getStoredTheme(){
+  try{ return localStorage.getItem(THEME_KEY); }catch(e){ return null; }
+}
+function preferredTheme(){
+  const stored = getStoredTheme();
+  if (stored === 'dark' || stored === 'light') return stored;
+  return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+}
+function applyTheme(theme){
+  document.documentElement.setAttribute('data-theme', theme);
+  const iconUse = $('#themeToggleIconUse');
+  if (iconUse) iconUse.setAttribute('href', theme === 'dark' ? '#i-sun' : '#i-moon');
+  const btn = $('#themeToggleBtn');
+  if (btn) btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+}
+applyTheme(preferredTheme());
 const stackList = $('#stackList');
 const stackBadge = $('#stackBadge');
 const stackCountPill = $('#stackCountPill');
@@ -716,9 +737,23 @@ stackList.addEventListener('click', async (e) => {
   renderAll(); persist();
 });
 
-/* ---- Pointer-based drag reorder (works for mouse, touch, pen) ---- */
+/* ---- Pointer-based drag reorder (works for mouse, touch, pen) ----
+   Two bugs fixed here for the final release:
+   1. Pointer capture was being requested on `row` while the move/up/cancel
+      listeners were registered on `handle` (a descendant). Once captured,
+      the browser retargets every subsequent event for that pointer at the
+      *capture* element — so those listeners, sitting on a non-ancestor,
+      never fired again after pointerdown. The drag looked like it started
+      (the "dragging" class flashed on) but then did nothing.
+   2. Each swap during the drag called the full renderAll(), which wipes
+      and rebuilds the whole stack list from scratch. That destroys the
+      very row/handle currently holding the pointer capture, silently
+      ending the gesture — so even a corrected capture would only survive
+      one hop. Reordering now moves the DOM node directly and defers the
+      full re-render (which restores position numbers, "next up" tags,
+      etc.) until the pointer is released. */
 function attachDrag(row){
-  let startY = 0, dragging = false, placeholder = null;
+  let startY = 0, dragging = false;
   const handle = row.querySelector('.drag-handle');
   handle.addEventListener('pointerdown', (e) => {
     if (isSessionEnded()) return;
@@ -726,7 +761,7 @@ function attachDrag(row){
     dragging = true;
     startY = e.clientY;
     row.classList.add('dragging');
-    row.setPointerCapture(e.pointerId);
+    handle.setPointerCapture(e.pointerId);
     row.style.position = 'relative';
   });
   handle.addEventListener('pointermove', (e) => {
@@ -734,11 +769,13 @@ function attachDrag(row){
     const dy = e.clientY - startY;
     row.style.transform = `translateY(${dy}px)`;
     row.style.zIndex = 10;
-    const siblings = [...stackList.querySelectorAll('.paddle')];
+    const group = row.parentElement; // stay within this player's skill-level group, same as the up/down buttons
+    if (!group) return;
+    const siblings = [...group.querySelectorAll('.paddle')];
     const myIdx = siblings.indexOf(row);
     const target = document.elementFromPoint(e.clientX, e.clientY);
     const targetRow = target && target.closest ? target.closest('.paddle') : null;
-    if (targetRow && targetRow !== row){
+    if (targetRow && targetRow !== row && targetRow.parentElement === group){
       const targetIdx = siblings.indexOf(targetRow);
       if (targetIdx !== -1 && targetIdx !== myIdx){
         const id = row.dataset.id;
@@ -747,8 +784,11 @@ function attachDrag(row){
         if (fromIdx !== -1 && toIdx !== -1){
           const [moved] = state.stack.splice(fromIdx, 1);
           state.stack.splice(toIdx, 0, moved);
-          renderAll(); persist();
+          if (myIdx < targetIdx) group.insertBefore(row, targetRow.nextSibling);
+          else group.insertBefore(row, targetRow);
+          persist();
           startY = e.clientY;
+          row.style.transform = 'translateY(0px)';
         }
       }
     }
@@ -759,6 +799,7 @@ function attachDrag(row){
     row.classList.remove('dragging');
     row.style.transform = '';
     row.style.zIndex = '';
+    renderAll(); persist();
   };
   handle.addEventListener('pointerup', end);
   handle.addEventListener('pointercancel', end);
@@ -1804,6 +1845,11 @@ function openMatchHistory(){
   matchHistoryOverlay.hidden = false;
 }
 $('#matchHistoryBtn').addEventListener('click', openMatchHistory);
+$('#themeToggleBtn').addEventListener('click', () => {
+  const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
+  try{ localStorage.setItem(THEME_KEY, next); }catch(e){}
+});
 $('#matchHistoryDone').addEventListener('click', () => { matchHistoryOverlay.hidden = true; });
 
 /* ================= Live timers ================= */
@@ -1968,7 +2014,14 @@ rankingsShotBtn.addEventListener('click', async () => {
   try{
     const html2canvas = await loadHtml2Canvas();
     const target = $('#rankingsCaptureArea');
-    const canvas = await html2canvas(target, { backgroundColor: '#ffffff', scale: 2, useCORS: true });
+    // Match the capture background to the active theme — this used to be
+    // hardcoded to white, which made a dark-mode screenshot come out as
+    // pale text on a white background (all but unreadable).
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const bg = isDark
+      ? (getComputedStyle(document.documentElement).getPropertyValue('--court').trim() || '#0B1220')
+      : '#ffffff';
+    const canvas = await html2canvas(target, { backgroundColor: bg, scale: 2, useCORS: true });
     const link = document.createElement('a');
     link.download = `rankings-${new Date().toISOString().slice(0,10)}.png`;
     link.href = canvas.toDataURL('image/png');
