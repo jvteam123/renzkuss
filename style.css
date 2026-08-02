@@ -841,12 +841,12 @@ button.level-badge{cursor:pointer}
 }
 .roster-manage-row .rm-name{flex:1;min-width:0;font-size:.85rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tag-pill.floor{background:var(--turf-pale);color:var(--turf-deep);flex-shrink:0}
-.roster-manage-row .rm-del{
+.rm-del{
   border:none;background:none;color:var(--slate);cursor:pointer;
   width:23px;height:23px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;
 }
-.roster-manage-row .rm-del:hover{background:var(--danger-pale);color:var(--danger)}
-.roster-manage-row .rm-del svg{width:12px;height:12px}
+.rm-del:hover{background:var(--danger-pale);color:var(--danger)}
+.rm-del svg{width:12px;height:12px}
 .roster-manage-empty{padding:1.1rem .5rem;text-align:center;color:var(--slate);font-size:.8rem}
 
 /* ---------- Session banner (read-only / ended state) ----------
@@ -1069,7 +1069,7 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn,bod
 @media (pointer:coarse){
   .icon-btn{width:var(--touch);height:var(--touch)}
   .modal-icon-btn{width:40px;height:40px}
-  .arrival-remove-btn,.roster-manage-row .rm-del{
+  .arrival-remove-btn,.rm-del{
     width:var(--touch-sm);height:var(--touch-sm)
   }
   .paddle .remove-btn{width:30px;height:30px}
