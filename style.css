@@ -675,13 +675,42 @@ button.level-badge{cursor:pointer}
 .history summary::-webkit-details-marker{display:none}
 .history summary svg{width:12px;height:12px;transition:transform .15s}
 .history[open] summary svg{transform:rotate(90deg)}
-.history-list{display:flex;flex-direction:column;gap:.4rem;padding:.3rem 0 0}
+.history-list{display:flex;flex-direction:column;gap:.5rem;padding:.3rem 0 0}
 .history-row{
   display:flex;justify-content:space-between;gap:.6rem;font-size:.78rem;color:var(--slate);
   background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);
   padding:.5rem .7rem;
 }
 .history-row b{color:var(--ink)}
+
+/* On-deck rows: a mono "On deck N" pill up front so the queue order reads at
+   a glance, then the matchup itself set large and bold — this used to be a
+   single run-on sentence in the same small gray text as everything else,
+   which made the actual players easy to miss. */
+.ondeck-row{
+  display:flex;align-items:center;flex-wrap:wrap;gap:.35rem .8rem;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);
+  padding:.65rem .8rem;
+}
+.ondeck-num{
+  font-family:var(--font-mono);font-size:.66rem;font-weight:700;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--turf-deep);background:var(--turf-pale);
+  padding:.28rem .6rem;border-radius:99px;white-space:nowrap;flex-shrink:0;
+}
+.ondeck-matchup{
+  display:flex;align-items:center;flex-wrap:wrap;gap:.4rem .5rem;
+  font-size:.92rem;font-weight:700;color:var(--ink);min-width:0;flex:1;
+}
+.ondeck-team{min-width:0;overflow-wrap:anywhere}
+.ondeck-vs{
+  font-family:var(--font-mono);font-size:.62rem;font-weight:700;color:var(--slate);
+  text-transform:uppercase;letter-spacing:.05em;flex-shrink:0;
+}
+.ondeck-more,.ondeck-empty{
+  text-align:center;color:var(--slate);font-size:.8rem;
+  background:var(--surface);border:1px dashed var(--line);border-radius:var(--radius-sm);
+  padding:.65rem .8rem;
+}
 
 /* ---------- Match history modal ---------- */
 .modal.wide{max-width:560px}
