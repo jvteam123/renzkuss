@@ -1212,11 +1212,11 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn,bod
 .viewer-banner .msg{font-size:.82rem;font-weight:600;color:var(--ink);flex:1 1 auto;min-width:100px}
 .viewer-notify-btn{
   display:inline-flex;align-items:center;gap:.35rem;flex-shrink:0;margin-left:auto;
-  background:#fff;color:var(--turf-deep);border:1.5px solid var(--turf);
+  background:var(--surface);color:var(--turf-deep);border:1.5px solid var(--turf);
   border-radius:99px;padding:.4rem .8rem;font-size:.76rem;font-weight:700;
   line-height:1.1;white-space:nowrap;
 }
-.viewer-notify-btn:hover{background:var(--turf-pale)}
+.viewer-notify-btn:hover{background:var(--turf-pale);color:var(--turf-deep)}
 .viewer-notify-btn.active{background:var(--turf);color:#fff;border-color:var(--turf)}
 @media (max-width:520px){
   .viewer-banner{gap:.5rem .6rem}
