@@ -1741,7 +1741,7 @@ $('#endgameConfirm').addEventListener('click', async () => {
    frees up. */
 function renderUpNext(){
   if (state.courts.length === 0){
-    historyList.innerHTML = '<div class="history-row" style="justify-content:center">Add a court to see who plays next.</div>';
+    historyList.innerHTML = '<div class="ondeck-empty">Add a court to see who plays next.</div>';
     return;
   }
   const gameSize = state.session.gameSize;
@@ -1754,8 +1754,8 @@ function renderUpNext(){
 
   if (onDeck.length === 0){
     historyList.innerHTML = state.stack.length === 0
-      ? '<div class="history-row" style="justify-content:center">The stack is empty — add players to fill the next match.</div>'
-      : '<div class="history-row" style="justify-content:center">Everyone waiting is already lined up for an open court.</div>';
+      ? '<div class="ondeck-empty">The stack is empty — add players to fill the next match.</div>'
+      : '<div class="ondeck-empty">Everyone waiting is already lined up for an open court.</div>';
     return;
   }
 
@@ -1769,20 +1769,20 @@ function renderUpNext(){
     const names = orderForTeammatePairing(chosen.map(p => p.name));
     let matchup;
     if (gameSize === 2){
-      matchup = `${esc(names[0])} vs ${esc(names[1])}`;
+      matchup = `<span class="ondeck-team">${esc(names[0])}</span><span class="ondeck-vs">vs</span><span class="ondeck-team">${esc(names[1])}</span>`;
     } else {
       const [a, b] = splitTeams(names);
-      matchup = `${a.map(esc).join(' &amp; ')} vs ${b.map(esc).join(' &amp; ')}`;
+      matchup = `<span class="ondeck-team">${a.map(esc).join(' &amp; ')}</span><span class="ondeck-vs">vs</span><span class="ondeck-team">${b.map(esc).join(' &amp; ')}</span>`;
     }
-    rows.push(`<div class="history-row"><span>⏭ <b>On deck ${groupNum}</b> — ${matchup}</span></div>`);
+    rows.push(`<div class="ondeck-row"><span class="ondeck-num">On deck ${groupNum}</span><span class="ondeck-matchup">${matchup}</span></div>`);
     groupNum++;
   }
   if (previewStack.length > 0){
-    rows.push(`<div class="history-row" style="justify-content:center">+${previewStack.length} more waiting</div>`);
+    rows.push(`<div class="ondeck-more">+${previewStack.length} more waiting</div>`);
   }
   if (rows.length === 0){
     const need = gameSize - onDeck.length;
-    rows.push(`<div class="history-row" style="justify-content:center">Waiting on ${need} more player${need === 1 ? '' : 's'} for the next match.</div>`);
+    rows.push(`<div class="ondeck-empty">Waiting on ${need} more player${need === 1 ? '' : 's'} for the next match.</div>`);
   }
   historyList.innerHTML = rows.join('');
 }
