@@ -2809,6 +2809,7 @@ function enterViewerMode(code){
   const msgEl = $('#viewerBannerMsg');
   if (banner) banner.hidden = false;
   function setMsg(text){ if (msgEl) msgEl.textContent = text; }
+  setMsg('Connecting…');
 
   /* ---- Opt-in browser notifications: "match ended" + "next up changed" ----
      Spectators tap the bell once to grant permission; after that we notify
