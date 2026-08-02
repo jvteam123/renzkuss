@@ -1209,7 +1209,9 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn,bod
   display:inline-flex;align-items:center;gap:.35rem;
 }
 .viewer-banner .eyebrow svg{width:12px;height:12px}
-.viewer-banner .msg{font-size:.82rem;font-weight:600;color:var(--ink)}
+.viewer-banner .msg{font-size:.82rem;font-weight:600;color:var(--ink);flex:1;min-width:120px}
+.viewer-notify-btn{margin-left:auto;flex-shrink:0}
+.viewer-notify-btn.active{background:var(--turf-deep);color:#fff;border-color:var(--turf-deep)}
 
 /* Read-only mode: hide everything a spectator shouldn't touch, without
    needing a second copy of the render logic — the same court cards render,
