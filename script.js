@@ -2674,6 +2674,11 @@ function renderHostPanel(){
           <label for="hostPasswordInput">Password</label>
           <input type="password" id="hostPasswordInput" required minlength="6" autocomplete="${hostPanelMode === 'signup' ? 'new-password' : 'current-password'}">
         </div>
+        ${hostPanelMode === 'signup' ? `
+        <div class="field">
+          <label for="hostPasswordConfirmInput">Confirm password</label>
+          <input type="password" id="hostPasswordConfirmInput" required minlength="6" autocomplete="new-password">
+        </div>` : ''}
         <button type="submit" class="btn primary" style="width:100%" ${hostBusy ? 'disabled' : ''}>${hostBusy ? 'Please wait…' : (hostPanelMode === 'signup' ? 'Create account' : 'Log in')}</button>
       </form>
     `;
@@ -2759,6 +2764,14 @@ hostOverlay.addEventListener('submit', async (e) => {
   e.preventDefault();
   const email = $('#hostEmailInput').value.trim();
   const password = $('#hostPasswordInput').value;
+  if (hostPanelMode === 'signup'){
+    const confirmInput = $('#hostPasswordConfirmInput');
+    if (confirmInput && confirmInput.value !== password){
+      hostErrorMsg = 'Passwords don\u2019t match';
+      renderHostPanel();
+      return;
+    }
+  }
   hostBusy = true; hostErrorMsg = ''; renderHostPanel();
   try{
     if (hostPanelMode === 'signup'){
@@ -2805,7 +2818,13 @@ function enterViewerMode(code){
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ p_code: code })
       });
-      const data = await res.json().catch(() => []);
+      const data = await res.json().catch(() => null);
+      if (!res.ok){
+        const apiMsg = (data && (data.message || data.hint || data.error_description)) || ('HTTP ' + res.status);
+        setMsg('Connection error: ' + apiMsg);
+        console.error('get_hosted_session_by_code failed:', res.status, data);
+        return;
+      }
       const row = Array.isArray(data) ? data[0] : null;
       if (!row){ setMsg('This code is invalid or the match has ended.'); return; }
       if (row.status !== 'live'){ setMsg('The host has stopped sharing this match.'); return; }
@@ -2815,7 +2834,8 @@ function enterViewerMode(code){
       setMsg('Updated ' + new Date(row.updated_at).toLocaleTimeString());
       renderAll();
     }catch(e){
-      setMsg('Having trouble connecting \u2014 retrying…');
+      setMsg('Having trouble connecting: ' + (e.message || e) + ' \u2014 retrying…');
+      console.error('Viewer poll error:', e);
     }
   }
   poll();
