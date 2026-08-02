@@ -770,7 +770,7 @@ button.level-badge{cursor:pointer}
 .confirm-message{margin:0 0 1.2rem;color:var(--slate);line-height:1.5;font-size:.95rem}
 .field{margin-bottom:1rem}
 .field label{display:block;font-size:.78rem;font-weight:700;color:var(--slate);margin-bottom:.35rem;text-transform:uppercase;letter-spacing:.03em}
-.field input[type=text],.field input[type=number],.field select{
+.field input[type=text],.field input[type=number],.field input[type=email],.field input[type=password],.field select{
   width:100%;border:1.5px solid var(--line);border-radius:var(--radius-sm);
   padding:.6rem .7rem;font-size:.9rem;background:var(--court);color:var(--ink);
 }
