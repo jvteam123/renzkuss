@@ -1105,19 +1105,25 @@ function splitTeams(names){
 function avatarHtml(name){
   return `<span class="avatar" style="background:${avatarColor(name)}">${initials(name)}</span>`;
 }
-function playerRowHtml(name){
+function playerRowHtml(name, swap){
   const stats = state.playerStats[name];
   const winChip = (stats && stats.wins > 0) ? `<span class="win-chip">🏆${stats.wins}</span>` : '';
   const games = stats ? (stats.games || 0) : 0;
   const gamesChip = gamesChipHtml(games);
+  const swapBtn = swap
+    ? `<button type="button" class="player-swap-btn${swap.selected ? ' selecting' : ''}" data-act="swap-partner" data-idx="${swap.idx}" aria-label="${swap.selected ? 'Cancel swap' : ('Swap partner with ' + esc(name))}" title="Swap partner"><svg viewBox="0 0 24 24"><use href="#i-swap"/></svg></button>`
+    : '';
   return `<span class="player-col">
-    <span class="player-row">${avatarHtml(name)}<span class="player-name-txt">${esc(courtCardName(name))}</span>${winChip}</span>
+    <span class="player-row">${avatarHtml(name)}<span class="player-name-txt">${esc(courtCardName(name))}</span>${winChip}${swapBtn}</span>
     <span class="player-games-row">${gamesChip}</span>
   </span>`;
 }
-function teamColHtml(names, side, gameSize){
+function teamColHtml(names, side, gameSize, swapCtx){
   const slots = Math.ceil(gameSize / 2);
-  const rows = names.map(n => playerRowHtml(n));
+  const rows = names.map((n, i) => {
+    const swap = swapCtx ? { idx: swapCtx.baseIdx + i, selected: swapCtx.selectedIdx === swapCtx.baseIdx + i } : null;
+    return playerRowHtml(n, swap);
+  });
   while (rows.length < slots) rows.push(`<span class="empty-slot">—</span>`);
   return `<div class="team team-${side}">${rows.join('')}</div>`;
 }
@@ -1362,6 +1368,32 @@ function scoreboardHtml(court){
     </div>`;
 }
 
+/* ================= Swap partners (mid-match) =================
+   Doubles only: lets someone fix a wrong pairing, or just remix the teams,
+   without ending the game or losing the score/timer. Tap one player's swap
+   icon, then tap another's to trade their court spots; tapping the same
+   one again cancels the pick. */
+let swapSelection = null; // { courtId, idx } | null — first player picked, awaiting a second
+
+function swapCourtPartner(court, idx){
+  if (!swapSelection || swapSelection.courtId !== court.id){
+    swapSelection = { courtId: court.id, idx };
+    renderCourts();
+    return;
+  }
+  if (swapSelection.idx === idx){
+    swapSelection = null;
+    renderCourts();
+    return;
+  }
+  const otherIdx = swapSelection.idx;
+  const nameA = court.players[otherIdx], nameB = court.players[idx];
+  [court.players[otherIdx], court.players[idx]] = [court.players[idx], court.players[otherIdx]];
+  swapSelection = null;
+  toast(`Swapped ${nameA} ↔ ${nameB}`);
+  renderAll(); persist();
+}
+
 function renderCourts(){
   courtsGrid.innerHTML = '';
   if (state.courts.length === 0){
@@ -1427,6 +1459,15 @@ function renderCourts(){
       // of its own large centered block.
       const timerChip = scoringOn ? `<span class="timer-chip" data-role="timer">${fmtClock(elapsed)}</span>` : '';
       const timerBlock = scoringOn ? '' : `<div class="timer" data-role="timer">${fmtClock(elapsed)}</div>`;
+      // Swap-partner icons only make sense in doubles (there's no "partner"
+      // to swap in singles) and only once a court actually has its full
+      // roster of players on it.
+      const canSwapPartners = gameSize > 2 && court.players.length === gameSize;
+      const activeSwap = swapSelection && swapSelection.courtId === court.id ? swapSelection.idx : null;
+      const swapCtxA = canSwapPartners ? { baseIdx: 0, selectedIdx: activeSwap } : null;
+      const swapCtxB = canSwapPartners ? { baseIdx: a.length, selectedIdx: activeSwap } : null;
+      const swapHint = (canSwapPartners && activeSwap !== null)
+        ? `<div class="swap-hint">Tap another player to swap with <b>${esc(court.players[activeSwap])}</b></div>` : '';
       card.innerHTML = `
         <div class="court-top">
           <span class="court-name-wrap">${courtIcon}<input class="court-name" value="${esc(court.name)}" data-act="rename" maxlength="24" aria-label="Court name"></span>
@@ -1436,7 +1477,8 @@ function renderCourts(){
             ${timerChip}
           </span>
         </div>
-        <div class="matchup">${teamColHtml(a,'a',gameSize)}<div class="vs-divider"></div>${teamColHtml(b,'b',gameSize)}</div>
+        <div class="matchup">${teamColHtml(a,'a',gameSize,swapCtxA)}<div class="vs-divider"></div>${teamColHtml(b,'b',gameSize,swapCtxB)}</div>
+        ${swapHint}
         ${scoreboard}
         ${timerBlock}
         <button type="button" class="court-cta end" data-act="end">End game</button>
@@ -1464,6 +1506,7 @@ courtsGrid.addEventListener('click', (e) => {
   if (btn.dataset.act === 'set-first-server') setInitialServer(court, btn.dataset.team);
   if (btn.dataset.act === 'advance-serve') courtAdvanceServe(court);
   if (btn.dataset.act === 'undo-serve') courtUndoServe(court);
+  if (btn.dataset.act === 'swap-partner') swapCourtPartner(court, Number(btn.dataset.idx));
 });
 
 courtsGrid.addEventListener('change', (e) => {
@@ -1535,6 +1578,7 @@ function undoLastResult(courtId){
 }
 
 function openEndgame(court){
+  if (swapSelection && swapSelection.courtId === court.id) swapSelection = null;
   endgameCourtId = court.id;
   endgameTitle.textContent = 'End game — ' + court.name;
   endgameChoices = {};
