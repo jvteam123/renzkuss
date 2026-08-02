@@ -1199,7 +1199,7 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn,bod
 
 /* ================= Host Online (Supabase live sharing) ================= */
 .viewer-banner{
-  display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;
+  display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;
   max-width:1400px;margin:0 auto;padding:.6rem 1.1rem;background:var(--turf-pale);
   border-bottom:1px solid var(--line);
 }
@@ -1209,9 +1209,20 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn,bod
   display:inline-flex;align-items:center;gap:.35rem;
 }
 .viewer-banner .eyebrow svg{width:12px;height:12px}
-.viewer-banner .msg{font-size:.82rem;font-weight:600;color:var(--ink);flex:1;min-width:120px}
-.viewer-notify-btn{margin-left:auto;flex-shrink:0}
-.viewer-notify-btn.active{background:var(--turf-deep);color:#fff;border-color:var(--turf-deep)}
+.viewer-banner .msg{font-size:.82rem;font-weight:600;color:var(--ink);flex:1 1 auto;min-width:100px}
+.viewer-notify-btn{
+  display:inline-flex;align-items:center;gap:.35rem;flex-shrink:0;margin-left:auto;
+  background:#fff;color:var(--turf-deep);border:1.5px solid var(--turf);
+  border-radius:99px;padding:.4rem .8rem;font-size:.76rem;font-weight:700;
+  line-height:1.1;white-space:nowrap;
+}
+.viewer-notify-btn:hover{background:var(--turf-pale)}
+.viewer-notify-btn.active{background:var(--turf);color:#fff;border-color:var(--turf)}
+@media (max-width:520px){
+  .viewer-banner{gap:.5rem .6rem}
+  .viewer-banner .msg{order:1}
+  .viewer-notify-btn{order:2;margin-left:0;flex:1 1 100%;justify-content:center}
+}
 
 /* Read-only mode: hide everything a spectator shouldn't touch, without
    needing a second copy of the render logic — the same court cards render,
