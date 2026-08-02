@@ -548,6 +548,24 @@ button.level-badge{cursor:pointer}
 }
 .player-name-txt{font-weight:700;font-size:.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .win-chip{font-size:.68rem;flex-shrink:0;opacity:.85}
+
+/* ---- Swap partner (mid-match) ---- */
+.player-swap-btn{
+  display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
+  width:22px;height:22px;padding:0;margin-left:.15rem;border-radius:50%;
+  border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:rgba(255,255,255,.8);
+  cursor:pointer;transition:background .15s,border-color .15s,color .15s;
+}
+.player-swap-btn svg{width:12px;height:12px}
+.player-swap-btn:hover{background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.45);color:#fff}
+.player-swap-btn.selecting{background:var(--gold);border-color:var(--gold);color:var(--brand-ink)}
+.player-swap-btn.selecting:hover{background:var(--gold-deep);border-color:var(--gold-deep)}
+.swap-hint{
+  font-size:.75rem;font-weight:600;color:var(--gold);text-align:center;
+  background:rgba(252,209,22,.12);border:1px dashed rgba(252,209,22,.4);
+  border-radius:var(--radius-sm);padding:.45rem .6rem;
+}
+.swap-hint b{color:#fff}
 .games-chip{
   font-family:var(--font-mono);font-size:.6rem;font-weight:600;
   color:var(--slate);flex-shrink:0;opacity:.85;
