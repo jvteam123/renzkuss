@@ -48,6 +48,7 @@ async function persist(){
   if (!ok){
     try{ localStorage.setItem('paddleStackQueueState', JSON.stringify(state)); }catch(e){}
   }
+  if (typeof queueHostPush === 'function') queueHostPush();
 }
 
 async function loadPersisted(){
@@ -1489,6 +1490,7 @@ function renderCourts(){
 }
 
 courtsGrid.addEventListener('click', (e) => {
+  if (viewerMode) return;
   const btn = e.target.closest('button[data-act]');
   if (!btn) return;
   const card = btn.closest('.court-card');
@@ -1510,6 +1512,7 @@ courtsGrid.addEventListener('click', (e) => {
 });
 
 courtsGrid.addEventListener('change', (e) => {
+  if (viewerMode) return;
   const input = e.target.closest('input[data-act="rename"]');
   if (!input) return;
   const card = input.closest('.court-card');
@@ -2386,6 +2389,439 @@ $('#tabCourts').addEventListener('click', () => {
   $('#tabCourts').classList.add('active'); $('#tabStack').classList.remove('active');
 });
 
+/* ================= Host Online (Supabase) =================
+   Lets someone create a free account and broadcast a read-only view of
+   their courts + queue to a code or QR code — no account needed to watch.
+   Everything above this section keeps working fully offline; this module
+   only activates when the host explicitly taps "Host match online".
+
+   NOTE: SUPABASE_ANON_KEY below is a placeholder. Anon/public keys are
+   *meant* to ship in client-side code (Row Level Security in the database
+   is what actually protects the data) — grab yours from the Supabase
+   dashboard: Project Settings → API → "Project API keys" → anon public,
+   and paste it in below. Nothing in this feature will work until that's
+   filled in. See supabase-schema.sql for the matching database setup. */
+const SUPABASE_URL = 'https://xqogfjttzsewrtnbwatv.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhxb2dmanR0enNld3J0bmJ3YXR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2OTM3NzMsImV4cCI6MjEwMTI2OTc3M30.IEnaOjWzu7pmnEiiIvdw6NmZWPfa4q3CQ40GlKIB05k';
+const SUPABASE_CONFIGURED = !!SUPABASE_ANON_KEY && SUPABASE_ANON_KEY.indexOf('PASTE_') !== 0;
+const HOST_DAILY_LIMIT = 5;
+
+const AUTH_STORAGE_KEY = 'renzkuAuthSession';
+const HOST_STORAGE_KEY = 'renzkuHostSession';
+
+let authSession = null;   // { access_token, refresh_token, expires_at, user:{id,email} } | null
+let hostSession = null;   // { id, invite_code } | null — the currently-live broadcast, if any
+let viewerMode = false;
+let hostPanelMode = 'login'; // 'login' | 'signup' — which auth tab is showing when logged out
+let hostBusy = false;      // true while an auth/go-live/stop request is in flight
+let hostErrorMsg = '';
+let hostUsageToday = null; // cached count of sessions started today, refreshed on panel open
+let hostPushTimer = null;
+let hostPushPending = false;
+let viewerPollTimer = null;
+
+function b64UrlDecode(str){
+  str = str.replace(/-/g, '+').replace(/_/g, '/');
+  while (str.length % 4) str += '=';
+  return decodeURIComponent(atob(str).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+}
+function decodeJwt(token){
+  try{ return JSON.parse(b64UrlDecode(token.split('.')[1])); }
+  catch(e){ return null; }
+}
+
+function saveAuthSession(session){
+  authSession = session;
+  try{
+    if (session) localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+    else localStorage.removeItem(AUTH_STORAGE_KEY);
+  }catch(e){}
+}
+function loadAuthSession(){
+  try{
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){ return null; }
+}
+function saveHostSession(session){
+  hostSession = session;
+  try{
+    if (session) localStorage.setItem(HOST_STORAGE_KEY, JSON.stringify(session));
+    else localStorage.removeItem(HOST_STORAGE_KEY);
+  }catch(e){}
+}
+function loadHostSession(){
+  try{
+    const raw = localStorage.getItem(HOST_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){ return null; }
+}
+
+function applyAuthResponse(data){
+  const claims = decodeJwt(data.access_token);
+  saveAuthSession({
+    access_token: data.access_token,
+    refresh_token: data.refresh_token,
+    expires_at: Date.now() + ((data.expires_in || 3600) * 1000),
+    user: { id: claims && claims.sub, email: (claims && claims.email) || (data.user && data.user.email) || '' }
+  });
+}
+
+async function authRequest(path, body){
+  const res = await fetch(SUPABASE_URL + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
+    body: JSON.stringify(body)
+  });
+  let data = {};
+  try{ data = await res.json(); }catch(e){}
+  if (!res.ok){
+    throw new Error(data.error_description || data.msg || data.error || 'Something went wrong — try again');
+  }
+  return data;
+}
+
+async function signUpEmail(email, password){
+  const data = await authRequest('/auth/v1/signup', { email, password });
+  if (data.access_token){ applyAuthResponse(data); return { needsConfirmation: false }; }
+  return { needsConfirmation: true };
+}
+async function signInEmail(email, password){
+  const data = await authRequest('/auth/v1/token?grant_type=password', { email, password });
+  applyAuthResponse(data);
+}
+async function ensureFreshToken(){
+  if (!authSession) return null;
+  if (Date.now() < authSession.expires_at - 60000) return authSession.access_token;
+  try{
+    const data = await authRequest('/auth/v1/token?grant_type=refresh_token', { refresh_token: authSession.refresh_token });
+    applyAuthResponse(data);
+    return authSession.access_token;
+  }catch(e){
+    saveAuthSession(null);
+    return null;
+  }
+}
+async function signOutEverywhere(){
+  if (hostSession){ try{ await stopHosting(); }catch(e){} }
+  try{
+    if (authSession){
+      await fetch(SUPABASE_URL + '/auth/v1/logout', {
+        method: 'POST',
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + authSession.access_token }
+      });
+    }
+  }catch(e){}
+  saveAuthSession(null);
+  renderHostPanel();
+}
+
+/* Generic helper for the hosted_sessions REST/RPC calls. Pass useAuth=true
+   to sign the request as the logged-in host; otherwise it goes out under
+   the anon key only (that's all a spectator ever needs). */
+async function sbFetch(path, options, useAuth){
+  const token = useAuth ? await ensureFreshToken() : null;
+  const headers = Object.assign({
+    'apikey': SUPABASE_ANON_KEY,
+    'Authorization': 'Bearer ' + (token || SUPABASE_ANON_KEY)
+  }, (options && options.headers) || {});
+  return fetch(SUPABASE_URL + path, Object.assign({}, options, { headers }));
+}
+
+function genInviteCode(){
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // skips look-alike chars (0/O, 1/I)
+  let out = '';
+  for (let i = 0; i < 6; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return out;
+}
+
+async function getHostUsageToday(){
+  if (!authSession) return 0;
+  const startOfDay = new Date();
+  startOfDay.setUTCHours(0, 0, 0, 0);
+  const res = await sbFetch(
+    `/rest/v1/hosted_sessions?host_id=eq.${authSession.user.id}&created_at=gte.${startOfDay.toISOString()}&select=id`,
+    { method: 'GET', headers: { 'Prefer': 'count=exact' } },
+    true
+  );
+  const range = res.headers.get('content-range'); // e.g. "0-2/3"
+  if (range && range.includes('/')){
+    const total = range.split('/')[1];
+    if (total !== '*') return parseInt(total, 10) || 0;
+  }
+  const data = await res.json().catch(() => []);
+  return Array.isArray(data) ? data.length : 0;
+}
+
+async function createHostedSessionOnce(){
+  const code = genInviteCode();
+  const res = await sbFetch('/rest/v1/hosted_sessions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+    body: JSON.stringify({
+      host_id: authSession.user.id,
+      invite_code: code,
+      session_name: state.session.name,
+      state: state,
+      status: 'live'
+    })
+  }, true);
+  if (res.status === 409) return { conflict: true };
+  const data = await res.json().catch(() => null);
+  if (!res.ok){
+    throw new Error((data && (data.message || data.error_description || data.hint)) || 'Could not start hosting');
+  }
+  return { row: Array.isArray(data) ? data[0] : data };
+}
+async function createHostedSessionWithRetry(){
+  for (let i = 0; i < 5; i++){
+    const r = await createHostedSessionOnce();
+    if (!r.conflict) return r.row;
+  }
+  return null;
+}
+
+async function startHosting(){
+  if (!SUPABASE_CONFIGURED){ toast('Online hosting needs a Supabase anon key set in script.js first'); return; }
+  if (!authSession) return;
+  hostBusy = true; hostErrorMsg = ''; renderHostPanel();
+  try{
+    const usage = await getHostUsageToday();
+    if (usage >= HOST_DAILY_LIMIT){
+      hostErrorMsg = `You've used all ${HOST_DAILY_LIMIT} live matches for today — try again tomorrow.`;
+      return;
+    }
+    const row = await createHostedSessionWithRetry();
+    if (!row){ hostErrorMsg = 'Could not start hosting — please try again.'; return; }
+    saveHostSession({ id: row.id, invite_code: row.invite_code });
+    toast('You\u2019re live \u2014 share the code or QR to invite viewers');
+  }catch(e){
+    hostErrorMsg = e.message || 'Could not start hosting';
+  }finally{
+    hostBusy = false;
+    updateHostIndicator();
+    renderHostPanel();
+  }
+}
+
+async function stopHosting(){
+  if (!hostSession) return;
+  const dying = hostSession;
+  saveHostSession(null);
+  updateHostIndicator();
+  renderHostPanel();
+  try{
+    await sbFetch(`/rest/v1/hosted_sessions?id=eq.${dying.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ status: 'ended', ended_at: new Date().toISOString() })
+    }, true);
+  }catch(e){}
+}
+
+function queueHostPush(){
+  if (!hostSession || viewerMode) return;
+  hostPushPending = true;
+  if (hostPushTimer) return;
+  hostPushTimer = setTimeout(async () => {
+    hostPushTimer = null;
+    if (!hostPushPending || !hostSession) return;
+    hostPushPending = false;
+    try{
+      await sbFetch(`/rest/v1/hosted_sessions?id=eq.${hostSession.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ state: state, session_name: state.session.name })
+      }, true);
+    }catch(e){ /* silent — next state change will retry the push */ }
+  }, 1500);
+}
+
+/* ---- Host panel UI (inside the Host Online modal) ---- */
+const hostOverlay = $('#hostOverlay');
+const hostPanelBody = $('#hostPanelBody');
+const liveHostPill = $('#liveHostPill');
+
+function updateHostIndicator(){
+  if (liveHostPill) liveHostPill.hidden = !hostSession;
+}
+
+function joinUrlFor(code){
+  return location.origin + location.pathname + '?join=' + encodeURIComponent(code);
+}
+
+function renderHostPanel(){
+  if (!hostPanelBody) return;
+
+  if (!SUPABASE_CONFIGURED){
+    hostPanelBody.innerHTML = `<p class="add-hint" style="padding:0">Online hosting isn't configured yet. Add your Supabase project's anon/public API key to <code>SUPABASE_ANON_KEY</code> at the top of the Host Online section in script.js, then reload.</p>`;
+    return;
+  }
+
+  if (!authSession){
+    hostPanelBody.innerHTML = `
+      <div class="host-auth-tabs">
+        <button type="button" data-tab="login" class="${hostPanelMode === 'login' ? 'active' : ''}">Log in</button>
+        <button type="button" data-tab="signup" class="${hostPanelMode === 'signup' ? 'active' : ''}">Sign up</button>
+      </div>
+      ${hostErrorMsg ? `<div class="host-error">${esc(hostErrorMsg)}</div>` : ''}
+      <form id="hostAuthForm">
+        <div class="field">
+          <label for="hostEmailInput">Email</label>
+          <input type="email" id="hostEmailInput" required autocomplete="email">
+        </div>
+        <div class="field">
+          <label for="hostPasswordInput">Password</label>
+          <input type="password" id="hostPasswordInput" required minlength="6" autocomplete="${hostPanelMode === 'signup' ? 'new-password' : 'current-password'}">
+        </div>
+        <button type="submit" class="btn primary" style="width:100%" ${hostBusy ? 'disabled' : ''}>${hostBusy ? 'Please wait…' : (hostPanelMode === 'signup' ? 'Create account' : 'Log in')}</button>
+      </form>
+    `;
+    return;
+  }
+
+  if (!hostSession){
+    if (hostUsageToday === null){
+      getHostUsageToday().then(n => { hostUsageToday = n; renderHostPanel(); }).catch(() => { hostUsageToday = 0; renderHostPanel(); });
+    }
+    const used = hostUsageToday === null ? '…' : hostUsageToday;
+    const atLimit = typeof used === 'number' && used >= HOST_DAILY_LIMIT;
+    hostPanelBody.innerHTML = `
+      <div class="host-account-row">
+        <span>Signed in as <b>${esc(authSession.user.email)}</b></span>
+        <button type="button" class="btn ghost sm" id="hostSignOutBtn">Log out</button>
+      </div>
+      ${hostErrorMsg ? `<div class="host-error">${esc(hostErrorMsg)}</div>` : ''}
+      <div class="host-usage-row"><span>Live matches used today</span><b>${used} / ${HOST_DAILY_LIMIT}</b></div>
+      <button type="button" class="btn primary" id="hostGoLiveBtn" style="width:100%" ${(hostBusy || atLimit) ? 'disabled' : ''}>
+        ${hostBusy ? 'Going live…' : (atLimit ? 'Daily limit reached' : '🔴 Go live')}
+      </button>
+      <p class="host-live-note">Going live creates a read-only link anyone can open to see court status and who's next — no account needed on their end.</p>
+    `;
+    return;
+  }
+
+  const url = joinUrlFor(hostSession.invite_code);
+  hostPanelBody.innerHTML = `
+    <div class="host-account-row">
+      <span>Signed in as <b>${esc(authSession.user.email)}</b></span>
+      <button type="button" class="btn ghost sm" id="hostSignOutBtn">Log out</button>
+    </div>
+    <div class="host-live-card">
+      <span class="host-live-badge">🔴 Live now</span>
+      <div class="host-invite-code" id="hostInviteCodeText">${esc(hostSession.invite_code)}</div>
+      <div class="host-qr-box" id="hostQrBox"></div>
+      <div class="host-live-actions">
+        <button type="button" class="btn ghost sm" id="hostCopyLinkBtn">Copy link</button>
+        <button type="button" class="btn ghost sm" id="hostCopyCodeBtn">Copy code</button>
+      </div>
+      <button type="button" class="btn danger" id="hostStopBtn" style="width:100%;margin-top:.7rem" ${hostBusy ? 'disabled' : ''}>Stop hosting</button>
+    </div>
+  `;
+  const qrBox = $('#hostQrBox');
+  if (qrBox && window.QRCode){
+    qrBox.innerHTML = '';
+    try{ new QRCode(qrBox, { text: url, width: 160, height: 160, colorDark: '#0E2748', colorLight: '#ffffff' }); }
+    catch(e){ qrBox.textContent = 'QR unavailable — use the code or link above.'; }
+  } else if (qrBox){
+    qrBox.textContent = 'QR unavailable — use the code or link above.';
+  }
+}
+
+function openHostOverlay(){
+  hostErrorMsg = '';
+  renderHostPanel();
+  hostOverlay.hidden = false;
+}
+
+async function copyText(text){
+  try{ await navigator.clipboard.writeText(text); toast('Copied'); }
+  catch(e){ toast('Could not copy — select and copy manually'); }
+}
+
+$('#hostOnlineBtn').addEventListener('click', openHostOverlay);
+$('#hostDone').addEventListener('click', () => { hostOverlay.hidden = true; });
+liveHostPill.addEventListener('click', openHostOverlay);
+
+hostOverlay.addEventListener('click', (e) => {
+  const tabBtn = e.target.closest('button[data-tab]');
+  if (tabBtn){ hostPanelMode = tabBtn.dataset.tab; hostErrorMsg = ''; renderHostPanel(); return; }
+  if (e.target.closest('#hostSignOutBtn')){ signOutEverywhere(); return; }
+  if (e.target.closest('#hostGoLiveBtn')){ startHosting(); return; }
+  if (e.target.closest('#hostStopBtn')){ stopHosting(); return; }
+  if (e.target.closest('#hostCopyLinkBtn')){ copyText(joinUrlFor(hostSession.invite_code)); return; }
+  if (e.target.closest('#hostCopyCodeBtn')){ copyText(hostSession.invite_code); return; }
+});
+
+hostOverlay.addEventListener('submit', async (e) => {
+  const form = e.target.closest('#hostAuthForm');
+  if (!form) return;
+  e.preventDefault();
+  const email = $('#hostEmailInput').value.trim();
+  const password = $('#hostPasswordInput').value;
+  hostBusy = true; hostErrorMsg = ''; renderHostPanel();
+  try{
+    if (hostPanelMode === 'signup'){
+      const r = await signUpEmail(email, password);
+      if (r.needsConfirmation){
+        hostBusy = false;
+        hostErrorMsg = '';
+        toast('Check your email to confirm your account, then log in');
+        hostPanelMode = 'login';
+        renderHostPanel();
+        return;
+      }
+    } else {
+      await signInEmail(email, password);
+    }
+    hostUsageToday = null;
+    toast('Signed in');
+  }catch(err){
+    hostErrorMsg = err.message || 'Something went wrong';
+  }finally{
+    hostBusy = false;
+    renderHostPanel();
+  }
+});
+
+/* ---- Viewer (spectator) mode: ?join=CODE in the URL ----
+   Reuses the normal renderCourts()/renderUpNext() renderers against a
+   read-only snapshot of the host's state, polled every few seconds —
+   simpler and more robust than a live socket for a "what's the score /
+   who's next" view, at the cost of a few seconds of lag. */
+function enterViewerMode(code){
+  viewerMode = true;
+  document.body.classList.add('viewer-mode');
+  const banner = $('#viewerBanner');
+  const msgEl = $('#viewerBannerMsg');
+  if (banner) banner.hidden = false;
+  function setMsg(text){ if (msgEl) msgEl.textContent = text; }
+
+  async function poll(){
+    if (!SUPABASE_CONFIGURED){ setMsg('This app isn\u2019t configured for live viewing yet.'); return; }
+    try{
+      const res = await sbFetch('/rest/v1/rpc/get_hosted_session_by_code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_code: code })
+      });
+      const data = await res.json().catch(() => []);
+      const row = Array.isArray(data) ? data[0] : null;
+      if (!row){ setMsg('This code is invalid or the match has ended.'); return; }
+      if (row.status !== 'live'){ setMsg('The host has stopped sharing this match.'); return; }
+      state = row.state;
+      const nameEl = $('.session-name');
+      if (nameEl) nameEl.textContent = (row.session_name || 'Live match') + ' \u00b7 Live';
+      setMsg('Updated ' + new Date(row.updated_at).toLocaleTimeString());
+      renderAll();
+    }catch(e){
+      setMsg('Having trouble connecting \u2014 retrying…');
+    }
+  }
+  poll();
+  viewerPollTimer = setInterval(poll, 4000);
+}
+
 /* ================= Render orchestration ================= */
 function renderAll(){
   applySessionLockUI();
@@ -2399,6 +2835,12 @@ function renderAll(){
 
 /* ================= Boot ================= */
 (async function init(){
+  const joinCode = new URLSearchParams(location.search).get('join');
+  if (joinCode){
+    enterViewerMode(joinCode);
+    return; // spectator view never touches local IndexedDB/localStorage app state
+  }
+
   idb = await openDB();
   const saved = await loadPersisted();
   if (saved && saved.session && Array.isArray(saved.courts) && Array.isArray(saved.stack)){
@@ -2437,6 +2879,11 @@ function renderAll(){
   if (window.innerWidth > 880){
     appShell.classList.add('show-stack','show-courts');
   }
+
+  authSession = loadAuthSession();
+  hostSession = loadHostSession();
+  updateHostIndicator();
+  if (hostSession && !authSession) saveHostSession(null); // stale local session with no login to back it
 })();
 
 })();
