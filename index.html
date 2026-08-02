@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Renzku">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://xqogfjttzsewrtnbwatv.supabase.co; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none';">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -42,6 +42,7 @@
   <symbol id="i-search" viewBox="0 0 24 24"><path fill="currentColor" d="M10 2a8 8 0 1 0 4.9 14.3l5.4 5.4 1.4-1.4-5.4-5.4A8 8 0 0 0 10 2Zm0 2a6 6 0 1 1 0 12 6 6 0 0 1 0-12Z"/></symbol>
   <symbol id="i-moon" viewBox="0 0 24 24"><path fill="currentColor" d="M20.7 14.6A8.3 8.3 0 0 1 9.4 3.3a.7.7 0 0 0-.9-.9A10 10 0 1 0 21.6 15.5a.7.7 0 0 0-.9-.9Z"/></symbol>
   <symbol id="i-sun" viewBox="0 0 24 24"><path fill="currentColor" d="M12 4a1 1 0 0 1-1-1V1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1Zm0 16a1 1 0 0 1 1 1v2a1 1 0 1 1-2 0v-2a1 1 0 0 1 1-1ZM4 12a1 1 0 0 1-1 1H1a1 1 0 1 1 0-2h2a1 1 0 0 1 1 1Zm19-1h-2a1 1 0 1 0 0 2h2a1 1 0 1 0 0-2ZM5.6 4.2a1 1 0 0 1 1.4 0l1.4 1.4a1 1 0 1 1-1.4 1.4L5.6 5.6a1 1 0 0 1 0-1.4Zm11.8 11.8a1 1 0 0 1 1.4 0l1.4 1.4a1 1 0 1 1-1.4 1.4l-1.4-1.4a1 1 0 0 1 0-1.4ZM18.4 4.2l1.4 1.4a1 1 0 0 1-1.4 1.4l-1.4-1.4a1 1 0 1 1 1.4-1.4ZM6.6 16l1.4 1.4a1 1 0 1 1-1.4 1.4L5.2 17.4A1 1 0 1 1 6.6 16ZM12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10Z"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><path fill="currentColor" d="M7 18a5 5 0 0 1-.6-9.97A6 6 0 0 1 18 6.1 4.5 4.5 0 0 1 17.5 18H7Z"/></symbol>
 </svg>
 
 <div class="flag-strip" aria-hidden="true"></div>
@@ -52,6 +53,8 @@
   <span class="session-name">Renzku Smart Stack</span>
   <div class="spacer"></div>
   <span class="pill" id="stackCountPill">0 in stack</span>
+  <span class="pill live-pill" id="liveHostPill" hidden>🔴 LIVE</span>
+  <button class="icon-btn" id="hostOnlineBtn" aria-label="Host match online"><svg viewBox="0 0 24 24"><use href="#i-cloud"/></svg></button>
   <button class="icon-btn" id="rankingsBtn" aria-label="Rankings"><svg viewBox="0 0 24 24"><use href="#i-trophy"/></svg></button>
   <button class="icon-btn" id="matchHistoryBtn" aria-label="Match history"><svg viewBox="0 0 24 24"><use href="#i-clock"/></svg></button>
   <button class="icon-btn" id="themeToggleBtn" aria-label="Toggle dark mode"><svg viewBox="0 0 24 24"><use href="#i-moon" id="themeToggleIconUse"/></svg></button>
@@ -64,6 +67,11 @@
     <span class="msg">The stack and courts are locked for new games. History and rankings stay open for review.</span>
     <button type="button" class="btn solid-turf sm" id="resumeSessionBtn"><svg viewBox="0 0 24 24" style="width:12px;height:12px;vertical-align:-2px"><use href="#i-play"/></svg> Resume session</button>
   </div>
+</div>
+
+<div class="viewer-banner" id="viewerBanner" hidden>
+  <span class="eyebrow"><svg viewBox="0 0 24 24"><use href="#i-cloud"/></svg>Live spectator view</span>
+  <span class="msg" id="viewerBannerMsg">Connecting…</span>
 </div>
 
 <div class="app-shell show-stack" id="appShell">
@@ -295,6 +303,18 @@
   </div>
 </div>
 
+<!-- Host Online modal -->
+<div class="overlay" id="hostOverlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Host match online">
+    <h3><svg viewBox="0 0 24 24" style="width:16px;height:16px;vertical-align:-2px;margin-right:.35rem"><use href="#i-cloud"/></svg>Host match online</h3>
+    <p class="winner-note" style="margin:-.3rem 0 .8rem">Share a live view of your courts and queue with a code or QR — no account needed to view. The app keeps working offline either way; this is only needed if you want to broadcast it.</p>
+    <div id="hostPanelBody"></div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="hostDone">Done</button>
+    </div>
+  </div>
+</div>
+
 <!-- Rankings modal -->
 <div class="overlay" id="rankingsOverlay" hidden>
   <div class="modal" id="rankingsModal" role="dialog" aria-modal="true" aria-label="Rankings">
@@ -367,6 +387,7 @@
 
 <div class="toast-wrap" id="toastWrap"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
 <script src="script.js" defer></script>
 </body>
 </html>
