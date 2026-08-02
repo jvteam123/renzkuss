@@ -2121,13 +2121,14 @@ $('#fixedDuoAddBtn').addEventListener('click', () => {
   renderCourts();
   toast(a + ' & ' + b + ' fixed as a duo');
 });
-fixedDuoList.addEventListener('click', (e) => {
+fixedDuoList.addEventListener('click', async (e) => {
   const btn = e.target.closest('button[data-idx]');
   if (!btn) return;
   const idx = Number(btn.dataset.idx);
   const duos = state.session.fixedDuos || [];
   const duo = duos[idx];
   if (!duo) return;
+  if (!(await showConfirm('They\'ll go back to being paired up normally by the queue.', {title: 'Remove ' + duo.a + ' & ' + duo.b + ' as a fixed duo?', confirmLabel: 'Remove', danger: true}))) return;
   duos.splice(idx, 1);
   renderFixedDuoList();
   persist();
