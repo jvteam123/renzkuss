@@ -2810,6 +2810,56 @@ function enterViewerMode(code){
   if (banner) banner.hidden = false;
   function setMsg(text){ if (msgEl) msgEl.textContent = text; }
 
+  /* ---- Opt-in browser notifications: "match ended" + "next up changed" ----
+     Spectators tap the bell once to grant permission; after that we notify
+     them in the background so they don't have to keep the tab in view. */
+  const notifyBtn = $('#viewerNotifyBtn');
+  const NOTIFY_STORAGE_KEY = 'renzkuViewerNotify';
+  let notifyEnabled = false;
+  try{
+    notifyEnabled = ('Notification' in window) &&
+      localStorage.getItem(NOTIFY_STORAGE_KEY) === '1' &&
+      Notification.permission === 'granted';
+  }catch(e){}
+
+  function updateNotifyBtn(){
+    if (!notifyBtn) return;
+    if (!('Notification' in window)){ notifyBtn.hidden = true; return; }
+    notifyBtn.textContent = notifyEnabled ? '\uD83D\uDD14 Notifications on' : '\uD83D\uDD14 Notify me';
+    notifyBtn.classList.toggle('active', notifyEnabled);
+  }
+  updateNotifyBtn();
+
+  if (notifyBtn){
+    notifyBtn.addEventListener('click', async () => {
+      if (!('Notification' in window)){ toast('Notifications aren\u2019t supported in this browser'); return; }
+      if (notifyEnabled){
+        // Already on — tapping again just turns our own alerts off (the
+        // browser-level permission stays granted for next time).
+        notifyEnabled = false;
+      } else if (Notification.permission === 'granted'){
+        notifyEnabled = true;
+      } else if (Notification.permission === 'denied'){
+        toast('Notifications are blocked for this site in your browser settings');
+      } else {
+        const perm = await Notification.requestPermission();
+        notifyEnabled = perm === 'granted';
+        if (!notifyEnabled) toast('Notifications weren\u2019t enabled');
+      }
+      try{ localStorage.setItem(NOTIFY_STORAGE_KEY, notifyEnabled ? '1' : '0'); }catch(e){}
+      updateNotifyBtn();
+    });
+  }
+
+  function notify(title, body){
+    if (!notifyEnabled || !('Notification' in window) || Notification.permission !== 'granted') return;
+    try{ new Notification(title, { body, tag: 'renzku-viewer-' + title }); }
+    catch(e){ console.error('Notification error:', e); }
+  }
+
+  let lastStatus = null;      // previous session status, to catch the live -> ended transition
+  let lastOnDeck = null;      // text of the first "on deck" matchup, to catch it changing
+
   async function poll(){
     if (!SUPABASE_CONFIGURED){ setMsg('This app isn\u2019t configured for live viewing yet.'); return; }
     try{
@@ -2827,12 +2877,25 @@ function enterViewerMode(code){
       }
       const row = Array.isArray(data) ? data[0] : null;
       if (!row){ setMsg('This code is invalid or the match has ended.'); return; }
-      if (row.status !== 'live'){ setMsg('The host has stopped sharing this match.'); return; }
+      if (row.status !== 'live'){
+        if (lastStatus === 'live') notify('Match ended', 'The host has stopped sharing this match.');
+        lastStatus = row.status;
+        setMsg('The host has stopped sharing this match.');
+        return;
+      }
       state = row.state;
       const nameEl = $('.session-name');
       if (nameEl) nameEl.textContent = (row.session_name || 'Live match') + ' \u00b7 Live';
       setMsg('Updated ' + new Date(row.updated_at).toLocaleTimeString());
       renderAll();
+
+      const firstOnDeck = historyList && historyList.querySelector('.ondeck-row .ondeck-matchup');
+      const onDeckText = firstOnDeck ? firstOnDeck.textContent.trim() : null;
+      if (onDeckText && lastOnDeck !== null && onDeckText !== lastOnDeck){
+        notify('Next up', onDeckText.replace(/\s+/g, ' '));
+      }
+      if (onDeckText) lastOnDeck = onDeckText;
+      lastStatus = row.status;
     }catch(e){
       setMsg('Having trouble connecting: ' + (e.message || e) + ' \u2014 retrying…');
       console.error('Viewer poll error:', e);
@@ -2856,7 +2919,13 @@ function renderAll(){
 /* ================= Boot ================= */
 (async function init(){
   const joinCode = new URLSearchParams(location.search).get('join');
-  if (joinCode){
+  // If this is the host's own share link (they're already signed in and
+  // currently broadcasting that exact code), don't drop them into the
+  // read-only spectator view — just take them straight to their normal
+  // host dashboard instead.
+  const localHostSession = joinCode ? loadHostSession() : null;
+  const isOwnHostLink = !!(joinCode && localHostSession && localHostSession.invite_code === joinCode);
+  if (joinCode && !isOwnHostLink){
     enterViewerMode(joinCode);
     return; // spectator view never touches local IndexedDB/localStorage app state
   }
