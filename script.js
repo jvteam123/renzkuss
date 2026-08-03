@@ -2696,8 +2696,10 @@ async function sbFetch(path, options, useAuth){
 
 function genInviteCode(){
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // skips look-alike chars (0/O, 1/I)
+  const bytes = new Uint32Array(6);
+  crypto.getRandomValues(bytes);
   let out = '';
-  for (let i = 0; i < 6; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  for (let i = 0; i < 6; i++) out += alphabet[bytes[i] % alphabet.length];
   return out;
 }
 
@@ -2762,7 +2764,14 @@ async function startHosting(){
     saveHostSession({ id: row.id, invite_code: row.invite_code });
     toast('You\u2019re live \u2014 share the code or QR to invite viewers');
   }catch(e){
-    hostErrorMsg = e.message || 'Could not start hosting';
+    // The client-side usage check above is just a UX nicety — the real
+    // limit is enforced by a Postgres trigger (see supabase-schema.sql),
+    // which raises this exact error code if it's ever raced or bypassed.
+    if (e.message && e.message.indexOf('daily_limit_reached') !== -1){
+      hostErrorMsg = `You've used all ${HOST_DAILY_LIMIT} live matches for today — try again tomorrow.`;
+    } else {
+      hostErrorMsg = e.message || 'Could not start hosting';
+    }
   }finally{
     hostBusy = false;
     updateHostIndicator();
