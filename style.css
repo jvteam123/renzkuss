@@ -1231,6 +1231,7 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn,bod
   border-radius:99px;padding:.4rem .8rem;font-size:.76rem;font-weight:700;
   line-height:1.1;white-space:nowrap;
 }
+.viewer-notify-btn[hidden]{display:none}
 .viewer-notify-btn svg{width:13px;height:13px;flex-shrink:0}
 .viewer-notify-btn:hover{background:var(--turf-pale);color:var(--turf-deep)}
 .viewer-notify-btn.active{background:var(--turf);color:#fff;border-color:var(--turf)}
@@ -1239,6 +1240,7 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn,bod
   width:2rem;height:2rem;border-radius:50%;line-height:1;
   background:var(--turf);color:#fff;border:none;cursor:pointer;
 }
+.viewer-notify-status[hidden]{display:none}
 .viewer-notify-status svg{width:14px;height:14px}
 .viewer-notify-status:hover{opacity:.85}
 @media (max-width:520px){
