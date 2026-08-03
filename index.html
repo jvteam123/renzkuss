@@ -46,6 +46,7 @@
   <symbol id="i-cloud" viewBox="0 0 24 24"><path fill="currentColor" d="M7 18a5 5 0 0 1-.6-9.97A6 6 0 0 1 18 6.1 4.5 4.5 0 0 1 17.5 18H7Z"/></symbol>
   <symbol id="i-bell" viewBox="0 0 24 24"><path fill="currentColor" d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2Zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4a1.5 1.5 0 0 0-3 0v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2Z"/></symbol>
   <symbol id="i-sub" viewBox="0 0 24 24"><path fill="currentColor" d="M17 3a4 4 0 0 1 4 4v1h-2V7a2 2 0 0 0-2-2h-1.6l1.3 1.3-1.4 1.4L11.7 4l3.6-3.7 1.4 1.4L15.4 3H17Zm-10 18a4 4 0 0 1-4-4v-1h2v1a2 2 0 0 0 2 2h1.6l-1.3-1.3 1.4-1.4 3.6 3.7-3.6 3.7-1.4-1.4L8.6 21H7ZM12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8Zm0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><path fill="currentColor" d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0 2c-4.4 0-8 2.2-8 5v2h16v-2c0-2.8-3.6-5-8-5Z"/></symbol>
 </svg>
 
 <div class="flag-strip" aria-hidden="true"></div>
@@ -75,7 +76,13 @@
 <div class="viewer-banner" id="viewerBanner" hidden>
   <span class="eyebrow"><svg viewBox="0 0 24 24"><use href="#i-cloud"/></svg>Live spectator view</span>
   <span class="msg" id="viewerBannerMsg"></span>
-  <button type="button" class="btn sm viewer-notify-btn" id="viewerNotifyBtn" title="Get a notification when a game ends or the next matchup is up"><svg viewBox="0 0 24 24"><use href="#i-bell"/></svg> Notify me</button>
+  <label class="viewer-watch" id="viewerWatch" title="Get an extra alert when this player is called up next">
+    <svg viewBox="0 0 24 24"><use href="#i-user"/></svg>
+    <select id="viewerWatchSelect" aria-label="Watch a specific player">
+      <option value="">Watch a player…</option>
+    </select>
+  </label>
+  <button type="button" class="btn sm viewer-notify-btn" id="viewerNotifyBtn" title="Get a notification when a game ends, the next matchup is up, or a player you're watching is called"><svg viewBox="0 0 24 24"><use href="#i-bell"/></svg> Notify me</button>
   <button type="button" class="viewer-notify-status" id="viewerNotifyStatus" hidden title="Notifications are on — tap to turn off"><svg viewBox="0 0 24 24"><use href="#i-bell"/></svg></button>
 </div>
 
