@@ -2575,6 +2575,36 @@ const HOST_DAILY_LIMIT = 5;
 const AUTH_STORAGE_KEY = 'renzkuAuthSession';
 const HOST_STORAGE_KEY = 'renzkuHostSession';
 
+/* ---- hCaptcha (login/signup only — spectators never see this) ---- */
+const HCAPTCHA_SITE_KEY = '07e29e48-5c84-4020-a036-36ba3aa4758e';
+let hcaptchaReady = false;
+let hcaptchaWidgetId = null;
+
+// Called by the ?onload= param on the hCaptcha <script> tag in index.html
+// once the library itself has finished loading.
+window.onHcaptchaReady = function(){
+  hcaptchaReady = true;
+  mountHcaptchaWidget();
+};
+
+// (Re)renders the widget into #hcaptchaBox, if that box is currently in the
+// DOM and the library is ready. Safe to call any number of times — e.g.
+// every time renderHostPanel() redraws the logged-out form.
+function mountHcaptchaWidget(){
+  const box = document.getElementById('hcaptchaBox');
+  if (!box || !hcaptchaReady || !window.hcaptcha) return;
+  box.innerHTML = '';
+  hcaptchaWidgetId = window.hcaptcha.render(box, { sitekey: HCAPTCHA_SITE_KEY });
+}
+
+// hCaptcha tokens are single-use; call this after every submit attempt
+// (success or failure) so the widget is fresh for the next one.
+function resetHcaptcha(){
+  if (window.hcaptcha && hcaptchaWidgetId !== null){
+    try{ window.hcaptcha.reset(hcaptchaWidgetId); }catch(e){}
+  }
+}
+
 let authSession = null;   // { access_token, refresh_token, expires_at, user:{id,email} } | null
 let hostSession = null;   // { id, invite_code } | null — the currently-live broadcast, if any
 let viewerMode = false;
@@ -2633,11 +2663,14 @@ function applyAuthResponse(data){
   });
 }
 
-async function authRequest(path, body){
+async function authRequest(path, body, captchaToken){
+  const payload = captchaToken
+    ? Object.assign({}, body, { gotrue_meta_security: { captcha_token: captchaToken } })
+    : body;
   const res = await fetch(SUPABASE_URL + path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
-    body: JSON.stringify(body)
+    body: JSON.stringify(payload)
   });
   let data = {};
   try{ data = await res.json(); }catch(e){}
@@ -2647,13 +2680,13 @@ async function authRequest(path, body){
   return data;
 }
 
-async function signUpEmail(email, password){
-  const data = await authRequest('/auth/v1/signup', { email, password });
+async function signUpEmail(email, password, captchaToken){
+  const data = await authRequest('/auth/v1/signup', { email, password }, captchaToken);
   if (data.access_token){ applyAuthResponse(data); return { needsConfirmation: false }; }
   return { needsConfirmation: true };
 }
-async function signInEmail(email, password){
-  const data = await authRequest('/auth/v1/token?grant_type=password', { email, password });
+async function signInEmail(email, password, captchaToken){
+  const data = await authRequest('/auth/v1/token?grant_type=password', { email, password }, captchaToken);
   applyAuthResponse(data);
 }
 async function ensureFreshToken(){
@@ -2854,9 +2887,11 @@ function renderHostPanel(){
           <label for="hostPasswordConfirmInput">Confirm password</label>
           <input type="password" id="hostPasswordConfirmInput" required minlength="6" autocomplete="new-password">
         </div>` : ''}
+        <div id="hcaptchaBox" style="margin:.6rem 0"></div>
         <button type="submit" class="btn primary" style="width:100%" ${hostBusy ? 'disabled' : ''}>${hostBusy ? 'Please wait…' : (hostPanelMode === 'signup' ? 'Create account' : 'Log in')}</button>
       </form>
     `;
+    mountHcaptchaWidget();
     return;
   }
 
@@ -2964,10 +2999,16 @@ hostOverlay.addEventListener('submit', async (e) => {
       return;
     }
   }
+  const captchaToken = (window.hcaptcha && hcaptchaWidgetId !== null) ? window.hcaptcha.getResponse(hcaptchaWidgetId) : '';
+  if (!captchaToken){
+    hostErrorMsg = 'Please complete the captcha';
+    renderHostPanel();
+    return;
+  }
   hostBusy = true; hostErrorMsg = ''; renderHostPanel();
   try{
     if (hostPanelMode === 'signup'){
-      const r = await signUpEmail(email, password);
+      const r = await signUpEmail(email, password, captchaToken);
       if (r.needsConfirmation){
         hostBusy = false;
         hostErrorMsg = '';
@@ -2977,7 +3018,7 @@ hostOverlay.addEventListener('submit', async (e) => {
         return;
       }
     } else {
-      await signInEmail(email, password);
+      await signInEmail(email, password, captchaToken);
     }
     hostUsageToday = null;
     toast('Signed in');
@@ -2985,6 +3026,7 @@ hostOverlay.addEventListener('submit', async (e) => {
     hostErrorMsg = err.message || 'Something went wrong';
   }finally{
     hostBusy = false;
+    resetHcaptcha();
     renderHostPanel();
   }
 });
