@@ -2843,19 +2843,18 @@ function enterViewerMode(code){
   function updateNotifyBtn(){
     if (!notifyBtn) return;
     if (!('Notification' in window)){ notifyBtn.hidden = true; return; }
-    notifyBtn.textContent = notifyEnabled ? '\uD83D\uDD14 Notifications on' : '\uD83D\uDD14 Notify me';
-    notifyBtn.classList.toggle('active', notifyEnabled);
+    // Once it's actually on, there's nothing left to tap — hide the button
+    // instead of leaving a redundant "Notifications on" pill sitting there.
+    notifyBtn.hidden = notifyEnabled;
+    notifyBtn.textContent = '\uD83D\uDD14 Notify me';
+    notifyBtn.classList.remove('active');
   }
   updateNotifyBtn();
 
   if (notifyBtn){
     notifyBtn.addEventListener('click', async () => {
       if (!('Notification' in window)){ toast('Notifications aren\u2019t supported in this browser'); return; }
-      if (notifyEnabled){
-        // Already on — tapping again just turns our own alerts off (the
-        // browser-level permission stays granted for next time).
-        notifyEnabled = false;
-      } else if (Notification.permission === 'granted'){
+      if (Notification.permission === 'granted'){
         notifyEnabled = true;
       } else if (Notification.permission === 'denied'){
         toast('Notifications are blocked for this site in your browser settings');
@@ -2866,17 +2865,19 @@ function enterViewerMode(code){
       }
       try{ localStorage.setItem(NOTIFY_STORAGE_KEY, notifyEnabled ? '1' : '0'); }catch(e){}
       updateNotifyBtn();
+      if (notifyEnabled) toast('Notifications on \u2014 we\u2019ll alert you when a game ends');
     });
   }
 
   function notify(title, body){
     if (!notifyEnabled || !('Notification' in window) || Notification.permission !== 'granted') return;
-    try{ new Notification(title, { body, tag: 'renzku-viewer-' + title }); }
+    try{ new Notification(title, { body, tag: 'renzku-viewer-' + title + '-' + Date.now() }); }
     catch(e){ console.error('Notification error:', e); }
   }
 
   let lastStatus = null;      // previous session status, to catch the live -> ended transition
   let lastOnDeck = null;      // text of the first "on deck" matchup, to catch it changing
+  let lastHistoryId = undefined; // most recent recorded match id, to catch a game finishing
 
   async function poll(){
     if (!SUPABASE_CONFIGURED){ setMsg('This app isn\u2019t configured for live viewing yet.'); return; }
@@ -2906,6 +2907,19 @@ function enterViewerMode(code){
       if (nameEl) nameEl.textContent = (row.session_name || 'Live match') + ' \u00b7 Live';
       setMsg('Updated ' + new Date(row.updated_at).toLocaleTimeString());
       renderAll();
+
+      // A game just finished on some court — the host's history array gets
+      // a new entry pushed to the front each time a winner is recorded.
+      const latestGame = Array.isArray(state.history) && state.history.length ? state.history[0] : null;
+      const latestGameId = latestGame ? latestGame.id : null;
+      if (lastHistoryId !== undefined && latestGameId !== null && latestGameId !== lastHistoryId){
+        const winnerText = latestGame.winnerNames && latestGame.winnerNames.length ? latestGame.winnerNames.join(' & ') : null;
+        const scoreText = (latestGame.scoreA !== null && latestGame.scoreB !== null) ? ` ${latestGame.scoreA}-${latestGame.scoreB}` : '';
+        const title = (latestGame.courtName || 'Court') + ' \u2014 game ended';
+        const body = winnerText ? `${winnerText} won${scoreText}` : `Game finished${scoreText}`;
+        notify(title, body);
+      }
+      lastHistoryId = latestGameId;
 
       const firstOnDeck = historyList && historyList.querySelector('.ondeck-row .ondeck-matchup');
       const onDeckText = firstOnDeck ? firstOnDeck.textContent.trim() : null;
