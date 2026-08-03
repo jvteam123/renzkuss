@@ -1720,7 +1720,8 @@ $('#endgameConfirm').addEventListener('click', async () => {
     finalScoreB = endgameWinnerSide === 'b' ? 11 : 5;
   }
   if (endgameWinnerSide === null){
-    if (!(await showConfirm('This game won\'t count toward rankings, and players won\'t be sorted into the winners/losers blocks.', {title: 'No winner selected — clear the court anyway?', confirmLabel: 'Clear court', danger: true}))) return;
+    toast('Pick a winner before clearing the court');
+    return;
   }
   // Snapshot state now, before anything is mutated, so a wrong pick can be undone.
   lastUndo = { courtId: court.id, snapshot: JSON.stringify(state) };
@@ -2922,6 +2923,8 @@ function enterViewerMode(code){
   let lastOnDeck = null;      // text of the first "on deck" matchup, to catch it changing
   let lastHistoryId = undefined; // most recent recorded match id, to catch a game finishing
   let lastCourtStarts = {};   // courtId -> startTime, to catch a new game beginning
+  let firstPoll = true;       // belt-and-suspenders: never notify on the poll that just
+                               // establishes the baseline snapshot, no matter what it contains.
 
   async function poll(){
     if (!SUPABASE_CONFIGURED){ setMsg('This app isn\u2019t configured for live viewing yet.'); return; }
@@ -2941,8 +2944,9 @@ function enterViewerMode(code){
       const row = Array.isArray(data) ? data[0] : null;
       if (!row){ setMsg('This code is invalid or the match has ended.'); return; }
       if (row.status !== 'live'){
-        if (lastStatus === 'live') notify('Match ended', 'The host has stopped sharing this match.');
+        if (!firstPoll && lastStatus === 'live') notify('Match ended', 'The host has stopped sharing this match.');
         lastStatus = row.status;
+        firstPoll = false;
         setMsg('The host has stopped sharing this match.');
         return;
       }
@@ -2956,7 +2960,7 @@ function enterViewerMode(code){
       if (Array.isArray(state.courts)){
         state.courts.forEach(c => {
           const prevStart = lastCourtStarts[c.id];
-          if (c.startTime && prevStart !== undefined && c.startTime !== prevStart){
+          if (!firstPoll && c.startTime && prevStart !== undefined && c.startTime !== prevStart){
             const matchup = (c.players || []).join(', ');
             notify((c.name || 'Court') + ' \u2014 match started', matchup || 'A new match just began.');
           }
@@ -2968,7 +2972,7 @@ function enterViewerMode(code){
       // a new entry pushed to the front each time a winner is recorded.
       const latestGame = Array.isArray(state.history) && state.history.length ? state.history[0] : null;
       const latestGameId = latestGame ? latestGame.id : null;
-      if (lastHistoryId !== undefined && latestGameId !== null && latestGameId !== lastHistoryId){
+      if (!firstPoll && lastHistoryId !== undefined && latestGameId !== null && latestGameId !== lastHistoryId){
         const winnerText = latestGame.winnerNames && latestGame.winnerNames.length ? latestGame.winnerNames.join(' & ') : null;
         const scoreText = (latestGame.scoreA !== null && latestGame.scoreB !== null) ? ` ${latestGame.scoreA}-${latestGame.scoreB}` : '';
         const title = (latestGame.courtName || 'Court') + ' \u2014 game ended';
@@ -2979,11 +2983,12 @@ function enterViewerMode(code){
 
       const firstOnDeck = historyList && historyList.querySelector('.ondeck-row .ondeck-matchup');
       const onDeckText = firstOnDeck ? firstOnDeck.textContent.trim() : null;
-      if (onDeckText && lastOnDeck !== null && onDeckText !== lastOnDeck){
+      if (!firstPoll && onDeckText && lastOnDeck !== null && onDeckText !== lastOnDeck){
         notify('Next up', onDeckText.replace(/\s+/g, ' '));
       }
       if (onDeckText) lastOnDeck = onDeckText;
       lastStatus = row.status;
+      firstPoll = false;
     }catch(e){
       setMsg('Having trouble connecting: ' + (e.message || e) + ' \u2014 retrying…');
       console.error('Viewer poll error:', e);
