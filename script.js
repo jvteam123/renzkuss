@@ -2686,9 +2686,29 @@ async function authRequest(path, body, captchaToken){
   let data = {};
   try{ data = await res.json(); }catch(e){}
   if (!res.ok){
-    throw new Error(data.error_description || data.msg || data.error || 'Something went wrong — try again');
+    const err = new Error(data.error_description || data.msg || data.error || 'Something went wrong — try again');
+    err.code = data.error_code || data.code || data.error || '';
+    throw err;
   }
   return data;
+}
+
+/* Some auth error responses reveal more than they should — e.g. signup
+   telling you an email is "already registered" confirms someone has an
+   account with that address (email enumeration). Map the sensitive ones to
+   a generic message; everything else (bad email format, weak password,
+   wrong captcha, rate limited, etc.) isn't sensitive and passes through
+   as-is so the person still knows what to fix. */
+function normalizeAuthError(err, mode){
+  const code = ((err && err.code) || '').toLowerCase();
+  const raw = ((err && err.message) || '').toLowerCase();
+  if (mode === 'signup' && (code === 'user_already_exists' || code === 'email_exists' || raw.indexOf('already registered') !== -1 || raw.indexOf('already exists') !== -1)){
+    return 'Could not create that account \u2014 double-check the email, or log in instead if you already have one.';
+  }
+  if (mode === 'login' && (code === 'invalid_credentials' || raw.indexOf('invalid login credentials') !== -1)){
+    return 'Incorrect email or password.';
+  }
+  return (err && err.message) || 'Something went wrong — try again';
 }
 
 async function signUpEmail(email, password, captchaToken){
@@ -2739,13 +2759,45 @@ async function sbFetch(path, options, useAuth){
   return fetch(SUPABASE_URL + path, Object.assign({}, options, { headers }));
 }
 
+const INVITE_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // skips look-alike chars (0/O, 1/I)
+const INVITE_CODE_RE = new RegExp('^[' + INVITE_CODE_ALPHABET + ']{6}$');
+
 function genInviteCode(){
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // skips look-alike chars (0/O, 1/I)
   const bytes = new Uint32Array(6);
   crypto.getRandomValues(bytes);
   let out = '';
-  for (let i = 0; i < 6; i++) out += alphabet[bytes[i] % alphabet.length];
+  for (let i = 0; i < 6; i++) out += INVITE_CODE_ALPHABET[bytes[i] % INVITE_CODE_ALPHABET.length];
   return out;
+}
+
+/* ---- Lightweight client-side throttling for the "watch by code" flow ----
+   This can't stop a scripted attacker hitting the API directly — that's a
+   server/RLS-layer concern — but it raises the floor against casual
+   guess-and-check from the UI, and stops a tab left open on a dead/invalid
+   code from repolling it forever. */
+const WATCH_THROTTLE_KEY = 'renzkuWatchThrottle';
+const WATCH_FAIL_LIMIT = 5;                 // failed lookups allowed...
+const WATCH_FAIL_WINDOW_MS = 2 * 60 * 1000; // ...within this window...
+const WATCH_COOLDOWN_MS = 30 * 1000;        // ...before a cooldown kicks in
+
+function loadWatchFailTimestamps(){
+  try{
+    const raw = localStorage.getItem(WATCH_THROTTLE_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    const cutoff = Date.now() - WATCH_FAIL_WINDOW_MS;
+    return Array.isArray(arr) ? arr.filter(t => typeof t === 'number' && t > cutoff) : [];
+  }catch(e){ return []; }
+}
+function recordWatchFailure(){
+  const arr = loadWatchFailTimestamps();
+  arr.push(Date.now());
+  try{ localStorage.setItem(WATCH_THROTTLE_KEY, JSON.stringify(arr)); }catch(e){}
+}
+function watchCooldownRemainingMs(){
+  const arr = loadWatchFailTimestamps();
+  if (arr.length < WATCH_FAIL_LIMIT) return 0;
+  const remaining = (arr[arr.length - 1] + WATCH_COOLDOWN_MS) - Date.now();
+  return remaining > 0 ? remaining : 0;
 }
 
 async function getHostUsageToday(){
@@ -3089,6 +3141,16 @@ function goWatchCode(){
     if (input) input.focus();
     return;
   }
+  const cooldownMs = watchCooldownRemainingMs();
+  if (cooldownMs > 0){
+    if (errEl){ errEl.textContent = `Too many attempts \u2014 try again in ${Math.ceil(cooldownMs / 1000)}s.`; errEl.hidden = false; }
+    return;
+  }
+  if (!INVITE_CODE_RE.test(code)){
+    if (errEl){ errEl.textContent = 'That doesn\u2019t look like a valid code \u2014 double-check it with the host.'; errEl.hidden = false; }
+    if (input) input.focus();
+    return;
+  }
   location.href = location.pathname + '?join=' + encodeURIComponent(code);
 }
 const watchCodeBtn = $('#watchCodeBtn');
@@ -3161,7 +3223,7 @@ hostOverlay.addEventListener('submit', async (e) => {
     hostUsageToday = null;
     toast('Signed in');
   }catch(err){
-    hostErrorMsg = err.message || 'Something went wrong';
+    hostErrorMsg = normalizeAuthError(err, hostPanelMode);
   }finally{
     hostBusy = false;
     resetHcaptcha();
@@ -3408,6 +3470,7 @@ function enterViewerMode(code){
   let lastCourtRoster = {};   // courtId -> player names on court, to catch a mid-game substitution
   let firstPoll = true;       // belt-and-suspenders: never notify on the poll that just
                                // establishes the baseline snapshot, no matter what it contains.
+  let invalidPolls = 0;       // consecutive "code not found" results — stop repolling a dead code
 
   async function poll(){
     if (!SUPABASE_CONFIGURED){ setMsg('This app isn\u2019t configured for live viewing yet.'); return; }
@@ -3425,7 +3488,17 @@ function enterViewerMode(code){
         return;
       }
       const row = Array.isArray(data) ? data[0] : null;
-      if (!row){ setMsg('This code is invalid or the match has ended.'); return; }
+      if (!row){
+        recordWatchFailure();
+        invalidPolls++;
+        setMsg('This code is invalid or the match has ended.');
+        if (invalidPolls >= 2 && viewerPollTimer){
+          clearInterval(viewerPollTimer);
+          viewerPollTimer = null;
+        }
+        return;
+      }
+      invalidPolls = 0;
       if (row.status !== 'live'){
         if (!firstPoll && lastStatus === 'live') notify('Match ended', 'The host has stopped sharing this match.');
         lastStatus = row.status;
