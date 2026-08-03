@@ -1255,6 +1255,19 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn,bod
 .viewer-banner .eyebrow svg{width:12px;height:12px}
 .viewer-banner .msg{font-size:.82rem;font-weight:600;color:var(--ink);flex:1 1 auto;min-width:100px}
 .viewer-banner .msg:empty{display:none}
+.viewer-watch{
+  display:inline-flex;align-items:center;gap:.35rem;flex-shrink:0;
+  background:var(--surface);color:var(--turf-deep);border:1.5px solid var(--line);
+  border-radius:99px;padding:.32rem .7rem .32rem .6rem;font-size:.76rem;font-weight:700;
+  line-height:1.1;white-space:nowrap;
+}
+.viewer-watch svg{width:13px;height:13px;flex-shrink:0}
+.viewer-watch select{
+  border:none;background:transparent;color:inherit;font:inherit;font-weight:700;
+  max-width:9.5rem;text-overflow:ellipsis;cursor:pointer;
+}
+.viewer-watch select:focus{outline:none}
+.viewer-watch.active{background:var(--turf-pale);border-color:var(--turf);color:var(--turf-deep)}
 .viewer-notify-btn{
   display:inline-flex;align-items:center;gap:.35rem;flex-shrink:0;margin-left:auto;
   background:var(--surface);color:var(--turf-deep);border:1.5px solid var(--turf);
@@ -1276,7 +1289,9 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn,bod
 @media (max-width:520px){
   .viewer-banner{gap:.5rem .6rem}
   .viewer-banner .msg{order:1}
-  .viewer-notify-btn{order:2;margin-left:0;flex:1 1 100%;justify-content:center}
+  .viewer-watch{order:2;flex:1 1 100%;justify-content:center}
+  .viewer-watch select{max-width:none;flex:1 1 auto}
+  .viewer-notify-btn{order:3;margin-left:0;flex:1 1 100%;justify-content:center}
 }
 
 /* Read-only mode: hide everything a spectator shouldn't touch, without
