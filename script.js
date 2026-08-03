@@ -2899,7 +2899,12 @@ function enterViewerMode(code){
 
   function notify(title, body){
     if (!notifyEnabled || !('Notification' in window) || Notification.permission !== 'granted') return;
-    const opts = { body, tag: 'renzku-viewer-' + title + '-' + Date.now() };
+    const opts = {
+      body,
+      tag: 'renzku-viewer-' + title + '-' + Date.now(),
+      icon: './icon-192.png',
+      badge: './badge-96.png'
+    };
     try{
       if (swRegistration && swRegistration.showNotification){
         swRegistration.showNotification(title, opts);
