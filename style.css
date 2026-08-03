@@ -1217,6 +1217,7 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn,bod
   max-width:1400px;margin:0 auto;padding:.6rem 1.1rem;background:var(--turf-pale);
   border-bottom:1px solid var(--line);
 }
+.viewer-banner[hidden]{display:none}
 .viewer-banner .eyebrow{
   font-family:var(--font-mono);font-size:.66rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
   color:var(--turf-deep);background:var(--surface);padding:.28rem .6rem;border-radius:99px;flex-shrink:0;
