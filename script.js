@@ -2739,6 +2739,23 @@ function openHostOverlay(){
   hostOverlay.hidden = false;
 }
 
+function goWatchCode(){
+  const input = $('#watchCodeInput');
+  const errEl = $('#watchCodeError');
+  const code = (input && input.value || '').trim().toUpperCase();
+  if (errEl) errEl.hidden = true;
+  if (!code){
+    if (errEl){ errEl.textContent = 'Enter the code the host gave you.'; errEl.hidden = false; }
+    if (input) input.focus();
+    return;
+  }
+  location.href = location.pathname + '?join=' + encodeURIComponent(code);
+}
+const watchCodeBtn = $('#watchCodeBtn');
+const watchCodeInput = $('#watchCodeInput');
+if (watchCodeBtn) watchCodeBtn.addEventListener('click', goWatchCode);
+if (watchCodeInput) watchCodeInput.addEventListener('keydown', (e) => { if (e.key === 'Enter'){ e.preventDefault(); goWatchCode(); } });
+
 async function copyText(text){
   try{ await navigator.clipboard.writeText(text); toast('Copied'); }
   catch(e){ toast('Could not copy — select and copy manually'); }
