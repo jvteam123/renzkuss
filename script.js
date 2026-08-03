@@ -2956,28 +2956,33 @@ function renderHostPanel(){
 
   if (!authSession){
     hostPanelBody.innerHTML = `
-      <div class="host-auth-tabs">
-        <button type="button" data-tab="login" class="${hostPanelMode === 'login' ? 'active' : ''}">Log in</button>
-        <button type="button" data-tab="signup" class="${hostPanelMode === 'signup' ? 'active' : ''}">Sign up</button>
+      <div class="host-auth-wrap${hostBusy ? ' is-busy' : ''}">
+        <div class="host-auth-tabs">
+          <button type="button" data-tab="login" class="${hostPanelMode === 'login' ? 'active' : ''}" ${hostBusy ? 'disabled' : ''}>Log in</button>
+          <button type="button" data-tab="signup" class="${hostPanelMode === 'signup' ? 'active' : ''}" ${hostBusy ? 'disabled' : ''}>Sign up</button>
+        </div>
+        ${hostErrorMsg ? `<div class="host-error">${esc(hostErrorMsg)}</div>` : ''}
+        <form id="hostAuthForm">
+          <fieldset ${hostBusy ? 'disabled' : ''} style="border:0;margin:0;padding:0">
+            <div class="field">
+              <label for="hostEmailInput">Email</label>
+              <input type="email" id="hostEmailInput" required autocomplete="email">
+            </div>
+            <div class="field">
+              <label for="hostPasswordInput">Password</label>
+              <input type="password" id="hostPasswordInput" required minlength="6" autocomplete="${hostPanelMode === 'signup' ? 'new-password' : 'current-password'}">
+            </div>
+            ${hostPanelMode === 'signup' ? `
+            <div class="field">
+              <label for="hostPasswordConfirmInput">Confirm password</label>
+              <input type="password" id="hostPasswordConfirmInput" required minlength="6" autocomplete="new-password">
+            </div>` : ''}
+            <div id="hcaptchaBox" style="margin:.6rem 0"></div>
+            <button type="submit" class="btn primary" style="width:100%">${hostBusy ? '<span class="btn-spinner" aria-hidden="true"></span>Please wait…' : (hostPanelMode === 'signup' ? 'Create account' : 'Log in')}</button>
+          </fieldset>
+        </form>
+        ${hostBusy ? `<div class="host-busy-overlay" aria-hidden="true"><span class="spinner"></span></div>` : ''}
       </div>
-      ${hostErrorMsg ? `<div class="host-error">${esc(hostErrorMsg)}</div>` : ''}
-      <form id="hostAuthForm">
-        <div class="field">
-          <label for="hostEmailInput">Email</label>
-          <input type="email" id="hostEmailInput" required autocomplete="email">
-        </div>
-        <div class="field">
-          <label for="hostPasswordInput">Password</label>
-          <input type="password" id="hostPasswordInput" required minlength="6" autocomplete="${hostPanelMode === 'signup' ? 'new-password' : 'current-password'}">
-        </div>
-        ${hostPanelMode === 'signup' ? `
-        <div class="field">
-          <label for="hostPasswordConfirmInput">Confirm password</label>
-          <input type="password" id="hostPasswordConfirmInput" required minlength="6" autocomplete="new-password">
-        </div>` : ''}
-        <div id="hcaptchaBox" style="margin:.6rem 0"></div>
-        <button type="submit" class="btn primary" style="width:100%" ${hostBusy ? 'disabled' : ''}>${hostBusy ? 'Please wait…' : (hostPanelMode === 'signup' ? 'Create account' : 'Log in')}</button>
-      </form>
     `;
     mountHcaptchaWidget();
     return;
