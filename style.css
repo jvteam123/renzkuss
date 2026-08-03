@@ -1233,6 +1233,12 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn,bod
 }
 .viewer-notify-btn:hover{background:var(--turf-pale);color:var(--turf-deep)}
 .viewer-notify-btn.active{background:var(--turf);color:#fff;border-color:var(--turf)}
+.viewer-notify-status{
+  display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;margin-left:auto;
+  width:2rem;height:2rem;border-radius:50%;font-size:1rem;line-height:1;
+  background:var(--turf);color:#fff;border:none;cursor:pointer;
+}
+.viewer-notify-status:hover{opacity:.85}
 @media (max-width:520px){
   .viewer-banner{gap:.5rem .6rem}
   .viewer-banner .msg{order:1}
