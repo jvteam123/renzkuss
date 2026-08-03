@@ -1285,6 +1285,7 @@ body.viewer-mode .court-name{ pointer-events:none; }
 body.viewer-mode .app-shell{ grid-template-columns:1fr; }
 body.viewer-mode .courts-main{ display:block !important; }
 
+.turnstile-widget{margin:.7rem 0;display:flex;justify-content:center}
 .host-auth-tabs{display:flex;gap:.4rem;margin-bottom:.9rem}
 .host-auth-tabs button{
   flex:1;padding:.5rem;border-radius:var(--radius-sm);border:1.5px solid var(--line);
