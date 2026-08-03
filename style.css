@@ -1342,6 +1342,26 @@ body.viewer-mode .courts-main{ display:block !important; }
   background:var(--court);color:var(--slate);font-weight:700;font-size:.8rem;cursor:pointer;
 }
 .host-auth-tabs button.active{background:var(--turf);border-color:var(--turf);color:#fff}
+.host-auth-tabs button:disabled{opacity:.6;cursor:default}
+
+.host-auth-wrap{position:relative}
+.host-auth-wrap.is-busy .host-auth-tabs,
+.host-auth-wrap.is-busy form{opacity:.55}
+.host-busy-overlay{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  background:transparent;cursor:wait;
+}
+.spinner,.btn-spinner{
+  display:inline-block;border-radius:50%;
+  border:3px solid rgba(0,0,0,.15);border-top-color:var(--turf);
+  animation:host-spin .7s linear infinite;
+}
+.spinner{width:30px;height:30px}
+.btn-spinner{
+  width:14px;height:14px;border-width:2px;border-top-color:#fff;
+  vertical-align:-2px;margin-right:.4rem;
+}
+@keyframes host-spin{to{transform:rotate(360deg)}}
 .host-error{
   font-size:.78rem;color:var(--danger);background:var(--danger-pale);
   border-radius:var(--radius-sm);padding:.5rem .65rem;margin:-.3rem 0 .8rem;
