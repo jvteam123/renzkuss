@@ -3110,7 +3110,13 @@ hostOverlay.addEventListener('click', (e) => {
   if (tabBtn){ hostPanelMode = tabBtn.dataset.tab; hostErrorMsg = ''; renderHostPanel(); return; }
   if (e.target.closest('#hostSignOutBtn')){ signOutEverywhere(); return; }
   if (e.target.closest('#hostGoLiveBtn')){ startHosting(); return; }
-  if (e.target.closest('#hostStopBtn')){ stopHosting(); return; }
+  if (e.target.closest('#hostStopBtn')){
+    (async () => {
+      if (!(await showConfirm('Stop hosting this live match? The link and code will stop working for anyone watching.', {title: 'Stop hosting?', confirmLabel: 'Stop hosting'}))) return;
+      stopHosting();
+    })();
+    return;
+  }
   if (e.target.closest('#hostResumeBtn')){ resumeRemoteSession(); return; }
   if (e.target.closest('#hostEndRemoteBtn')){ endRemoteSession(); return; }
   if (e.target.closest('#hostCopyLinkBtn')){ copyText(joinUrlFor(hostSession.invite_code)); return; }
