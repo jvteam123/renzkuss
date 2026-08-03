@@ -1198,6 +1198,20 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn,bod
 }
 
 /* ================= Host Online (Supabase live sharing) ================= */
+.watch-code-block{margin-bottom:.9rem}
+.watch-code-block label{display:block;font-size:.78rem;font-weight:700;color:var(--slate);margin-bottom:.35rem;text-transform:uppercase;letter-spacing:.03em}
+.watch-code-row{display:flex;gap:.5rem}
+.watch-code-row input{
+  flex:1;min-width:0;border:1.5px solid var(--line);border-radius:var(--radius-sm);
+  padding:.6rem .7rem;font-size:.95rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  background:var(--court);color:var(--ink);
+}
+.watch-code-row input:focus{border-color:var(--turf);background:#fff}
+.watch-code-row .btn{flex-shrink:0}
+.watch-code-error{color:var(--danger);font-size:.78rem;font-weight:600;margin:.4rem 0 0}
+.modal-divider{display:flex;align-items:center;gap:.6rem;margin:1rem 0;color:var(--slate);font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.modal-divider::before,.modal-divider::after{content:'';flex:1;height:1px;background:var(--line)}
+
 .viewer-banner{
   display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;
   max-width:1400px;margin:0 auto;padding:.6rem 1.1rem;background:var(--turf-pale);
@@ -1210,6 +1224,7 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn,bod
 }
 .viewer-banner .eyebrow svg{width:12px;height:12px}
 .viewer-banner .msg{font-size:.82rem;font-weight:600;color:var(--ink);flex:1 1 auto;min-width:100px}
+.viewer-banner .msg:empty{display:none}
 .viewer-notify-btn{
   display:inline-flex;align-items:center;gap:.35rem;flex-shrink:0;margin-left:auto;
   background:var(--surface);color:var(--turf-deep);border:1.5px solid var(--turf);
