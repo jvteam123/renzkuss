@@ -2469,6 +2469,12 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const SUPABASE_CONFIGURED = !!SUPABASE_ANON_KEY && SUPABASE_ANON_KEY.indexOf('PASTE_') !== 0;
 const HOST_DAILY_LIMIT = 5;
 
+/* Cloudflare Turnstile site key (public — safe to ship in client code).
+   Verification happens server-side in Supabase using the matching Secret
+   Key, set under Authentication → Settings → Bot and Abuse Protection. */
+const TURNSTILE_SITE_KEY = '0x4AAAAAAEEzEGqVzn8HPEHl';
+let turnstileToken = '';
+
 const AUTH_STORAGE_KEY = 'renzkuAuthSession';
 const HOST_STORAGE_KEY = 'renzkuHostSession';
 
@@ -2545,13 +2551,43 @@ async function authRequest(path, body){
 }
 
 async function signUpEmail(email, password){
-  const data = await authRequest('/auth/v1/signup', { email, password });
+  const data = await authRequest('/auth/v1/signup', {
+    email, password,
+    options: { captcha_token: turnstileToken }
+  });
+  turnstileToken = '';
+  if (window.turnstile) window.turnstile.reset();
   if (data.access_token){ applyAuthResponse(data); return { needsConfirmation: false }; }
   return { needsConfirmation: true };
 }
 async function signInEmail(email, password){
-  const data = await authRequest('/auth/v1/token?grant_type=password', { email, password });
+  const data = await authRequest('/auth/v1/token?grant_type=password', {
+    email, password,
+    options: { captcha_token: turnstileToken }
+  });
   applyAuthResponse(data);
+  turnstileToken = '';
+  if (window.turnstile) window.turnstile.reset();
+}
+/* Renders (or re-renders) the Turnstile widget into the #turnstileWidget
+   div. Called every time the login/signup form is (re)drawn, since
+   renderHostPanel() replaces hostPanelBody's innerHTML wholesale — that
+   destroys the previous widget's DOM node, so a fresh one is created each
+   time rather than trying to reset an element that no longer exists. */
+function renderTurnstileWidget(){
+  const el = document.getElementById('turnstileWidget');
+  if (!el) return;
+  if (!window.turnstile){
+    setTimeout(renderTurnstileWidget, 150); // api.js loads async — poll briefly until it's ready
+    return;
+  }
+  turnstileToken = '';
+  try{
+    window.turnstile.render(el, {
+      sitekey: TURNSTILE_SITE_KEY,
+      callback: (token) => { turnstileToken = token; }
+    });
+  }catch(e){ /* already rendered into this element — ignore */ }
 }
 async function ensureFreshToken(){
   if (!authSession) return null;
@@ -2742,9 +2778,11 @@ function renderHostPanel(){
           <label for="hostPasswordConfirmInput">Confirm password</label>
           <input type="password" id="hostPasswordConfirmInput" required minlength="6" autocomplete="new-password">
         </div>` : ''}
+        <div id="turnstileWidget" class="turnstile-widget"></div>
         <button type="submit" class="btn primary" style="width:100%" ${hostBusy ? 'disabled' : ''}>${hostBusy ? 'Please wait…' : (hostPanelMode === 'signup' ? 'Create account' : 'Log in')}</button>
       </form>
     `;
+    renderTurnstileWidget();
     return;
   }
 
