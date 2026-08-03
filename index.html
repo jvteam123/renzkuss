@@ -54,7 +54,7 @@
   <div class="spacer"></div>
   <span class="pill" id="stackCountPill">0 in stack</span>
   <span class="pill live-pill" id="liveHostPill" hidden>🔴 LIVE</span>
-  <button class="icon-btn" id="hostOnlineBtn" aria-label="Host match online"><svg viewBox="0 0 24 24"><use href="#i-cloud"/></svg></button>
+  <button class="icon-btn" id="hostOnlineBtn" aria-label="Host or watch a live match online"><svg viewBox="0 0 24 24"><use href="#i-cloud"/></svg></button>
   <button class="icon-btn" id="rankingsBtn" aria-label="Rankings"><svg viewBox="0 0 24 24"><use href="#i-trophy"/></svg></button>
   <button class="icon-btn" id="matchHistoryBtn" aria-label="Match history"><svg viewBox="0 0 24 24"><use href="#i-clock"/></svg></button>
   <button class="icon-btn" id="themeToggleBtn" aria-label="Toggle dark mode"><svg viewBox="0 0 24 24"><use href="#i-moon" id="themeToggleIconUse"/></svg></button>
@@ -307,8 +307,19 @@
 <!-- Host Online modal -->
 <div class="overlay" id="hostOverlay" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-label="Host match online">
-    <h3><svg viewBox="0 0 24 24" style="width:16px;height:16px;vertical-align:-2px;margin-right:.35rem"><use href="#i-cloud"/></svg>Host match online</h3>
-    <p class="winner-note" style="margin:-.3rem 0 .8rem">Share a live view of your courts and queue with a code or QR — no account needed to view. The app keeps working offline either way; this is only needed if you want to broadcast it.</p>
+    <h3><svg viewBox="0 0 24 24" style="width:16px;height:16px;vertical-align:-2px;margin-right:.35rem"><use href="#i-cloud"/></svg>Watch or host live</h3>
+    <p class="winner-note" style="margin:-.3rem 0 .8rem">Got a code from the host? Paste it below to watch live. Or share your own courts and queue with a code or QR — no account needed to view.</p>
+
+    <div class="watch-code-block">
+      <label for="watchCodeInput">Match code</label>
+      <div class="watch-code-row">
+        <input type="text" id="watchCodeInput" placeholder="Enter code, e.g. 7F3K2" maxlength="12" autocomplete="off" autocapitalize="characters" spellcheck="false">
+        <button type="button" class="btn primary sm" id="watchCodeBtn">Watch</button>
+      </div>
+      <p class="watch-code-error" id="watchCodeError" hidden></p>
+    </div>
+    <div class="modal-divider"><span>or host your own</span></div>
+
     <div id="hostPanelBody"></div>
     <div class="modal-actions">
       <button class="btn ghost" id="hostDone">Done</button>
