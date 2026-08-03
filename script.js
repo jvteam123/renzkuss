@@ -1106,7 +1106,7 @@ function splitTeams(names){
 function avatarHtml(name){
   return `<span class="avatar" style="background:${avatarColor(name)}">${initials(name)}</span>`;
 }
-function playerRowHtml(name, swap){
+function playerRowHtml(name, swap, sub){
   const stats = state.playerStats[name];
   const winChip = (stats && stats.wins > 0) ? `<span class="win-chip">🏆${stats.wins}</span>` : '';
   const games = stats ? (stats.games || 0) : 0;
@@ -1114,16 +1114,20 @@ function playerRowHtml(name, swap){
   const swapBtn = swap
     ? `<button type="button" class="player-swap-btn${swap.selected ? ' selecting' : ''}" data-act="swap-partner" data-idx="${swap.idx}" aria-label="${swap.selected ? 'Cancel swap' : ('Swap partner with ' + esc(name))}" title="Swap partner"><svg viewBox="0 0 24 24"><use href="#i-swap"/></svg></button>`
     : '';
+  const subBtn = sub
+    ? `<button type="button" class="player-sub-btn" data-act="sub-player" data-idx="${sub.idx}" aria-label="Substitute ${esc(name)}" title="Sub in a replacement for ${esc(name)}"><svg viewBox="0 0 24 24"><use href="#i-sub"/></svg></button>`
+    : '';
   return `<span class="player-col">
-    <span class="player-row">${avatarHtml(name)}<span class="player-name-txt">${esc(courtCardName(name))}</span>${winChip}${swapBtn}</span>
+    <span class="player-row">${avatarHtml(name)}<span class="player-name-txt">${esc(courtCardName(name))}</span>${winChip}${swapBtn}${subBtn}</span>
     <span class="player-games-row">${gamesChip}</span>
   </span>`;
 }
-function teamColHtml(names, side, gameSize, swapCtx){
+function teamColHtml(names, side, gameSize, swapCtx, subBaseIdx){
   const slots = Math.ceil(gameSize / 2);
   const rows = names.map((n, i) => {
     const swap = swapCtx ? { idx: swapCtx.baseIdx + i, selected: swapCtx.selectedIdx === swapCtx.baseIdx + i } : null;
-    return playerRowHtml(n, swap);
+    const sub = (subBaseIdx !== undefined) ? { idx: subBaseIdx + i } : null;
+    return playerRowHtml(n, swap, sub);
   });
   while (rows.length < slots) rows.push(`<span class="empty-slot">—</span>`);
   return `<div class="team team-${side}">${rows.join('')}</div>`;
@@ -1395,6 +1399,63 @@ function swapCourtPartner(court, idx){
   renderAll(); persist();
 }
 
+/* ================= Substitute a player (mid-match) =================
+   For when someone on a court has to step away (bathroom, phone call, hurt
+   ankle, whatever) and can't finish the game. Host taps that player's sub
+   icon, picks a replacement from the stack, and the game carries on with
+   the sub in their spot — same court, same score/timer. The player being
+   subbed out goes to the back of the stack, same as anyone requeuing after
+   a normal game. */
+let subTarget = null; // { courtId, idx } | null — the court slot waiting for a replacement
+const subOverlay = $('#subOverlay');
+const subList = $('#subList');
+const subTitle = $('#subTitle');
+const subSubtitle = $('#subSubtitle');
+const subEmptyNote = $('#subEmptyNote');
+
+function openSubPicker(court, idx){
+  if (isSessionEnded()){ toast('Session has ended'); return; }
+  subTarget = { courtId: court.id, idx };
+  const outgoingName = court.players[idx];
+  subTitle.textContent = 'Sub in for ' + outgoingName;
+  subSubtitle.textContent = outgoingName + ' goes to the back of the stack once you pick a replacement.';
+  renderSubPicker();
+  subOverlay.hidden = false;
+}
+function renderSubPicker(){
+  const candidates = state.stack.slice();
+  subEmptyNote.hidden = candidates.length > 0;
+  subList.innerHTML = candidates.map(entry => `
+    <div class="sub-row" data-id="${entry.id}">
+      <span class="arrival-name">${esc(entry.name)}</span>
+      <span class="level-badge ${levelClass(getPlayerLevel(entry.name))}">${esc(levelLabel(getPlayerLevel(entry.name)))}</span>
+    </div>
+  `).join('');
+}
+function performSubstitution(entryId){
+  if (!subTarget) return;
+  const court = state.courts.find(c => c.id === subTarget.courtId);
+  const idx = subTarget.idx;
+  const stackIdx = state.stack.findIndex(e => e.id === entryId);
+  if (!court || stackIdx === -1 || !court.players[idx]) { subOverlay.hidden = true; subTarget = null; return; }
+  const incoming = state.stack[stackIdx];
+  const outgoingName = court.players[idx];
+  state.stack.splice(stackIdx, 1);
+  court.players[idx] = incoming.name;
+  state.stack.push({ id: nextId('p'), name: outgoingName, joinedAt: Date.now(), tag: 'queued' });
+  subOverlay.hidden = true;
+  subTarget = null;
+  toast(`${incoming.name} subbed in for ${outgoingName}`);
+  renderAll(); persist();
+}
+subList.addEventListener('click', (e) => {
+  const row = e.target.closest('.sub-row[data-id]');
+  if (!row) return;
+  performSubstitution(row.dataset.id);
+});
+$('#subCancel').addEventListener('click', () => { subOverlay.hidden = true; subTarget = null; });
+subOverlay.addEventListener('click', (e) => { if (e.target === subOverlay){ subOverlay.hidden = true; subTarget = null; } });
+
 function renderCourts(){
   courtsGrid.innerHTML = '';
   if (state.courts.length === 0){
@@ -1478,7 +1539,7 @@ function renderCourts(){
             ${timerChip}
           </span>
         </div>
-        <div class="matchup">${teamColHtml(a,'a',gameSize,swapCtxA)}<div class="vs-divider"></div>${teamColHtml(b,'b',gameSize,swapCtxB)}</div>
+        <div class="matchup">${teamColHtml(a,'a',gameSize,swapCtxA,0)}<div class="vs-divider"></div>${teamColHtml(b,'b',gameSize,swapCtxB,a.length)}</div>
         ${swapHint}
         ${scoreboard}
         ${timerBlock}
@@ -1509,6 +1570,7 @@ courtsGrid.addEventListener('click', (e) => {
   if (btn.dataset.act === 'advance-serve') courtAdvanceServe(court);
   if (btn.dataset.act === 'undo-serve') courtUndoServe(court);
   if (btn.dataset.act === 'swap-partner') swapCourtPartner(court, Number(btn.dataset.idx));
+  if (btn.dataset.act === 'sub-player') openSubPicker(court, Number(btn.dataset.idx));
 });
 
 courtsGrid.addEventListener('change', (e) => {
