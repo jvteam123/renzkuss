@@ -2830,8 +2830,19 @@ function enterViewerMode(code){
 
   /* ---- Opt-in browser notifications: "match ended" + "next up changed" ----
      Spectators tap the bell once to grant permission; after that we notify
-     them in the background so they don't have to keep the tab in view. */
+     them in the background so they don't have to keep the tab in view.
+
+     Reality check on "background": a service worker lets the notification
+     display reliably while this tab is open but not focused (and, on
+     Android Chrome, often for a while after the screen locks). It does NOT
+     mean notifications keep arriving if the browser is fully closed or the
+     OS kills the tab — that needs real server-push (VAPID keys + a
+     Supabase Edge Function sending Web Push on every state change), which
+     is a backend addition, not something this static front end can do on
+     its own. This is the best-effort version; ask if you want the full
+     server-push version built out. */
   const notifyBtn = $('#viewerNotifyBtn');
+  const notifyStatusBtn = $('#viewerNotifyStatus');
   const NOTIFY_STORAGE_KEY = 'renzkuViewerNotify';
   let notifyEnabled = false;
   try{
@@ -2840,14 +2851,18 @@ function enterViewerMode(code){
       Notification.permission === 'granted';
   }catch(e){}
 
+  let swRegistration = null;
+  if ('serviceWorker' in navigator){
+    navigator.serviceWorker.register('sw.js').then(reg => { swRegistration = reg; }).catch(() => {});
+  }
+
   function updateNotifyBtn(){
-    if (!notifyBtn) return;
-    if (!('Notification' in window)){ notifyBtn.hidden = true; return; }
-    // Once it's actually on, there's nothing left to tap — hide the button
-    // instead of leaving a redundant "Notifications on" pill sitting there.
+    if (!notifyBtn || !notifyStatusBtn) return;
+    if (!('Notification' in window)){ notifyBtn.hidden = true; notifyStatusBtn.hidden = true; return; }
+    // Once it's actually on, the labeled button is gone for good — just a
+    // small tappable bell remains, which is also how you turn it back off.
     notifyBtn.hidden = notifyEnabled;
-    notifyBtn.textContent = '\uD83D\uDD14 Notify me';
-    notifyBtn.classList.remove('active');
+    notifyStatusBtn.hidden = !notifyEnabled;
   }
   updateNotifyBtn();
 
@@ -2869,15 +2884,35 @@ function enterViewerMode(code){
     });
   }
 
+  if (notifyStatusBtn){
+    notifyStatusBtn.addEventListener('click', async () => {
+      const turnOff = await showConfirm('Turn off match notifications on this device?', {
+        title: 'Notifications', confirmLabel: 'Turn off', cancelLabel: 'Keep on'
+      });
+      if (!turnOff) return;
+      notifyEnabled = false;
+      try{ localStorage.setItem(NOTIFY_STORAGE_KEY, '0'); }catch(e){}
+      updateNotifyBtn();
+      toast('Notifications turned off');
+    });
+  }
+
   function notify(title, body){
     if (!notifyEnabled || !('Notification' in window) || Notification.permission !== 'granted') return;
-    try{ new Notification(title, { body, tag: 'renzku-viewer-' + title + '-' + Date.now() }); }
-    catch(e){ console.error('Notification error:', e); }
+    const opts = { body, tag: 'renzku-viewer-' + title + '-' + Date.now() };
+    try{
+      if (swRegistration && swRegistration.showNotification){
+        swRegistration.showNotification(title, opts);
+      } else {
+        new Notification(title, opts);
+      }
+    }catch(e){ console.error('Notification error:', e); }
   }
 
   let lastStatus = null;      // previous session status, to catch the live -> ended transition
   let lastOnDeck = null;      // text of the first "on deck" matchup, to catch it changing
   let lastHistoryId = undefined; // most recent recorded match id, to catch a game finishing
+  let lastCourtStarts = {};   // courtId -> startTime, to catch a new game beginning
 
   async function poll(){
     if (!SUPABASE_CONFIGURED){ setMsg('This app isn\u2019t configured for live viewing yet.'); return; }
@@ -2907,6 +2942,18 @@ function enterViewerMode(code){
       if (nameEl) nameEl.textContent = (row.session_name || 'Live match') + ' \u00b7 Live';
       setMsg('Updated ' + new Date(row.updated_at).toLocaleTimeString());
       renderAll();
+
+      // A new game just started on some court.
+      if (Array.isArray(state.courts)){
+        state.courts.forEach(c => {
+          const prevStart = lastCourtStarts[c.id];
+          if (c.startTime && prevStart !== undefined && c.startTime !== prevStart){
+            const matchup = (c.players || []).join(', ');
+            notify((c.name || 'Court') + ' \u2014 match started', matchup || 'A new match just began.');
+          }
+          lastCourtStarts[c.id] = c.startTime || null;
+        });
+      }
 
       // A game just finished on some court — the host's history array gets
       // a new entry pushed to the front each time a winner is recorded.
