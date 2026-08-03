@@ -1219,7 +1219,7 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn,bod
 }
 .viewer-banner .eyebrow{
   font-family:var(--font-mono);font-size:.66rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
-  color:var(--turf-deep);background:#fff;padding:.28rem .6rem;border-radius:99px;flex-shrink:0;
+  color:var(--turf-deep);background:var(--surface);padding:.28rem .6rem;border-radius:99px;flex-shrink:0;
   display:inline-flex;align-items:center;gap:.35rem;
 }
 .viewer-banner .eyebrow svg{width:12px;height:12px}
