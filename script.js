@@ -2620,6 +2620,12 @@ let hostUsageToday = null; // cached count of sessions started today, refreshed 
 let hostPushTimer = null;
 let hostPushPending = false;
 let viewerPollTimer = null;
+let remoteLiveSession = null; // { id, invite_code, session_name } | null — a live match this
+                               // account is already hosting, per the server, that this device
+                               // doesn't know about locally (e.g. started on another device
+                               // that then went offline/died before it could be stopped)
+let remoteLiveChecked = false; // whether we've asked the server yet this "logged out of host
+                                // locally" stretch — avoids re-querying on every re-render
 
 function b64UrlDecode(str){
   str = str.replace(/-/g, '+').replace(/_/g, '/');
@@ -2708,6 +2714,7 @@ async function ensureFreshToken(){
 }
 async function signOutEverywhere(){
   if (hostSession){ try{ await stopHosting(); }catch(e){} }
+  remoteLiveSession = null; remoteLiveChecked = false;
   try{
     if (authSession){
       await fetch(SUPABASE_URL + '/auth/v1/logout', {
@@ -2832,6 +2839,82 @@ async function stopHosting(){
   }catch(e){}
 }
 
+/* ---- Cross-device recovery: if this device isn't hosting locally, ask the
+   server whether this account already has a live match running (started on
+   a device that then died/went offline before "Stop hosting" could run —
+   the row itself just stays status:'live' forever otherwise, since nothing
+   ever marks it ended). Lets the person resume control from a new device,
+   or cleanly end the orphaned one, instead of it just seeming to not exist. */
+async function checkRemoteLiveSession(){
+  if (!authSession){ remoteLiveSession = null; remoteLiveChecked = true; return; }
+  try{
+    const res = await sbFetch(
+      `/rest/v1/hosted_sessions?host_id=eq.${authSession.user.id}&status=eq.live&select=id,invite_code,session_name&order=created_at.desc&limit=1`,
+      { method: 'GET' },
+      true
+    );
+    const data = await res.json().catch(() => []);
+    remoteLiveSession = (Array.isArray(data) && data[0]) ? data[0] : null;
+  }catch(e){
+    remoteLiveSession = null;
+  }finally{
+    remoteLiveChecked = true;
+  }
+}
+
+/* Pulls the other device's live match onto this one and takes over pushing
+   updates for it. This *replaces* this device's local match with the one
+   from the server, since going forward every local change here will be
+   broadcast as that live match's new state — so it asks first. */
+async function resumeRemoteSession(){
+  if (!remoteLiveSession) return;
+  if (!(await showConfirm('This will replace this device\u2019s current stack, courts and history with the live match from your other device. That device\u2019s data (courts, stack, history) will take over here.', {title: 'Resume \u201c' + (remoteLiveSession.session_name || 'live match') + '\u201d here?', confirmLabel: 'Resume here'}))) return;
+  hostBusy = true; hostErrorMsg = ''; renderHostPanel();
+  try{
+    const res = await sbFetch(`/rest/v1/hosted_sessions?id=eq.${remoteLiveSession.id}&select=id,invite_code,state`, { method: 'GET' }, true);
+    const data = await res.json().catch(() => []);
+    const row = Array.isArray(data) ? data[0] : null;
+    if (!row || !row.state) throw new Error('That live match is gone \u2014 it may have just ended.');
+    state = row.state;
+    await persist(); // hostSession is still unset here, so this just saves locally — no re-broadcast
+    renderRosterList();
+    renderAll();
+    saveHostSession({ id: row.id, invite_code: row.invite_code });
+    remoteLiveSession = null;
+    toast('Resumed \u2014 you\u2019re controlling this live match again');
+  }catch(e){
+    hostErrorMsg = e.message || 'Could not resume that live match';
+  }finally{
+    hostBusy = false;
+    updateHostIndicator();
+    renderHostPanel();
+  }
+}
+
+/* Cleanly ends the orphaned live match without pulling its data onto this
+   device — for when the person just wants to stop it (e.g. they'll start
+   fresh here) rather than continue it. */
+async function endRemoteSession(){
+  if (!remoteLiveSession) return;
+  const dying = remoteLiveSession;
+  if (!(await showConfirm('End the live match running from your other device? Anyone watching that link will see it as ended.', {title: 'End \u201c' + (dying.session_name || 'live match') + '\u201d?', confirmLabel: 'End it'}))) return;
+  hostBusy = true; hostErrorMsg = ''; renderHostPanel();
+  try{
+    await sbFetch(`/rest/v1/hosted_sessions?id=eq.${dying.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ status: 'ended', ended_at: new Date().toISOString() })
+    }, true);
+    remoteLiveSession = null;
+    toast('Ended');
+  }catch(e){
+    hostErrorMsg = e.message || 'Could not end that live match';
+  }finally{
+    hostBusy = false;
+    renderHostPanel();
+  }
+}
+
 function queueHostPush(){
   if (!hostSession || viewerMode) return;
   hostPushPending = true;
@@ -2904,8 +2987,43 @@ function renderHostPanel(){
     if (hostUsageToday === null){
       getHostUsageToday().then(n => { hostUsageToday = n; renderHostPanel(); }).catch(() => { hostUsageToday = 0; renderHostPanel(); });
     }
+    if (!remoteLiveChecked){
+      checkRemoteLiveSession().then(renderHostPanel);
+    }
     const used = hostUsageToday === null ? '…' : hostUsageToday;
     const atLimit = typeof used === 'number' && used >= HOST_DAILY_LIMIT;
+
+    if (!remoteLiveChecked){
+      hostPanelBody.innerHTML = `
+        <div class="host-account-row">
+          <span>Signed in as <b>${esc(authSession.user.email)}</b></span>
+          <button type="button" class="btn ghost sm" id="hostSignOutBtn">Log out</button>
+        </div>
+        <p class="host-live-note">Checking for a live match already running on this account…</p>
+      `;
+      return;
+    }
+
+    if (remoteLiveSession){
+      hostPanelBody.innerHTML = `
+        <div class="host-account-row">
+          <span>Signed in as <b>${esc(authSession.user.email)}</b></span>
+          <button type="button" class="btn ghost sm" id="hostSignOutBtn">Log out</button>
+        </div>
+        ${hostErrorMsg ? `<div class="host-error">${esc(hostErrorMsg)}</div>` : ''}
+        <div class="host-live-card">
+          <span class="host-live-badge">🔴 Already live elsewhere</span>
+          <p class="host-live-note" style="margin-top:.3rem">
+            "${esc(remoteLiveSession.session_name || 'A match')}" (code ${esc(remoteLiveSession.invite_code)}) is still live from another device —
+            probably one that lost power or connection before you could stop it there.
+          </p>
+          <button type="button" class="btn primary" id="hostResumeBtn" style="width:100%;margin-top:.5rem" ${hostBusy ? 'disabled' : ''}>${hostBusy ? 'Working…' : 'Resume it on this device'}</button>
+          <button type="button" class="btn ghost" id="hostEndRemoteBtn" style="width:100%;margin-top:.4rem" ${hostBusy ? 'disabled' : ''}>End that live match instead</button>
+        </div>
+      `;
+      return;
+    }
+
     hostPanelBody.innerHTML = `
       <div class="host-account-row">
         <span>Signed in as <b>${esc(authSession.user.email)}</b></span>
@@ -2950,6 +3068,8 @@ function renderHostPanel(){
 
 function openHostOverlay(){
   hostErrorMsg = '';
+  if (!hostSession) remoteLiveChecked = false; // re-check each time the panel opens, in case
+                                                // the other device came back and stopped it, etc.
   renderHostPanel();
   hostOverlay.hidden = false;
 }
@@ -2986,6 +3106,8 @@ hostOverlay.addEventListener('click', (e) => {
   if (e.target.closest('#hostSignOutBtn')){ signOutEverywhere(); return; }
   if (e.target.closest('#hostGoLiveBtn')){ startHosting(); return; }
   if (e.target.closest('#hostStopBtn')){ stopHosting(); return; }
+  if (e.target.closest('#hostResumeBtn')){ resumeRemoteSession(); return; }
+  if (e.target.closest('#hostEndRemoteBtn')){ endRemoteSession(); return; }
   if (e.target.closest('#hostCopyLinkBtn')){ copyText(joinUrlFor(hostSession.invite_code)); return; }
   if (e.target.closest('#hostCopyCodeBtn')){ copyText(hostSession.invite_code); return; }
 });
