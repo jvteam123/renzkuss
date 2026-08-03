@@ -2586,6 +2586,11 @@ window.onHcaptchaReady = function(){
   hcaptchaReady = true;
   mountHcaptchaWidget();
 };
+// That hCaptcha <script> tag is `async`, so it can finish loading and invoke
+// its onload callback before this deferred script (loaded at the end of
+// <body>) has even run. A stub in index.html's <head> catches that early
+// call and sets this flag — pick it up now in case we arrived after the fact.
+if (window.__hcaptchaApiReady) window.onHcaptchaReady();
 
 // (Re)renders the widget into #hcaptchaBox, if that box is currently in the
 // DOM and the library is ready. Safe to call any number of times — e.g.
