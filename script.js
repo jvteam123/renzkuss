@@ -2474,6 +2474,7 @@ const HOST_DAILY_LIMIT = 5;
    Key, set under Authentication → Settings → Bot and Abuse Protection. */
 const TURNSTILE_SITE_KEY = '0x4AAAAAAEEzEGqVzn8HPEHl';
 let turnstileToken = '';
+let turnstileReady = false; // true once Turnstile confirms — gates the submit button
 
 const AUTH_STORAGE_KEY = 'renzkuAuthSession';
 const HOST_STORAGE_KEY = 'renzkuHostSession';
@@ -2550,24 +2551,20 @@ async function authRequest(path, body){
   return data;
 }
 
-async function signUpEmail(email, password){
+async function signUpEmail(email, password, captchaToken){
   const data = await authRequest('/auth/v1/signup', {
     email, password,
-    options: { captcha_token: turnstileToken }
+    options: { captcha_token: captchaToken }
   });
-  turnstileToken = '';
-  if (window.turnstile) window.turnstile.reset();
   if (data.access_token){ applyAuthResponse(data); return { needsConfirmation: false }; }
   return { needsConfirmation: true };
 }
-async function signInEmail(email, password){
+async function signInEmail(email, password, captchaToken){
   const data = await authRequest('/auth/v1/token?grant_type=password', {
     email, password,
-    options: { captcha_token: turnstileToken }
+    options: { captcha_token: captchaToken }
   });
   applyAuthResponse(data);
-  turnstileToken = '';
-  if (window.turnstile) window.turnstile.reset();
 }
 /* Renders (or re-renders) the Turnstile widget into the #turnstileWidget
    div. Called every time the login/signup form is (re)drawn, since
@@ -2582,10 +2579,17 @@ function renderTurnstileWidget(){
     return;
   }
   turnstileToken = '';
+  turnstileReady = false;
+  const setBtnDisabled = (disabled) => {
+    const btn = document.getElementById('hostAuthSubmitBtn');
+    if (btn) btn.disabled = disabled || hostBusy;
+  };
   try{
     window.turnstile.render(el, {
       sitekey: TURNSTILE_SITE_KEY,
-      callback: (token) => { turnstileToken = token; }
+      callback: (token) => { turnstileToken = token; turnstileReady = true; setBtnDisabled(false); },
+      'expired-callback': () => { turnstileToken = ''; turnstileReady = false; setBtnDisabled(true); },
+      'error-callback': () => { turnstileToken = ''; turnstileReady = false; setBtnDisabled(true); }
     });
   }catch(e){ /* already rendered into this element — ignore */ }
 }
@@ -2758,6 +2762,7 @@ function renderHostPanel(){
   }
 
   if (!authSession){
+    turnstileReady = false; // a fresh widget is about to render — the button starts locked
     hostPanelBody.innerHTML = `
       <div class="host-auth-tabs">
         <button type="button" data-tab="login" class="${hostPanelMode === 'login' ? 'active' : ''}">Log in</button>
@@ -2779,7 +2784,7 @@ function renderHostPanel(){
           <input type="password" id="hostPasswordConfirmInput" required minlength="6" autocomplete="new-password">
         </div>` : ''}
         <div id="turnstileWidget" class="turnstile-widget"></div>
-        <button type="submit" class="btn primary" style="width:100%" ${hostBusy ? 'disabled' : ''}>${hostBusy ? 'Please wait…' : (hostPanelMode === 'signup' ? 'Create account' : 'Log in')}</button>
+        <button type="submit" id="hostAuthSubmitBtn" class="btn primary" style="width:100%" ${(hostBusy || !turnstileReady) ? 'disabled' : ''}>${hostBusy ? 'Please wait…' : (hostPanelMode === 'signup' ? 'Create account' : 'Log in')}</button>
       </form>
     `;
     renderTurnstileWidget();
@@ -2890,10 +2895,16 @@ hostOverlay.addEventListener('submit', async (e) => {
       return;
     }
   }
+  if (!turnstileReady || !turnstileToken){
+    hostErrorMsg = 'Please wait for the security check above to finish';
+    renderHostPanel();
+    return;
+  }
+  const capturedCaptchaToken = turnstileToken; // renderHostPanel() below rebuilds the widget and clears the global
   hostBusy = true; hostErrorMsg = ''; renderHostPanel();
   try{
     if (hostPanelMode === 'signup'){
-      const r = await signUpEmail(email, password);
+      const r = await signUpEmail(email, password, capturedCaptchaToken);
       if (r.needsConfirmation){
         hostBusy = false;
         hostErrorMsg = '';
@@ -2903,7 +2914,7 @@ hostOverlay.addEventListener('submit', async (e) => {
         return;
       }
     } else {
-      await signInEmail(email, password);
+      await signInEmail(email, password, capturedCaptchaToken);
     }
     hostUsageToday = null;
     toast('Signed in');
