@@ -2845,6 +2845,9 @@ function enterViewerMode(code){
   const notifyStatusBtn = $('#viewerNotifyStatus');
   const NOTIFY_STORAGE_KEY = 'renzkuViewerNotify';
   let notifyEnabled = false;
+  const notifySound = new Audio('./notify.wav');
+  notifySound.volume = 0.6;
+  notifySound.preload = 'auto';
   try{
     notifyEnabled = ('Notification' in window) &&
       localStorage.getItem(NOTIFY_STORAGE_KEY) === '1' &&
@@ -2899,6 +2902,7 @@ function enterViewerMode(code){
 
   function notify(title, body){
     if (!notifyEnabled || !('Notification' in window) || Notification.permission !== 'granted') return;
+    try{ notifySound.currentTime = 0; notifySound.play().catch(() => {}); }catch(e){}
     const opts = {
       body,
       tag: 'renzku-viewer-' + title + '-' + Date.now(),
