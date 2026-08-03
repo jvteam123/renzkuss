@@ -2985,6 +2985,7 @@ function enterViewerMode(code){
   let lastOnDeck = null;      // text of the first "on deck" matchup, to catch it changing
   let lastHistoryId = undefined; // most recent recorded match id, to catch a game finishing
   let lastCourtStarts = {};   // courtId -> startTime, to catch a new game beginning
+  let lastCourtRoster = {};   // courtId -> player names on court, to catch a mid-game substitution
   let firstPoll = true;       // belt-and-suspenders: never notify on the poll that just
                                // establishes the baseline snapshot, no matter what it contains.
 
@@ -3018,15 +3019,25 @@ function enterViewerMode(code){
       setMsg('Updated ' + new Date(row.updated_at).toLocaleTimeString());
       renderAll();
 
-      // A new game just started on some court.
+      // A new game just started on some court — or, if the start time didn't
+      // move but who's playing did, someone was subbed in mid-game.
       if (Array.isArray(state.courts)){
         state.courts.forEach(c => {
           const prevStart = lastCourtStarts[c.id];
+          const prevRoster = lastCourtRoster[c.id];
+          const roster = (c.players || []).slice();
           if (!firstPoll && c.startTime && prevStart !== undefined && c.startTime !== prevStart){
-            const matchup = (c.players || []).join(', ');
+            const matchup = roster.join(', ');
             notify((c.name || 'Court') + ' \u2014 match started', matchup || 'A new match just began.');
+          } else if (!firstPoll && prevStart !== undefined && c.startTime === prevStart && prevRoster){
+            const incoming = roster.filter(n => !prevRoster.includes(n));
+            const outgoing = prevRoster.filter(n => !roster.includes(n));
+            if (incoming.length && outgoing.length){
+              notify((c.name || 'Court') + ' \u2014 substitution', `${incoming.join(' & ')} in for ${outgoing.join(' & ')}`);
+            }
           }
           lastCourtStarts[c.id] = c.startTime || null;
+          lastCourtRoster[c.id] = roster;
         });
       }
 
