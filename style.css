@@ -589,6 +589,17 @@ button.level-badge{cursor:pointer}
   border-radius:var(--radius-sm);padding:.45rem .6rem;
 }
 .swap-hint b{color:#fff}
+/* The base .player-swap-btn/.swap-hint styles above assume the dark
+   .court-card.playing background. The preview matchup on a not-yet-started
+   court uses the regular light/surface card background, so those same
+   translucent-white colors would be unreadable there — override with
+   theme-aware colors instead. */
+.court-card:not(.playing) .player-swap-btn{
+  border:1px solid var(--line);background:var(--court);color:var(--slate);
+}
+.court-card:not(.playing) .player-swap-btn:hover{background:var(--turf-pale);border-color:var(--turf);color:var(--turf-deep)}
+.court-card:not(.playing) .player-swap-btn.selecting{background:var(--gold);border-color:var(--gold);color:var(--brand-ink)}
+.court-card:not(.playing) .swap-hint b{color:var(--ink)}
 .games-chip{
   font-family:var(--font-mono);font-size:.6rem;font-weight:600;
   color:var(--slate);flex-shrink:0;opacity:.85;
