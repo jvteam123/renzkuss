@@ -19,11 +19,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
-<!-- Stub so the hCaptcha library (loaded async below) always has an onload
-     callback to call, even if it finishes loading before script.js (deferred,
-     at the end of <body>) has run and defined the real one. script.js checks
-     this flag on startup to catch that early call. -->
-<script>window.onHcaptchaReady = function(){ window.__hcaptchaApiReady = true; };</script>
+<!-- Plain (non-async, non-deferred) so it runs and defines the callback
+     immediately, before the async hCaptcha script below can possibly fire it. -->
+<script src="hcaptcha-stub.js"></script>
 <script src="https://js.hcaptcha.com/1/api.js?onload=onHcaptchaReady&render=explicit" async defer></script>
 </head>
 <body>
