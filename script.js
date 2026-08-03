@@ -3073,45 +3073,88 @@ function enterViewerMode(code){
      a player without turning notifications on just remembers the choice
      for next time. */
   const viewerWatchEl = $('#viewerWatch');
-  const viewerWatchSelect = $('#viewerWatchSelect');
+  const viewerWatchBtn = $('#viewerWatchBtn');
+  const viewerWatchLabel = $('#viewerWatchLabel');
+  const viewerWatchMenu = $('#viewerWatchMenu');
   const WATCH_STORAGE_KEY = 'renzkuViewerWatchPlayer:' + code;
   let watchedPlayer = '';
   try{ watchedPlayer = localStorage.getItem(WATCH_STORAGE_KEY) || ''; }catch(e){}
-  let lastWatchNames = null; // cached list, so we only rebuild <option>s when the roster actually changes
+  let lastWatchNames = null; // cached list, so we only rebuild option buttons when the roster actually changes
   let lastWatchStatusState = null; // 'on-deck' | 'up-now' | 'playing' | 'waiting' | null
   let watchNeedsBaseline = true; // true right after (re)selecting a player — the next poll just sets the baseline, never notifies
 
   function updateWatchUI(){
     if (!viewerWatchEl) return;
     viewerWatchEl.classList.toggle('active', !!watchedPlayer);
+    if (viewerWatchLabel) viewerWatchLabel.textContent = watchedPlayer || 'Watch a player…';
   }
   updateWatchUI();
 
+  function closeWatchMenu(){
+    if (!viewerWatchMenu || viewerWatchMenu.hidden) return;
+    viewerWatchMenu.hidden = true;
+    if (viewerWatchBtn) viewerWatchBtn.setAttribute('aria-expanded', 'false');
+  }
+  function openWatchMenu(){
+    if (!viewerWatchMenu) return;
+    viewerWatchMenu.hidden = false;
+    if (viewerWatchBtn) viewerWatchBtn.setAttribute('aria-expanded', 'true');
+  }
+  function selectWatchPlayer(name){
+    watchedPlayer = name;
+    try{ localStorage.setItem(WATCH_STORAGE_KEY, watchedPlayer); }catch(e){}
+    lastWatchStatusState = null;
+    watchNeedsBaseline = true; // re-baseline so switching players doesn't fire a notification for their status as of right now
+    updateWatchUI();
+    if (viewerWatchMenu){
+      viewerWatchMenu.querySelectorAll('.viewer-watch-option').forEach(btn => {
+        btn.setAttribute('aria-selected', String(btn.dataset.value === watchedPlayer));
+      });
+    }
+    closeWatchMenu();
+    if (watchedPlayer && !notifyEnabled) toast('Tap \u201cNotify me\u201d above to get alerts for ' + watchedPlayer);
+    else if (watchedPlayer) toast('Watching ' + watchedPlayer + ' \u2014 you\u2019ll get an alert when they\u2019re called up');
+  }
+
+  if (viewerWatchBtn){
+    viewerWatchBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (viewerWatchMenu && viewerWatchMenu.hidden) openWatchMenu();
+      else closeWatchMenu();
+    });
+  }
+  if (viewerWatchMenu){
+    viewerWatchMenu.addEventListener('click', (e) => {
+      const opt = e.target.closest('.viewer-watch-option');
+      if (!opt) return;
+      selectWatchPlayer(opt.dataset.value || '');
+    });
+  }
+  document.addEventListener('click', (e) => {
+    if (!viewerWatchEl || viewerWatchEl.contains(e.target)) return;
+    closeWatchMenu();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeWatchMenu();
+  });
+
   function refreshWatchOptions(names){
-    if (!viewerWatchSelect) return;
+    if (!viewerWatchMenu) return;
     const sorted = names.slice().sort((a, b) => a.localeCompare(b));
     const key = sorted.join('\u241F');
     if (key === lastWatchNames) return; // nobody joined/left since last poll — leave the dropdown alone
     lastWatchNames = key;
-    const current = viewerWatchSelect.value;
-    viewerWatchSelect.innerHTML = '<option value="">Watch a player…</option>' +
-      sorted.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
     // Keep the selection even if that player's briefly off the on-court list
     // (e.g. mid-substitution) — only clear it if they leave the roster for good.
-    if (watchedPlayer && sorted.includes(watchedPlayer)) viewerWatchSelect.value = watchedPlayer;
-    else if (current) viewerWatchSelect.value = current;
-  }
-
-  if (viewerWatchSelect){
-    viewerWatchSelect.addEventListener('change', () => {
-      watchedPlayer = viewerWatchSelect.value;
-      try{ localStorage.setItem(WATCH_STORAGE_KEY, watchedPlayer); }catch(e){}
-      lastWatchStatusState = null;
-      watchNeedsBaseline = true; // re-baseline so switching players doesn't fire a notification for their status as of right now
+    const stillActive = watchedPlayer && sorted.includes(watchedPlayer);
+    viewerWatchMenu.innerHTML = `<button type="button" class="viewer-watch-option is-placeholder" data-value="" role="option" aria-selected="${!watchedPlayer}">Watch a player…</button>` +
+      sorted.map(n => `<button type="button" class="viewer-watch-option" data-value="${esc(n)}" role="option" aria-selected="${n === watchedPlayer}">${esc(n)}</button>`).join('');
+    if (watchedPlayer && !stillActive){
+      // Player left the roster for good — clear the pick.
+      watchedPlayer = '';
+      try{ localStorage.removeItem(WATCH_STORAGE_KEY); }catch(e){}
       updateWatchUI();
-      if (watchedPlayer && !notifyEnabled) toast('Tap \u201cNotify me\u201d above to get alerts for ' + watchedPlayer);
-      else if (watchedPlayer) toast('Watching ' + watchedPlayer + ' \u2014 you\u2019ll get an alert when they\u2019re called up');
-    });
+    }
   }
 
   // Mirrors renderUpNext()'s own grouping logic against the current on-deck
@@ -3260,7 +3303,7 @@ function enterViewerMode(code){
 
       // Keep the "watch a player" dropdown current, then check whether the
       // watched player (if any) just moved into a more urgent status.
-      if (viewerWatchSelect){
+      if (viewerWatchMenu){
         const activeNames = new Set();
         (state.stack || []).forEach(e => activeNames.add(e.name));
         (state.courts || []).forEach(c => (c.players || []).forEach(n => activeNames.add(n)));
