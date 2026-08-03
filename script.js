@@ -106,7 +106,8 @@ function cyclePlayerLevel(name){
 /* ================= State ================= */
 function defaultCourts(n){
   return Array.from({length:n}, (_, i) => ({
-    id: 'c'+(i+1), name: 'Court '+(i+1), level: 'Open', status:'open', players: [], startTime: null, lastResult: null, swapInfo: null, score: null
+    id: 'c'+(i+1), name: 'Court '+(i+1), level: 'Open', status:'open', players: [], startTime: null, lastResult: null, swapInfo: null, score: null,
+    previewOrder: null, previewSubMap: null
   }));
 }
 
@@ -449,6 +450,16 @@ function computeTeamPairing(names){
 }
 function orderForTeammatePairing(names){
   return computeTeamPairing(names).order;
+}
+/* True when both arrays contain exactly the same names (any order, with
+   repeats counted) — used to tell whether a manually-set preview arrangement
+   still applies to the court's current natural line-up, or whether the
+   underlying group of players has moved on and the override should be
+   dropped. */
+function sameNameMultiset(a, b){
+  if (!a || !b || a.length !== b.length) return false;
+  const sa = a.slice().sort(), sb = b.slice().sort();
+  return sa.every((n, i) => n === sb[i]);
 }
 /* Compares the "natural" pairing (players in their priority/FIFO order, before
    avoidance) against the pairing actually chosen, and — if they differ —
@@ -1147,7 +1158,24 @@ function computeOpenCourtQueue(gameSize){
     const candidatePool = previewStack.filter(e => levelsMatch(getPlayerLevel(e.name), courtLevel));
     const remaining = candidatePool.length;
     if (remaining >= gameSize){
-      const taken = selectMatchEntries(gameSize, candidatePool);
+      let taken = selectMatchEntries(gameSize, candidatePool);
+      // Honor any pending preview substitutions the host made for this court
+      // (swapping a specific waiting player in for one of the naturally
+      // selected ones) before finalizing who's claimed. A pick that's gone
+      // stale — the target already claimed by an earlier court this pass,
+      // or no longer in the stack at all — is silently skipped rather than
+      // erroring; the natural pick just stands instead.
+      if (court.previewSubMap){
+        Object.keys(court.previewSubMap).forEach(outgoingId => {
+          const incomingId = court.previewSubMap[outgoingId];
+          const outIdx = taken.findIndex(e => e.id === outgoingId);
+          if (outIdx === -1) return;
+          const incomingEntry = previewStack.find(e => e.id === incomingId);
+          if (!incomingEntry || !levelsMatch(getPlayerLevel(incomingEntry.name), courtLevel)) return;
+          taken = taken.slice();
+          taken[outIdx] = incomingEntry;
+        });
+      }
       const takenIds = new Set(taken.map(e => e.id));
       previewStack = previewStack.filter(e => !takenIds.has(e.id));
       queue.set(court.id, { taken, remaining });
@@ -1373,11 +1401,15 @@ function scoreboardHtml(court){
     </div>`;
 }
 
-/* ================= Swap partners (mid-match) =================
+/* ================= Swap partners (mid-match, or in preview) =================
    Doubles only: lets someone fix a wrong pairing, or just remix the teams,
    without ending the game or losing the score/timer. Tap one player's swap
    icon, then tap another's to trade their court spots; tapping the same
-   one again cancels the pick. */
+   one again cancels the pick.
+
+   The same icon and handler work on a not-yet-started court's preview
+   matchup too — there it reorders court.previewOrder instead of
+   court.players, letting the host remix teams before hitting "Start Game". */
 let swapSelection = null; // { courtId, idx } | null — first player picked, awaiting a second
 
 function swapCourtPartner(court, idx){
@@ -1392,21 +1424,28 @@ function swapCourtPartner(court, idx){
     return;
   }
   const otherIdx = swapSelection.idx;
-  const nameA = court.players[otherIdx], nameB = court.players[idx];
-  [court.players[otherIdx], court.players[idx]] = [court.players[idx], court.players[otherIdx]];
+  const arr = court.status === 'open' ? court.previewOrder : court.players;
+  if (!arr){ swapSelection = null; renderCourts(); return; }
+  const nameA = arr[otherIdx], nameB = arr[idx];
+  [arr[otherIdx], arr[idx]] = [arr[idx], arr[otherIdx]];
   swapSelection = null;
   toast(`Swapped ${nameA} ↔ ${nameB}`);
   renderAll(); persist();
 }
 
-/* ================= Substitute a player (mid-match) =================
+/* ================= Substitute a player (mid-match, or in preview) =================
    For when someone on a court has to step away (bathroom, phone call, hurt
    ankle, whatever) and can't finish the game. Host taps that player's sub
    icon, picks a replacement from the stack, and the game carries on with
    the sub in their spot — same court, same score/timer. The player being
    subbed out goes to the back of the stack, same as anyone requeuing after
-   a normal game. */
-let subTarget = null; // { courtId, idx } | null — the court slot waiting for a replacement
+   a normal game.
+
+   The same icon also appears on a not-yet-started court's preview matchup,
+   letting the host swap in a different waiting player before hitting "Start
+   Game" — see performSubstitution()'s preview branch and
+   computeOpenCourtQueue()'s previewSubMap handling. */
+let subTarget = null; // { courtId, idx, preview } | null — the slot waiting for a replacement
 const subOverlay = $('#subOverlay');
 const subList = $('#subList');
 const subTitle = $('#subTitle');
@@ -1415,15 +1454,32 @@ const subEmptyNote = $('#subEmptyNote');
 
 function openSubPicker(court, idx){
   if (isSessionEnded()){ toast('Session has ended'); return; }
-  subTarget = { courtId: court.id, idx };
-  const outgoingName = court.players[idx];
+  const isPreview = court.status === 'open';
+  const outgoingName = isPreview ? (court.previewOrder && court.previewOrder[idx]) : court.players[idx];
+  if (!outgoingName) return;
+  subTarget = { courtId: court.id, idx, preview: isPreview };
   subTitle.textContent = 'Sub in for ' + outgoingName;
-  subSubtitle.textContent = outgoingName + ' goes to the back of the stack once you pick a replacement.';
-  renderSubPicker();
+  subSubtitle.textContent = isPreview
+    ? outgoingName + ' goes back into the stack once you pick a replacement.'
+    : outgoingName + ' goes to the back of the stack once you pick a replacement.';
+  renderSubPicker(court);
   subOverlay.hidden = false;
 }
-function renderSubPicker(){
-  const candidates = state.stack.slice();
+function renderSubPicker(court){
+  let candidates;
+  if (subTarget && subTarget.preview){
+    // Anyone already slotted into any open court's own preview (including
+    // this one) is off the table — pulling them in here would double-book
+    // them. Only players still further back in the stack, and matching this
+    // court's skill level, show up as valid replacements.
+    const openQueueNow = computeOpenCourtQueue(state.session.gameSize);
+    const claimed = new Set();
+    openQueueNow.forEach(slot => { if (slot.taken) slot.taken.forEach(e => claimed.add(e.id)); });
+    const courtLevel = court.level || 'Open';
+    candidates = state.stack.filter(e => !claimed.has(e.id) && levelsMatch(getPlayerLevel(e.name), courtLevel));
+  } else {
+    candidates = state.stack.slice();
+  }
   subEmptyNote.hidden = candidates.length > 0;
   subList.innerHTML = candidates.map(entry => `
     <div class="sub-row" data-id="${entry.id}">
@@ -1436,16 +1492,35 @@ function performSubstitution(entryId){
   if (!subTarget) return;
   const court = state.courts.find(c => c.id === subTarget.courtId);
   const idx = subTarget.idx;
-  const stackIdx = state.stack.findIndex(e => e.id === entryId);
-  if (!court || stackIdx === -1 || !court.players[idx]) { subOverlay.hidden = true; subTarget = null; return; }
-  const incoming = state.stack[stackIdx];
-  const outgoingName = court.players[idx];
-  state.stack.splice(stackIdx, 1);
-  court.players[idx] = incoming.name;
-  state.stack.push({ id: nextId('p'), name: outgoingName, joinedAt: Date.now(), tag: 'queued' });
+  if (!court){ subOverlay.hidden = true; subTarget = null; return; }
+  const incoming = state.stack.find(e => e.id === entryId);
+  if (!incoming){ subOverlay.hidden = true; subTarget = null; return; }
+  if (subTarget.preview){
+    const outgoingName = court.previewOrder && court.previewOrder[idx];
+    if (!outgoingName){ subOverlay.hidden = true; subTarget = null; return; }
+    // Preview subs don't touch state.stack directly — the outgoing player
+    // stays right where they are in the queue. We just record a pick that
+    // computeOpenCourtQueue honors on the next render, claiming the incoming
+    // player for this court's preview instead of the natural choice.
+    const openQueueNow = computeOpenCourtQueue(state.session.gameSize);
+    const myTaken = openQueueNow.get(court.id);
+    const outgoingEntry = myTaken && myTaken.taken ? myTaken.taken.find(e => e.name === outgoingName) : null;
+    if (!outgoingEntry){ subOverlay.hidden = true; subTarget = null; return; }
+    court.previewSubMap = court.previewSubMap || {};
+    court.previewSubMap[outgoingEntry.id] = incoming.id;
+    if (court.previewOrder) court.previewOrder[idx] = incoming.name;
+    toast(`${incoming.name} will sub in for ${outgoingName}`);
+  } else {
+    const stackIdx = state.stack.findIndex(e => e.id === entryId);
+    if (stackIdx === -1 || !court.players[idx]) { subOverlay.hidden = true; subTarget = null; return; }
+    const outgoingName = court.players[idx];
+    state.stack.splice(stackIdx, 1);
+    court.players[idx] = incoming.name;
+    state.stack.push({ id: nextId('p'), name: outgoingName, joinedAt: Date.now(), tag: 'queued' });
+    toast(`${incoming.name} subbed in for ${outgoingName}`);
+  }
   subOverlay.hidden = true;
   subTarget = null;
-  toast(`${incoming.name} subbed in for ${outgoingName}`);
   renderAll(); persist();
 }
 subList.addEventListener('click', (e) => {
@@ -1487,10 +1562,27 @@ function renderCourts(){
         </div>` : '';
       const ended = isSessionEnded();
       let matchupHtml;
+      let swapHint = '';
       if (enough){
-        const names = orderForTeammatePairing(taken.map(p => p.name));
+        const naturalNames = orderForTeammatePairing(taken.map(p => p.name));
+        // Keep any manual swap the host made as long as it's still the same
+        // group of players; once the underlying line-up changes (queue moved,
+        // a sub landed, etc.) fall back to the natural arrangement.
+        let names;
+        if (court.previewOrder && sameNameMultiset(court.previewOrder, naturalNames)){
+          names = court.previewOrder.slice();
+        } else {
+          names = naturalNames;
+          court.previewOrder = naturalNames.slice();
+        }
         const [a, b] = splitTeams(names);
-        matchupHtml = `<div class="matchup">${teamColHtml(a,'a',gameSize)}<div class="vs-divider"></div>${teamColHtml(b,'b',gameSize)}</div>`;
+        const canSwapPartners = gameSize > 2;
+        const activeSwap = swapSelection && swapSelection.courtId === court.id ? swapSelection.idx : null;
+        const swapCtxA = canSwapPartners ? { baseIdx: 0, selectedIdx: activeSwap } : null;
+        const swapCtxB = canSwapPartners ? { baseIdx: a.length, selectedIdx: activeSwap } : null;
+        swapHint = (canSwapPartners && activeSwap !== null)
+          ? `<div class="swap-hint">Tap another player to swap with <b>${esc(names[activeSwap])}</b></div>` : '';
+        matchupHtml = `<div class="matchup">${teamColHtml(a,'a',gameSize,swapCtxA,0)}<div class="vs-divider"></div>${teamColHtml(b,'b',gameSize,swapCtxB,a.length)}</div>`;
       } else {
         const lvlNote = court.level ? ` ${levelLabel(court.level)}` : '';
         matchupHtml = `<div class="matchup" style="align-items:center;justify-content:center"><span class="empty-slot">Needs ${Math.max(0, gameSize - slot.remaining)} more${lvlNote} in the stack</span></div>`;
@@ -1503,6 +1595,7 @@ function renderCourts(){
         </div>
         ${lastResultHtml}
         ${matchupHtml}
+        ${swapHint}
         <button type="button" class="court-cta call" data-act="call" ${(enough && !ended) ? '' : 'disabled'}>${ended ? '🔒 Session ended' : '▶ Start Game'}</button>
       `;
     } else {
@@ -1599,14 +1692,22 @@ function callNext(court){
   // result" snapshot for it is no longer safe to restore (it would blow away
   // the new match), so clear it.
   if (lastUndo && lastUndo.courtId === court.id) lastUndo = null;
+  if (swapSelection && swapSelection.courtId === court.id) swapSelection = null;
   court.status = 'playing';
   const naturalNames = taken.map(p => p.name);
   const pairing = computeTeamPairing(naturalNames);
-  const chosenNames = pairing.order;
+  // If the host manually swapped players around in the preview, keep that
+  // arrangement instead of recomputing it — as long as it's still the exact
+  // same group of players that ended up selected.
+  const chosenNames = (court.previewOrder && sameNameMultiset(court.previewOrder, naturalNames))
+    ? court.previewOrder.slice()
+    : pairing.order;
   court.players = chosenNames;
   court.swapInfo = state.session.avoidRepeatTeammates ? buildSwapInfo(naturalNames, chosenNames, pairing.forcedDuo) : null;
   court.startTime = Date.now();
   court.score = state.session.scoringEnabled ? freshCourtScore() : null;
+  court.previewOrder = null;
+  court.previewSubMap = null;
   ping();
   toast(court.name + ': ' + court.players.join(', '));
   renderAll(); persist();
@@ -1838,6 +1939,8 @@ $('#endgameConfirm').addEventListener('click', async () => {
   court.startTime = null;
   court.swapInfo = null;
   court.score = null;
+  court.previewOrder = null;
+  court.previewSubMap = null;
   endgameOverlay.hidden = true;
   toast(court.name + ' cleared');
   renderAll(); persist();
@@ -2291,7 +2394,7 @@ gameSizeSeg.addEventListener('click', (e) => {
 $('#courtPlus').addEventListener('click', () => {
   if (state.courts.length >= 24) return;
   const n = state.courts.length + 1;
-  state.courts.push({ id: nextId('c'), name: 'Court ' + n, level: 'Open', status:'open', players:[], startTime:null, lastResult:null, swapInfo:null, score:null });
+  state.courts.push({ id: nextId('c'), name: 'Court ' + n, level: 'Open', status:'open', players:[], startTime:null, lastResult:null, swapInfo:null, score:null, previewOrder:null, previewSubMap:null });
   courtCountNum.textContent = state.courts.length;
   renderCourtNameRows(); persist(); renderAll();
 });
@@ -2388,7 +2491,7 @@ $('#importFile').addEventListener('change', async (e) => {
     if (!Array.isArray(parsed.roster)) parsed.roster = [];
     if (!parsed.playerStats || typeof parsed.playerStats !== 'object') parsed.playerStats = {};
     if (!parsed.teammateHistory || typeof parsed.teammateHistory !== 'object') parsed.teammateHistory = {};
-    parsed.courts.forEach(c => { if (!('lastResult' in c)) c.lastResult = null; if (!('swapInfo' in c)) c.swapInfo = null; });
+    parsed.courts.forEach(c => { if (!('lastResult' in c)) c.lastResult = null; if (!('swapInfo' in c)) c.swapInfo = null; if (!('previewOrder' in c)) c.previewOrder = null; if (!('previewSubMap' in c)) c.previewSubMap = null; });
     parsed.stack.forEach(p => { if (!p.tag) p.tag = 'new'; });
     if (!parsed.session.status) parsed.session.status = 'active';
     if (typeof parsed.session.targetGamesEnabled !== 'boolean') parsed.session.targetGamesEnabled = false;
@@ -2422,7 +2525,7 @@ $('#newSessionBtn').addEventListener('click', async () => {
   state.playerStats = {};
   state.teammateHistory = {};
   state.session.status = 'active';
-  state.courts.forEach(c => { c.status = 'open'; c.players = []; c.startTime = null; c.lastResult = null; c.swapInfo = null; });
+  state.courts.forEach(c => { c.status = 'open'; c.players = []; c.startTime = null; c.lastResult = null; c.swapInfo = null; c.previewOrder = null; c.previewSubMap = null; });
   persist();
   applySessionLockUI();
   settingsOverlay.hidden = true;
