@@ -113,7 +113,7 @@ function defaultCourts(n){
 
 function freshState(){
   return {
-    session: { name: 'Renzku Smart Stack', gameSize: 4, soundOn: true, status: 'active', targetGamesEnabled: false, targetGamesPerPlayer: 7, avoidRepeatTeammates: false, fixedDuos: [], scoringEnabled: true, winningScore: 11 }, // status: 'active' | 'ended'
+    session: { name: 'Renzku Smart Stack', gameSize: 4, soundOn: true, status: 'active', targetGamesEnabled: false, targetGamesPerPlayer: 7, avoidRepeatTeammates: false, fixedDuos: [], scoringEnabled: true, winningScore: 11, autoStartEnabled: true }, // status: 'active' | 'ended'
     courts: defaultCourts(4),
     arrivals: [],        // {id, name, addedAt} — added but not yet checked in; not part of the live queue
     stack: [],           // {id, name, joinedAt, tag: 'new'|'queued'}
@@ -1561,7 +1561,7 @@ function renderCourts(){
       let swapHint = '';
       let autoStartHtml = '';
       if (courtOpenSince[court.id] === undefined) courtOpenSince[court.id] = Date.now(); // e.g. just loaded from storage
-      if (enough && !ended && !viewerMode){
+      if (enough && !ended && !viewerMode && state.session.autoStartEnabled){
         const remainingMs = AUTO_START_MS - (Date.now() - courtOpenSince[court.id]);
         autoStartHtml = `<div class="auto-start-hint" data-role="autostart" data-court="${court.id}">Auto-starts in ${fmtClock(Math.max(0, remainingMs))} if nobody taps Start</div>`;
       }
@@ -2087,7 +2087,7 @@ setInterval(() => {
 // minutes have passed since that court opened AND it currently has enough
 // players. Never runs for viewers (read-only) or after the session ends.
 setInterval(() => {
-  if (viewerMode || isSessionEnded() || !Array.isArray(state.courts) || state.courts.length === 0) return;
+  if (viewerMode || isSessionEnded() || !state.session.autoStartEnabled || !Array.isArray(state.courts) || state.courts.length === 0) return;
   const gameSize = state.session.gameSize;
   const openQueue = computeOpenCourtQueue(gameSize);
   let dueCourt = null;
@@ -2305,6 +2305,7 @@ const fixedDuoList = $('#fixedDuoList');
 const scoringToggle = $('#scoringToggle');
 const scoringSub = $('#scoringSub');
 const winningScoreInput = $('#winningScoreInput');
+const autoStartToggle = $('#autoStartToggle');
 
 function openSettings(){
   settingsSessionName.value = state.session.name;
@@ -2318,6 +2319,7 @@ function openSettings(){
   scoringToggle.checked = state.session.scoringEnabled;
   scoringSub.hidden = !state.session.scoringEnabled;
   winningScoreInput.value = state.session.winningScore;
+  autoStartToggle.checked = state.session.autoStartEnabled;
   renderFixedDuoNameOptions();
   renderFixedDuoList();
   [...gameSizeSeg.children].forEach(b => b.classList.toggle('active', Number(b.dataset.size) === state.session.gameSize));
@@ -2492,6 +2494,16 @@ winningScoreInput.addEventListener('change', () => {
   persist(); renderAll();
 });
 
+autoStartToggle.addEventListener('change', () => {
+  state.session.autoStartEnabled = autoStartToggle.checked;
+  if (autoStartToggle.checked){
+    // Give every open court a fresh full window starting now, rather than
+    // picking up wherever an old (pre-toggle-off) clock left off.
+    state.courts.forEach(c => { if (c.status === 'open') courtOpenSince[c.id] = Date.now(); });
+  }
+  persist(); renderAll();
+});
+
 settingsSessionName.addEventListener('change', () => {
   state.session.name = settingsSessionName.value.trim() || 'Renzku Smart Stack';
   persist();
@@ -2538,6 +2550,7 @@ $('#importFile').addEventListener('change', async (e) => {
     if (!Array.isArray(parsed.session.fixedDuos)) parsed.session.fixedDuos = [];
     if (typeof parsed.session.scoringEnabled !== 'boolean') parsed.session.scoringEnabled = false;
     if (!parsed.session.winningScore || parsed.session.winningScore < 1) parsed.session.winningScore = 11;
+    if (typeof parsed.session.autoStartEnabled !== 'boolean') parsed.session.autoStartEnabled = true;
     parsed.courts.forEach(c => { if (!('score' in c)) c.score = null; });
     if (!parsed.playerLevels || typeof parsed.playerLevels !== 'object') parsed.playerLevels = {};
     parsed.courts.forEach(c => { if (!c.level || !PLAYER_LEVELS.includes(c.level)) c.level = 'Open'; });
@@ -3802,6 +3815,7 @@ function renderAll(){
     if (!Array.isArray(state.session.fixedDuos)) state.session.fixedDuos = [];
     if (typeof state.session.scoringEnabled !== 'boolean') state.session.scoringEnabled = false;
     if (!state.session.winningScore || state.session.winningScore < 1) state.session.winningScore = 11;
+    if (typeof state.session.autoStartEnabled !== 'boolean') state.session.autoStartEnabled = true;
     state.courts.forEach(c => { if (!('score' in c)) c.score = null; });
     if (!state.playerLevels || typeof state.playerLevels !== 'object') state.playerLevels = {};
     state.courts.forEach(c => { if (!c.level || !PLAYER_LEVELS.includes(c.level)) c.level = 'Open'; });
