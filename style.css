@@ -398,15 +398,20 @@ body.session-locked .quick-add-panel{opacity:.55;pointer-events:none}
   border:none;line-height:1.5;display:inline-block;white-space:nowrap;flex-shrink:0;
 }
 button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none}
-/* Hold-to-change feedback: a ring grows over the hold duration so a real
-   press feels deliberate and gives a clear "still holding..." cue, while a
-   quick/accidental tap never gets far enough to look or feel like anything
-   happened. Duration must match LEVEL_HOLD_MS in script.js. */
-button.level-badge.holding{
-  box-shadow:0 0 0 2px var(--turf-deep, #2f6f4f);
-  transform:scale(1.08);
-  transition:box-shadow .45s linear, transform .45s ease;
+.level-picker-modal{max-width:360px}
+.level-picker-name{margin:0 0 1rem;color:var(--slate);font-size:.9rem}
+.level-picker-list{display:flex;flex-direction:column;gap:.5rem}
+.level-picker-option{
+  display:flex;align-items:center;justify-content:space-between;gap:.6rem;
+  border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--court);
+  padding:.7rem .85rem;font-size:.9rem;font-weight:700;color:var(--ink);cursor:pointer;
+  text-align:left;transition:border-color .15s,background .15s;
 }
+.level-picker-option:hover{border-color:var(--turf);background:#fff}
+.level-picker-option.current{border-color:var(--turf);background:var(--turf-pale)}
+.level-picker-option .level-picker-check{color:var(--turf-deep);display:none}
+.level-picker-option.current .level-picker-check{display:inline-flex}
+.level-picker-option .level-picker-check svg{width:16px;height:16px}
 .lvl-open{background:#EAEEF5;color:var(--slate)}
 .lvl-beginner{background:var(--turf-pale);color:var(--turf-deep)}
 .lvl-advanced-beginner{background:var(--gold-pale);color:var(--gold-deep)}
