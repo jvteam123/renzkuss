@@ -397,7 +397,16 @@ body.session-locked .quick-add-panel{opacity:.55;pointer-events:none}
   text-transform:uppercase;padding:.08rem .45rem;border-radius:99px;width:fit-content;
   border:none;line-height:1.5;display:inline-block;white-space:nowrap;flex-shrink:0;
 }
-button.level-badge{cursor:pointer}
+button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+/* Hold-to-change feedback: a ring grows over the hold duration so a real
+   press feels deliberate and gives a clear "still holding..." cue, while a
+   quick/accidental tap never gets far enough to look or feel like anything
+   happened. Duration must match LEVEL_HOLD_MS in script.js. */
+button.level-badge.holding{
+  box-shadow:0 0 0 2px var(--turf-deep, #2f6f4f);
+  transform:scale(1.08);
+  transition:box-shadow .45s linear, transform .45s ease;
+}
 .lvl-open{background:#EAEEF5;color:var(--slate)}
 .lvl-beginner{background:var(--turf-pale);color:var(--turf-deep)}
 .lvl-advanced-beginner{background:var(--gold-pale);color:var(--gold-deep)}
