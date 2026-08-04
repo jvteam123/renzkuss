@@ -2938,6 +2938,38 @@ async function endRemoteSession(){
   }
 }
 
+/* ---- Idle/cron auto-stop detection ----
+   A Supabase cron job can flip a stale row's status to 'ended' server-side
+   (e.g. after an hour with no activity), but nothing was pulling that
+   change back down to the host's own device — so the host kept seeing
+   "Live now" and the 🔴 LIVE pill indefinitely, even though anyone who
+   scanned the code correctly saw "match ended" (they poll the row
+   directly). This checks this device's hostSession against the server and
+   clears it locally the moment the row is no longer 'live', whatever the
+   reason (idle cron, someone else stopping it via a different device,
+   deleted row, etc). Called on load, whenever the host opens the panel
+   (the "cloud icon"), and on a standing interval while hosting so the UI
+   self-corrects even if the panel is never reopened. */
+async function checkHostStillLive(){
+  if (!hostSession) return true;
+  try{
+    const res = await sbFetch(`/rest/v1/hosted_sessions?id=eq.${hostSession.id}&select=status`, { method: 'GET' }, true);
+    const data = await res.json().catch(() => []);
+    const row = Array.isArray(data) ? data[0] : null;
+    if (!row || row.status !== 'live'){
+      saveHostSession(null);
+      updateHostIndicator();
+      renderHostPanel();
+      toast('Your hosted match ended \u2014 it was idle for a while, so it auto-stopped. Go live again to keep sharing.', 'info');
+      return false;
+    }
+    return true;
+  }catch(e){
+    return true; // network hiccup — don't clear a possibly-still-live session over a blip
+  }
+}
+setInterval(() => { if (hostSession) checkHostStillLive(); }, 2 * 60 * 1000);
+
 function queueHostPush(){
   if (!hostSession || viewerMode) return;
   hostPushPending = true;
@@ -3100,6 +3132,8 @@ function openHostOverlay(){
                                                 // the other device came back and stopped it, etc.
   renderHostPanel();
   hostOverlay.hidden = false;
+  if (hostSession) checkHostStillLive(); // catch an idle/cron auto-stop that happened while this
+                                          // device wasn't looking, and re-render if so
 }
 
 function goWatchCode(){
@@ -3627,6 +3661,7 @@ function renderAll(){
   hostSession = loadHostSession();
   updateHostIndicator();
   if (hostSession && !authSession) saveHostSession(null); // stale local session with no login to back it
+  if (hostSession) checkHostStillLive(); // catch an idle/cron auto-stop that happened while this device was closed
 })();
 
 })();
