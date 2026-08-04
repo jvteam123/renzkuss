@@ -3679,7 +3679,13 @@ function enterViewerMode(code){
       lastHistoryId = latestGameId;
 
       const firstOnDeck = historyList && historyList.querySelector('.ondeck-row .ondeck-matchup');
-      const onDeckText = firstOnDeck ? firstOnDeck.textContent.trim() : null;
+      // Build the text from each child span (team / "vs" / team) rather than
+      // raw textContent — the spans are laid out with CSS flex gap, not
+      // actual space characters, so a naive textContent read glues them
+      // together with no space (e.g. "jun2vsrenzku").
+      const onDeckText = firstOnDeck
+        ? Array.from(firstOnDeck.children).map(el => el.textContent.trim()).filter(Boolean).join(' ')
+        : null;
       if (!firstPoll && onDeckText && lastOnDeck !== null && onDeckText !== lastOnDeck){
         notify('Next up', onDeckText.replace(/\s+/g, ' '));
       }
