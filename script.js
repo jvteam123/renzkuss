@@ -2630,7 +2630,11 @@ $('#tabCourts').addEventListener('click', () => {
 const SUPABASE_URL = 'https://xqogfjttzsewrtnbwatv.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhxb2dmanR0enNld3J0bmJ3YXR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2OTM3NzMsImV4cCI6MjEwMTI2OTc3M30.IEnaOjWzu7pmnEiiIvdw6NmZWPfa4q3CQ40GlKIB05k';
 const SUPABASE_CONFIGURED = !!SUPABASE_ANON_KEY && SUPABASE_ANON_KEY.indexOf('PASTE_') !== 0;
-const HOST_DAILY_LIMIT = 5;
+// Fallback only — used if the site_settings row can't be reached for some
+// reason. The real default (and any per-account override, and maintenance
+// mode / suspension) live in Postgres and are enforced there regardless of
+// what this constant says; see supabase-schema.sql and the /admin portal.
+const HOST_DAILY_LIMIT_FALLBACK = 5;
 
 const AUTH_STORAGE_KEY = 'renzkuAuthSession';
 const HOST_STORAGE_KEY = 'renzkuHostSession';
@@ -2677,6 +2681,11 @@ let hostPanelMode = 'login'; // 'login' | 'signup' — which auth tab is showing
 let hostBusy = false;      // true while an auth/go-live/stop request is in flight
 let hostErrorMsg = '';
 let hostUsageToday = null; // cached count of sessions started today, refreshed on panel open
+let hostAccountInfo = null; // { limit: number|null, suspended: boolean } for the signed-in
+                             // account — null limit means "use the site default"; refreshed
+                             // alongside hostUsageToday each time the panel opens
+let siteSettingsCache = null; // { maintenanceMode, maintenanceMessage, defaultLimit } — read
+                               // from the public site_settings table; refreshed on panel open
 let hostPushTimer = null;
 let hostPushPending = false;
 let viewerPollTimer = null;
@@ -2807,6 +2816,7 @@ async function signOutEverywhere(){
     }
   }catch(e){}
   saveAuthSession(null);
+  hostUsageToday = null; hostAccountInfo = null; siteSettingsCache = null;
   renderHostPanel();
 }
 
@@ -2881,6 +2891,61 @@ async function getHostUsageToday(){
   return Array.isArray(data) ? data.length : 0;
 }
 
+/* Public sitewide defaults an admin sets from the /admin portal's "Site
+   settings" tab: the default daily hosting limit, and maintenance mode
+   (which pauses new/resumed hosting for everyone except admins). Readable
+   by anyone — RLS on site_settings allows select to all — so this works
+   even for a signed-out visitor just looking at the panel. */
+async function getSiteSettings(){
+  try{
+    const res = await sbFetch(
+      '/rest/v1/site_settings?select=key,value&key=in.(host_daily_limit_default,maintenance_mode,maintenance_message)',
+      { method: 'GET' }, false
+    );
+    const rows = await res.json().catch(() => []);
+    const map = {};
+    (Array.isArray(rows) ? rows : []).forEach(r => { map[r.key] = r.value; });
+    return {
+      defaultLimit: (map.host_daily_limit_default && map.host_daily_limit_default.limit) || HOST_DAILY_LIMIT_FALLBACK,
+      maintenanceMode: !!(map.maintenance_mode && map.maintenance_mode.on),
+      maintenanceMessage: (map.maintenance_message && map.maintenance_message.text) ||
+        'Online hosting is temporarily paused for maintenance — check back soon.'
+    };
+  }catch(e){
+    return { defaultLimit: HOST_DAILY_LIMIT_FALLBACK, maintenanceMode: false, maintenanceMessage: '' };
+  }
+}
+
+/* This account's own row from profiles — the per-account hosting credit
+   override (null = use the site default above) and whether an admin has
+   suspended it. Requires auth since it's a row keyed to this user's id. */
+async function getHostAccountInfo(){
+  if (!authSession) return { limit: null, suspended: false };
+  try{
+    const res = await sbFetch(
+      `/rest/v1/profiles?id=eq.${authSession.user.id}&select=host_daily_limit,is_suspended`,
+      { method: 'GET' }, true
+    );
+    const rows = await res.json().catch(() => []);
+    const row = Array.isArray(rows) ? rows[0] : null;
+    return {
+      limit: row && row.host_daily_limit != null ? row.host_daily_limit : null,
+      suspended: !!(row && row.is_suspended)
+    };
+  }catch(e){
+    return { limit: null, suspended: false };
+  }
+}
+
+// Combines the two above into the number that actually governs this
+// account right now (a per-account override always wins over the site
+// default). Call only after both caches have been populated.
+function effectiveHostLimit(){
+  const override = hostAccountInfo && hostAccountInfo.limit;
+  if (override != null) return override;
+  return (siteSettingsCache && siteSettingsCache.defaultLimit) || HOST_DAILY_LIMIT_FALLBACK;
+}
+
 async function createHostedSessionOnce(){
   const code = genInviteCode();
   const res = await sbFetch('/rest/v1/hosted_sessions', {
@@ -2914,9 +2979,18 @@ async function startHosting(){
   if (!authSession) return;
   hostBusy = true; hostErrorMsg = ''; renderHostPanel();
   try{
+    if (hostAccountInfo && hostAccountInfo.suspended){
+      hostErrorMsg = 'This account has been suspended from online hosting.';
+      return;
+    }
+    if (siteSettingsCache && siteSettingsCache.maintenanceMode){
+      hostErrorMsg = siteSettingsCache.maintenanceMessage || 'Online hosting is temporarily paused for maintenance.';
+      return;
+    }
     const usage = await getHostUsageToday();
-    if (usage >= HOST_DAILY_LIMIT){
-      hostErrorMsg = `You've used all ${HOST_DAILY_LIMIT} live matches for today — try again tomorrow.`;
+    const limit = effectiveHostLimit();
+    if (usage >= limit){
+      hostErrorMsg = `You've used all ${limit} live matches for today — try again tomorrow.`;
       return;
     }
     const row = await createHostedSessionWithRetry();
@@ -2925,11 +2999,16 @@ async function startHosting(){
     lastStoppedHost = null;
     toast('You\u2019re live \u2014 share the code or QR to invite viewers');
   }catch(e){
-    // The client-side usage check above is just a UX nicety — the real
-    // limit is enforced by a Postgres trigger (see supabase-schema.sql),
-    // which raises this exact error code if it's ever raced or bypassed.
+    // The client-side checks above are just a UX nicety — the real limit,
+    // suspension, and maintenance-mode gating are enforced by a Postgres
+    // trigger (see supabase-schema.sql), which raises these exact error
+    // codes if any of this is ever raced or bypassed client-side.
     if (e.message && e.message.indexOf('daily_limit_reached') !== -1){
-      hostErrorMsg = `You've used all ${HOST_DAILY_LIMIT} live matches for today — try again tomorrow.`;
+      hostErrorMsg = `You've used all ${effectiveHostLimit()} live matches for today — try again tomorrow.`;
+    } else if (e.message && e.message.indexOf('host_suspended') !== -1){
+      hostErrorMsg = 'This account has been suspended from online hosting.';
+    } else if (e.message && e.message.indexOf('maintenance_mode') !== -1){
+      hostErrorMsg = (siteSettingsCache && siteSettingsCache.maintenanceMessage) || 'Online hosting is temporarily paused for maintenance.';
     } else {
       hostErrorMsg = e.message || 'Could not start hosting';
     }
@@ -3177,11 +3256,32 @@ function renderHostPanel(){
     if (hostUsageToday === null){
       getHostUsageToday().then(n => { hostUsageToday = n; renderHostPanel(); }).catch(() => { hostUsageToday = 0; renderHostPanel(); });
     }
+    if (hostAccountInfo === null){
+      getHostAccountInfo().then(info => { hostAccountInfo = info; renderHostPanel(); });
+    }
+    if (siteSettingsCache === null){
+      getSiteSettings().then(s => { siteSettingsCache = s; renderHostPanel(); });
+    }
     if (!remoteLiveChecked){
       checkRemoteLiveSession().then(renderHostPanel);
     }
     const used = hostUsageToday === null ? '…' : hostUsageToday;
-    const atLimit = typeof used === 'number' && used >= HOST_DAILY_LIMIT;
+    const limit = effectiveHostLimit();
+    const atLimit = typeof used === 'number' && used >= limit;
+
+    // A suspended account is blocked outright, regardless of any other
+    // state (already-live-elsewhere, a just-stopped session, etc.) — an
+    // admin turned hosting off for this account specifically.
+    if (hostAccountInfo && hostAccountInfo.suspended){
+      hostPanelBody.innerHTML = `
+        <div class="host-account-row">
+          <span>Signed in as <b>${esc(authSession.user.email)}</b></span>
+          <button type="button" class="btn ghost sm" id="hostSignOutBtn">Log out</button>
+        </div>
+        <div class="host-error">This account has been suspended from online hosting. Contact the site admin if you think that's a mistake.</div>
+      `;
+      return;
+    }
 
     if (!remoteLiveChecked){
       hostPanelBody.innerHTML = `
@@ -3226,9 +3326,10 @@ function renderHostPanel(){
           <p class="host-live-note" style="margin-top:.3rem">
             You stopped hosting \u201c${esc(lastStoppedHost.session_name || 'your match')}\u201d (code ${esc(lastStoppedHost.invite_code)}). Resume to go live again on that exact same code and link — or start a new session instead.
           </p>
-          <div class="host-usage-row"><span>Live matches used today</span><b>${used} / ${HOST_DAILY_LIMIT}</b></div>
+          <div class="host-usage-row"><span>Live matches used today</span><b>${used} / ${limit}</b></div>
+          ${siteSettingsCache && siteSettingsCache.maintenanceMode ? `<p class="host-live-note">${esc(siteSettingsCache.maintenanceMessage)}</p>` : ''}
           <button type="button" class="btn primary" id="hostResumeStoppedBtn" style="width:100%;margin-top:.5rem" ${hostBusy ? 'disabled' : ''}>${hostBusy ? 'Working…' : `🔴 Resume on code ${esc(lastStoppedHost.invite_code)}`}</button>
-          <button type="button" class="btn ghost" id="hostNewSessionGoLiveBtn" style="width:100%;margin-top:.4rem" ${(hostBusy || atLimit) ? 'disabled' : ''}>Start a new session & go live</button>
+          <button type="button" class="btn ghost" id="hostNewSessionGoLiveBtn" style="width:100%;margin-top:.4rem" ${(hostBusy || atLimit || (siteSettingsCache && siteSettingsCache.maintenanceMode)) ? 'disabled' : ''}>Start a new session & go live</button>
           <button type="button" class="btn ghost sm" id="hostDismissStoppedBtn" style="width:100%;margin-top:.4rem" ${hostBusy ? 'disabled' : ''}>Not now</button>
         </div>
       `;
@@ -3241,9 +3342,10 @@ function renderHostPanel(){
         <button type="button" class="btn ghost sm" id="hostSignOutBtn">Log out</button>
       </div>
       ${hostErrorMsg ? `<div class="host-error">${esc(hostErrorMsg)}</div>` : ''}
-      <div class="host-usage-row"><span>Live matches used today</span><b>${used} / ${HOST_DAILY_LIMIT}</b></div>
-      <button type="button" class="btn primary" id="hostGoLiveBtn" style="width:100%" ${(hostBusy || atLimit) ? 'disabled' : ''}>
-        ${hostBusy ? 'Going live…' : (atLimit ? 'Daily limit reached' : '🔴 Go live')}
+      <div class="host-usage-row"><span>Live matches used today</span><b>${used} / ${limit}</b></div>
+      ${siteSettingsCache && siteSettingsCache.maintenanceMode ? `<p class="host-live-note">${esc(siteSettingsCache.maintenanceMessage)}</p>` : ''}
+      <button type="button" class="btn primary" id="hostGoLiveBtn" style="width:100%" ${(hostBusy || atLimit || (siteSettingsCache && siteSettingsCache.maintenanceMode)) ? 'disabled' : ''}>
+        ${hostBusy ? 'Going live…' : (atLimit ? 'Daily limit reached' : ((siteSettingsCache && siteSettingsCache.maintenanceMode) ? 'Paused for maintenance' : '🔴 Go live'))}
       </button>
       <p class="host-live-note">Going live creates a read-only link anyone can open to see court status and who's next — no account needed on their end.</p>
     `;
@@ -3387,7 +3489,7 @@ hostOverlay.addEventListener('submit', async (e) => {
     } else {
       await signInEmail(email, password, captchaToken);
     }
-    hostUsageToday = null;
+    hostUsageToday = null; hostAccountInfo = null; siteSettingsCache = null;
     toast('Signed in');
   }catch(err){
     hostErrorMsg = normalizeAuthError(err, hostPanelMode);
