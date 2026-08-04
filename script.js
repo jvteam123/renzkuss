@@ -103,6 +103,45 @@ function cyclePlayerLevel(name){
   renderAll(); persist();
 }
 
+/* ---- Level-badge hold-to-change ----
+   A quick/accidental tap on a skill-level badge must NOT change anything —
+   only a deliberate press-and-hold does. Wires up pointerdown/move/up on a
+   delegating container (works for the stack list and the arrivals list,
+   whose rows get rebuilt on every render, so listeners live on the
+   container, not the individual buttons). `resolveName(btn)` maps the
+   pressed badge to the player name to cycle, and `isBlocked()` lets each
+   caller apply its own "session ended" guard. */
+const LEVEL_HOLD_MS = 450;
+const LEVEL_MOVE_CANCEL_PX = 8;
+function attachLevelHoldHandlers(container, resolveName, isBlocked){
+  let holdTimer = null;
+  let holdBtn = null;
+  let startX = 0, startY = 0;
+  const clearHold = () => {
+    if (holdTimer){ clearTimeout(holdTimer); holdTimer = null; }
+    if (holdBtn){ holdBtn.classList.remove('holding'); holdBtn = null; }
+  };
+  container.addEventListener('pointerdown', (e) => {
+    const btn = e.target.closest('button[data-act="cycle-level"]');
+    if (!btn || (isBlocked && isBlocked())) return;
+    holdBtn = btn;
+    startX = e.clientX; startY = e.clientY;
+    btn.classList.add('holding');
+    holdTimer = setTimeout(() => {
+      const name = resolveName(btn);
+      clearHold();
+      if (name) cyclePlayerLevel(name);
+    }, LEVEL_HOLD_MS);
+  });
+  container.addEventListener('pointermove', (e) => {
+    if (!holdTimer) return;
+    if (Math.abs(e.clientX - startX) > LEVEL_MOVE_CANCEL_PX || Math.abs(e.clientY - startY) > LEVEL_MOVE_CANCEL_PX) clearHold();
+  });
+  container.addEventListener('pointerup', clearHold);
+  container.addEventListener('pointercancel', clearHold);
+  container.addEventListener('pointerleave', clearHold, true);
+}
+
 /* ================= State ================= */
 function defaultCourts(n){
   return Array.from({length:n}, (_, i) => ({
@@ -565,7 +604,7 @@ function renderStack(){
       const games = stats ? (stats.games || 0) : 0;
       const gamesChip = gamesChipHtml(games);
       const tag = entry.tag === 'queued' ? '<span class="tag-pill queued">Queued</span>' : '<span class="tag-pill new">New</span>';
-      const levelBadge = `<button type="button" class="level-badge ${levelClass(getPlayerLevel(entry.name))}" data-act="cycle-level" title="Tap to change skill level">${esc(levelLabel(getPlayerLevel(entry.name)))}</button>`;
+      const levelBadge = `<button type="button" class="level-badge ${levelClass(getPlayerLevel(entry.name))}" data-act="cycle-level" title="Hold to change skill level">${esc(levelLabel(getPlayerLevel(entry.name)))}</button>`;
       row.innerHTML = `
         <span class="drag-handle" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#i-grip"/></svg></span>
         <span class="pos">${idx+1}</span>
@@ -717,6 +756,17 @@ blocksPanel.addEventListener('click', (e) => {
   renderAll(); persist();
 });
 
+attachLevelHoldHandlers(
+  stackList,
+  (btn) => {
+    const row = btn.closest('.paddle');
+    const id = row && row.dataset.id;
+    const entry = id ? state.stack.find(p => p.id === id) : null;
+    return entry ? entry.name : null;
+  },
+  () => isSessionEnded()
+);
+
 stackList.addEventListener('click', async (e) => {
   if (isSessionEnded()) return;
   const btn = e.target.closest('button[data-act]');
@@ -726,10 +776,7 @@ stackList.addEventListener('click', async (e) => {
   const idx = state.stack.findIndex(p => p.id === id);
   if (idx === -1) return;
   const act = btn.dataset.act;
-  if (act === 'cycle-level'){
-    cyclePlayerLevel(state.stack[idx].name);
-    return;
-  }
+  if (act === 'cycle-level') return; // handled by hold-to-change, see attachLevelHoldHandlers
   if (act === 'remove'){
     const entry = state.stack[idx];
     if (!(await showConfirm('Remove ' + entry.name + ' from the stack?', {title: 'Remove player?', confirmLabel: 'Remove', danger: true}))) return;
@@ -1020,7 +1067,7 @@ function renderArrivals(){
   listEl.innerHTML = state.arrivals.map(entry => `
     <div class="arrival-row" data-id="${entry.id}">
       <span class="arrival-name">${esc(entry.name)}</span>
-      <button type="button" class="level-badge ${levelClass(getPlayerLevel(entry.name))}" data-act="cycle-level" data-name="${esc(entry.name)}" title="Tap to change skill level">${esc(levelLabel(getPlayerLevel(entry.name)))}</button>
+      <button type="button" class="level-badge ${levelClass(getPlayerLevel(entry.name))}" data-act="cycle-level" data-name="${esc(entry.name)}" title="Hold to change skill level">${esc(levelLabel(getPlayerLevel(entry.name)))}</button>
       <button type="button" class="arrival-checkin-btn" data-act="checkin" data-id="${entry.id}">Check in</button>
       <button type="button" class="arrival-remove-btn" data-act="remove" data-id="${entry.id}" aria-label="Remove ${esc(entry.name)}"><svg viewBox="0 0 24 24"><use href="#i-x"/></svg></button>
     </div>
@@ -1035,8 +1082,13 @@ if (arrivalsListEl){
     const id = btn.dataset.id;
     if (btn.dataset.act === 'checkin') checkInArrival(id);
     else if (btn.dataset.act === 'remove') removeArrival(id);
-    else if (btn.dataset.act === 'cycle-level') cyclePlayerLevel(btn.dataset.name);
+    // 'cycle-level' is handled by hold-to-change, see attachLevelHoldHandlers
   });
+  attachLevelHoldHandlers(
+    arrivalsListEl,
+    (btn) => btn.dataset.name,
+    () => isSessionEnded()
+  );
 }
 const checkInAllBtnEl = $('#checkInAllBtn');
 if (checkInAllBtnEl){
