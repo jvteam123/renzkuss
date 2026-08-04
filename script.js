@@ -2786,7 +2786,13 @@ function normalizeAuthError(err, mode){
 async function signUpEmail(email, password, captchaToken){
   const data = await authRequest('/auth/v1/signup', { email, password }, captchaToken);
   if (data.access_token){ applyAuthResponse(data); return { needsConfirmation: false }; }
-  return { needsConfirmation: true };
+  // Supabase's /signup response shape differs depending on whether email
+  // confirmation is required: with it off you get a full session (handled
+  // above); with it on you get the bare user record back with no session —
+  // confirmation_sent_at is the field that actually proves it queued the
+  // email, so surface that rather than just assuming from "no access_token".
+  const sentAt = data.confirmation_sent_at || (data.user && data.user.confirmation_sent_at) || null;
+  return { needsConfirmation: true, confirmationSent: !!sentAt };
 }
 async function signInEmail(email, password, captchaToken){
   const data = await authRequest('/auth/v1/token?grant_type=password', { email, password }, captchaToken);
@@ -3481,7 +3487,12 @@ hostOverlay.addEventListener('submit', async (e) => {
       if (r.needsConfirmation){
         hostBusy = false;
         hostErrorMsg = '';
-        toast('Check your email to confirm your account, then log in');
+        toast(
+          r.confirmationSent
+            ? `Account created \u2014 we\u2019ve sent a confirmation link to ${email}. Confirm it, then log in.`
+            : `Account created \u2014 check ${email} for a confirmation link, then log in. (Didn\u2019t get one? Check spam, or your Supabase project may have email sending unconfigured.)`,
+          'success'
+        );
         hostPanelMode = 'login';
         renderHostPanel();
         return;
