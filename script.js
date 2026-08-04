@@ -603,7 +603,6 @@ function renderStack(){
     groupEntries.forEach((entry, idx) => {
       const row = document.createElement('div');
       row.className = 'paddle' + (nextUpIds.has(entry.id) ? ' next-up' : '');
-      row.draggable = false;
       row.dataset.id = entry.id;
       const stats = state.playerStats[entry.name];
       const winChip = (stats && stats.wins > 0) ? `<span class="win-chip">🏆${stats.wins}</span>` : '';
@@ -612,7 +611,6 @@ function renderStack(){
       const tag = entry.tag === 'queued' ? '<span class="tag-pill queued">Queued</span>' : '<span class="tag-pill new">New</span>';
       const levelBadge = `<button type="button" class="level-badge ${levelClass(getPlayerLevel(entry.name))}" data-act="cycle-level" data-name="${esc(entry.name)}" title="Change skill level">${esc(levelLabel(getPlayerLevel(entry.name)))}</button>`;
       row.innerHTML = `
-        <span class="drag-handle" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#i-grip"/></svg></span>
         <span class="pos">${idx+1}</span>
         <svg class="glyph" viewBox="0 0 20 28"><use href="#i-paddle"/></svg>
         <span class="name-col">
@@ -626,7 +624,6 @@ function renderStack(){
         <button type="button" class="remove-btn" data-act="remove" aria-label="Remove ${esc(entry.name)}"><svg viewBox="0 0 24 24"><use href="#i-x"/></svg></button>
       `;
       groupWrap.appendChild(row);
-      attachDrag(row);
     });
     stackList.appendChild(groupWrap);
   });
@@ -790,74 +787,6 @@ stackList.addEventListener('click', async (e) => {
   }
   renderAll(); persist();
 });
-
-/* ---- Pointer-based drag reorder (works for mouse, touch, pen) ----
-   Two bugs fixed here for the final release:
-   1. Pointer capture was being requested on `row` while the move/up/cancel
-      listeners were registered on `handle` (a descendant). Once captured,
-      the browser retargets every subsequent event for that pointer at the
-      *capture* element — so those listeners, sitting on a non-ancestor,
-      never fired again after pointerdown. The drag looked like it started
-      (the "dragging" class flashed on) but then did nothing.
-   2. Each swap during the drag called the full renderAll(), which wipes
-      and rebuilds the whole stack list from scratch. That destroys the
-      very row/handle currently holding the pointer capture, silently
-      ending the gesture — so even a corrected capture would only survive
-      one hop. Reordering now moves the DOM node directly and defers the
-      full re-render (which restores position numbers, "next up" tags,
-      etc.) until the pointer is released. */
-function attachDrag(row){
-  let startY = 0, dragging = false;
-  const handle = row.querySelector('.drag-handle');
-  handle.addEventListener('pointerdown', (e) => {
-    if (isSessionEnded()) return;
-    e.preventDefault();
-    dragging = true;
-    startY = e.clientY;
-    row.classList.add('dragging');
-    handle.setPointerCapture(e.pointerId);
-    row.style.position = 'relative';
-  });
-  handle.addEventListener('pointermove', (e) => {
-    if (!dragging) return;
-    const dy = e.clientY - startY;
-    row.style.transform = `translateY(${dy}px)`;
-    row.style.zIndex = 10;
-    const group = row.parentElement; // stay within this player's skill-level group, same as the up/down buttons
-    if (!group) return;
-    const siblings = [...group.querySelectorAll('.paddle')];
-    const myIdx = siblings.indexOf(row);
-    const target = document.elementFromPoint(e.clientX, e.clientY);
-    const targetRow = target && target.closest ? target.closest('.paddle') : null;
-    if (targetRow && targetRow !== row && targetRow.parentElement === group){
-      const targetIdx = siblings.indexOf(targetRow);
-      if (targetIdx !== -1 && targetIdx !== myIdx){
-        const id = row.dataset.id;
-        const fromIdx = state.stack.findIndex(p => p.id === id);
-        const toIdx = state.stack.findIndex(p => p.id === targetRow.dataset.id);
-        if (fromIdx !== -1 && toIdx !== -1){
-          const [moved] = state.stack.splice(fromIdx, 1);
-          state.stack.splice(toIdx, 0, moved);
-          if (myIdx < targetIdx) group.insertBefore(row, targetRow.nextSibling);
-          else group.insertBefore(row, targetRow);
-          persist();
-          startY = e.clientY;
-          row.style.transform = 'translateY(0px)';
-        }
-      }
-    }
-  });
-  const end = (e) => {
-    if (!dragging) return;
-    dragging = false;
-    row.classList.remove('dragging');
-    row.style.transform = '';
-    row.style.zIndex = '';
-    renderAll(); persist();
-  };
-  handle.addEventListener('pointerup', end);
-  handle.addEventListener('pointercancel', end);
-}
 
 /* ================= Add players ================= */
 function registerRoster(name){
