@@ -421,6 +421,18 @@
   </div>
 </div>
 
+<!-- Skill level picker modal (tap a level badge to open) -->
+<div class="overlay" id="levelPickerOverlay" hidden>
+  <div class="modal level-picker-modal" role="dialog" aria-modal="true" aria-labelledby="levelPickerTitle">
+    <h3 id="levelPickerTitle">Set skill level</h3>
+    <p class="level-picker-name" id="levelPickerName"></p>
+    <div class="level-picker-list" id="levelPickerList"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn ghost" id="levelPickerCancelBtn">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- Confirm modal (replaces native browser confirm() popups) -->
 <div class="overlay confirm-overlay" id="confirmOverlay" hidden>
   <div class="modal confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
