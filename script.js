@@ -2662,9 +2662,9 @@ let remoteLiveSession = null; // { id, invite_code, session_name } | null — a 
                                // that then went offline/died before it could be stopped)
 let remoteLiveChecked = false; // whether we've asked the server yet this "logged out of host
                                 // locally" stretch — avoids re-querying on every re-render
-let lastStoppedHost = null; // { invite_code, session_name } | null — the match this device just
-                             // stopped hosting, kept around so the panel can offer to pick it
-                             // back up (same local match, new code) or start fresh instead
+let lastStoppedHost = null; // { id, invite_code, session_name } | null — the match this device
+                             // just stopped hosting, kept around so the panel can offer to pick
+                             // it back up on the same link (same row, re-activated) or start fresh
 
 function b64UrlDecode(str){
   str = str.replace(/-/g, '+').replace(/_/g, '/');
@@ -2916,10 +2916,46 @@ async function startHosting(){
   }
 }
 
+/* Re-activates the exact same hosted_sessions row this device just stopped,
+   instead of creating a new one — so viewers who still have the old link or
+   QR code saved can jump right back in on the same code rather than needing
+   a fresh one. This is a PATCH, not an insert, so it doesn't count against
+   the daily "live matches started" limit — it's the same match resuming,
+   not a new one starting. */
+async function resumeHostingSameLink(){
+  if (!lastStoppedHost) return;
+  const target = lastStoppedHost;
+  hostBusy = true; hostErrorMsg = ''; renderHostPanel();
+  try{
+    const res = await sbFetch(`/rest/v1/hosted_sessions?id=eq.${target.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+      body: JSON.stringify({ status: 'live', ended_at: null, state: state, session_name: state.session.name })
+    }, true);
+    const data = await res.json().catch(() => null);
+    if (!res.ok){
+      throw new Error((data && (data.message || data.error_description || data.hint)) || 'Could not resume that link');
+    }
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row){ hostErrorMsg = 'Could not resume that link — please try again.'; return; }
+    saveHostSession({ id: row.id, invite_code: row.invite_code });
+    lastStoppedHost = null;
+    toast('You\u2019re live again \u2014 same code as before');
+  }catch(e){
+    // The old row might be long gone (e.g. cleaned up server-side) — fall
+    // back to letting the person start fresh instead of getting stuck here.
+    hostErrorMsg = (e.message || 'Could not resume that link') + ' Try starting a new one instead.';
+  }finally{
+    hostBusy = false;
+    updateHostIndicator();
+    renderHostPanel();
+  }
+}
+
 async function stopHosting(){
   if (!hostSession) return;
   const dying = hostSession;
-  lastStoppedHost = { invite_code: dying.invite_code, session_name: state.session.name };
+  lastStoppedHost = { id: dying.id, invite_code: dying.invite_code, session_name: state.session.name };
   saveHostSession(null);
   updateHostIndicator();
   renderHostPanel();
@@ -3164,10 +3200,10 @@ function renderHostPanel(){
         <div class="host-live-card">
           <span class="host-live-badge host-live-badge--stopped">⏸ Hosting stopped</span>
           <p class="host-live-note" style="margin-top:.3rem">
-            You stopped hosting \u201c${esc(lastStoppedHost.session_name || 'your match')}\u201d (code ${esc(lastStoppedHost.invite_code)}). That code no longer works, but you can go live again with a fresh one.
+            You stopped hosting \u201c${esc(lastStoppedHost.session_name || 'your match')}\u201d (code ${esc(lastStoppedHost.invite_code)}). Resume to go live again on that exact same code and link — or start a new session instead.
           </p>
           <div class="host-usage-row"><span>Live matches used today</span><b>${used} / ${HOST_DAILY_LIMIT}</b></div>
-          <button type="button" class="btn primary" id="hostResumeStoppedBtn" style="width:100%;margin-top:.5rem" ${(hostBusy || atLimit) ? 'disabled' : ''}>${hostBusy ? 'Working…' : '🔴 Resume hosting this match'}</button>
+          <button type="button" class="btn primary" id="hostResumeStoppedBtn" style="width:100%;margin-top:.5rem" ${hostBusy ? 'disabled' : ''}>${hostBusy ? 'Working…' : `🔴 Resume on code ${esc(lastStoppedHost.invite_code)}`}</button>
           <button type="button" class="btn ghost" id="hostNewSessionGoLiveBtn" style="width:100%;margin-top:.4rem" ${(hostBusy || atLimit) ? 'disabled' : ''}>Start a new session & go live</button>
           <button type="button" class="btn ghost sm" id="hostDismissStoppedBtn" style="width:100%;margin-top:.4rem" ${hostBusy ? 'disabled' : ''}>Not now</button>
         </div>
@@ -3268,7 +3304,7 @@ hostOverlay.addEventListener('click', (e) => {
   if (tabBtn){ hostPanelMode = tabBtn.dataset.tab; hostErrorMsg = ''; renderHostPanel(); return; }
   if (e.target.closest('#hostSignOutBtn')){ signOutEverywhere(); return; }
   if (e.target.closest('#hostGoLiveBtn')){ startHosting(); return; }
-  if (e.target.closest('#hostResumeStoppedBtn')){ lastStoppedHost = null; startHosting(); return; }
+  if (e.target.closest('#hostResumeStoppedBtn')){ resumeHostingSameLink(); return; }
   if (e.target.closest('#hostNewSessionGoLiveBtn')){
     (async () => {
       if (!(await showConfirm('This clears the stack, courts, blocks, and rankings — but keeps your list of player names so you can re-add them quickly. This cannot be undone.', {title: 'Start a new session?', confirmLabel: 'Start new session', danger: true}))) return;
