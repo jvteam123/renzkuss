@@ -1393,11 +1393,15 @@ function scoreboardHtml(court){
    court.players, letting the host remix teams before hitting "Start Game". */
 let swapSelection = null; // { courtId, idx } | null — first player picked, awaiting a second
 
-/* ---- Auto-start: if a court has had enough players sitting in its preview
-   for a while and the host never taps "Start Game", start it for them so a
-   full court doesn't just sit idle because nobody noticed. ---- */
-const AUTO_START_MS = 2 * 60 * 1000; // how long a ready-to-start court waits before auto-starting
-let courtReadySince = {}; // courtId -> timestamp it first became ready (has enough players) since it last wasn't
+/* ---- Auto-start: give the host up to 2 minutes after a court opens (a
+   previous game there just ended, or it's a freshly added/reset court) to
+   tap "Start Game" themselves; if they never do, start it automatically
+   once there are enough players for it. The 2-minute window is anchored to
+   when the court opened — NOT to whether it briefly looks "enough" or not
+   as the stack shuffles around — so it doesn't keep resetting itself and
+   never actually firing. ---- */
+const AUTO_START_MS = 2 * 60 * 1000; // how long an open court waits before auto-starting once ready
+let courtOpenSince = {}; // courtId -> timestamp the court became open (last game ended / court created)
 
 function swapCourtPartner(court, idx){
   const arr0 = court.status === 'open' ? court.previewOrder : court.players;
@@ -1556,12 +1560,10 @@ function renderCourts(){
       let matchupHtml;
       let swapHint = '';
       let autoStartHtml = '';
+      if (courtOpenSince[court.id] === undefined) courtOpenSince[court.id] = Date.now(); // e.g. just loaded from storage
       if (enough && !ended && !viewerMode){
-        if (courtReadySince[court.id] === undefined) courtReadySince[court.id] = Date.now();
-        const remainingMs = AUTO_START_MS - (Date.now() - courtReadySince[court.id]);
+        const remainingMs = AUTO_START_MS - (Date.now() - courtOpenSince[court.id]);
         autoStartHtml = `<div class="auto-start-hint" data-role="autostart" data-court="${court.id}">Auto-starts in ${fmtClock(Math.max(0, remainingMs))} if nobody taps Start</div>`;
-      } else {
-        delete courtReadySince[court.id];
       }
       if (enough){
         const naturalNames = orderForTeammatePairing(taken.map(p => p.name));
@@ -1694,6 +1696,7 @@ function callNext(court){
   // the new match), so clear it.
   if (lastUndo && lastUndo.courtId === court.id) lastUndo = null;
   if (swapSelection && swapSelection.courtId === court.id) swapSelection = null;
+  delete courtOpenSince[court.id]; // no longer open — reset once it opens again
   court.status = 'playing';
   const naturalNames = taken.map(p => p.name);
   const pairing = computeTeamPairing(naturalNames);
@@ -1942,6 +1945,7 @@ $('#endgameConfirm').addEventListener('click', async () => {
   court.score = null;
   court.previewOrder = null;
   court.previewSubMap = null;
+  courtOpenSince[court.id] = Date.now(); // start the 2-minute auto-start window fresh from right now
   endgameOverlay.hidden = true;
   toast(court.name + ' cleared');
   renderAll(); persist();
@@ -2078,29 +2082,33 @@ setInterval(() => {
 }, 1000);
 
 /* ================= Auto-start ready courts ================= */
-// Ticks the "auto-starts in…" countdown on any open, full court, and — if the
-// host really did just forget to tap Start Game — starts it for them once the
-// timer runs out. Never runs for viewers (read-only) or after the session ends.
+// Ticks the "auto-starts in…" countdown on any open court, and — if the
+// host really did just forget to tap Start Game — starts it for them once 2
+// minutes have passed since that court opened AND it currently has enough
+// players. Never runs for viewers (read-only) or after the session ends.
 setInterval(() => {
-  if (viewerMode || isSessionEnded()) return;
-  let dueCourtId = null;
-  Object.keys(courtReadySince).forEach(courtId => {
-    const since = courtReadySince[courtId];
-    const remainingMs = AUTO_START_MS - (Date.now() - since);
+  if (viewerMode || isSessionEnded() || !Array.isArray(state.courts) || state.courts.length === 0) return;
+  const gameSize = state.session.gameSize;
+  const openQueue = computeOpenCourtQueue(gameSize);
+  let dueCourt = null;
+  state.courts.forEach(court => {
+    if (court.status !== 'open') return;
+    if (courtOpenSince[court.id] === undefined) courtOpenSince[court.id] = Date.now();
+    const remainingMs = AUTO_START_MS - (Date.now() - courtOpenSince[court.id]);
+    const slot = openQueue.get(court.id);
+    const enough = !!(slot && slot.taken);
     if (remainingMs <= 0){
-      if (dueCourtId === null) dueCourtId = courtId; // start at most one per tick
+      if (dueCourt === null && enough) dueCourt = court; // start at most one per tick; keep waiting if not enough yet
       return;
     }
-    const el = document.querySelector(`[data-role="autostart"][data-court="${courtId}"]`);
-    if (el) el.textContent = `Auto-starts in ${fmtClock(remainingMs)} if nobody taps Start`;
-  });
-  if (dueCourtId){
-    const court = state.courts.find(c => c.id === dueCourtId);
-    delete courtReadySince[dueCourtId];
-    if (court && court.status === 'open'){
-      callNext(court);
-      toast(court.name + ' auto-started — nobody tapped Start Game in time');
+    if (enough){
+      const el = document.querySelector(`[data-role="autostart"][data-court="${court.id}"]`);
+      if (el) el.textContent = `Auto-starts in ${fmtClock(remainingMs)} if nobody taps Start`;
     }
+  });
+  if (dueCourt){
+    callNext(dueCourt);
+    toast(dueCourt.name + ' auto-started — nobody tapped Start Game in time');
   }
 }, 1000);
 
@@ -2422,7 +2430,9 @@ gameSizeSeg.addEventListener('click', (e) => {
 $('#courtPlus').addEventListener('click', () => {
   if (state.courts.length >= 24) return;
   const n = state.courts.length + 1;
-  state.courts.push({ id: nextId('c'), name: 'Court ' + n, level: 'Open', status:'open', players:[], startTime:null, lastResult:null, swapInfo:null, score:null, previewOrder:null, previewSubMap:null });
+  const newCourt = { id: nextId('c'), name: 'Court ' + n, level: 'Open', status:'open', players:[], startTime:null, lastResult:null, swapInfo:null, score:null, previewOrder:null, previewSubMap:null };
+  state.courts.push(newCourt);
+  courtOpenSince[newCourt.id] = Date.now();
   courtCountNum.textContent = state.courts.length;
   renderCourtNameRows(); persist(); renderAll();
 });
@@ -2556,7 +2566,8 @@ function startFreshSessionKeepingRoster(){
   state.teammateHistory = {};
   state.session.status = 'active';
   state.courts.forEach(c => { c.status = 'open'; c.players = []; c.startTime = null; c.lastResult = null; c.swapInfo = null; c.previewOrder = null; c.previewSubMap = null; });
-  courtReadySince = {};
+  courtOpenSince = {};
+  state.courts.forEach(c => { courtOpenSince[c.id] = Date.now(); });
   persist();
   applySessionLockUI();
   renderRosterList();
