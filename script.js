@@ -1393,6 +1393,12 @@ function scoreboardHtml(court){
    court.players, letting the host remix teams before hitting "Start Game". */
 let swapSelection = null; // { courtId, idx } | null — first player picked, awaiting a second
 
+/* ---- Auto-start: if a court has had enough players sitting in its preview
+   for a while and the host never taps "Start Game", start it for them so a
+   full court doesn't just sit idle because nobody noticed. ---- */
+const AUTO_START_MS = 2 * 60 * 1000; // how long a ready-to-start court waits before auto-starting
+let courtReadySince = {}; // courtId -> timestamp it first became ready (has enough players) since it last wasn't
+
 function swapCourtPartner(court, idx){
   const arr0 = court.status === 'open' ? court.previewOrder : court.players;
   if (arr0 && isInFixedDuo(arr0[idx])){
@@ -1549,6 +1555,14 @@ function renderCourts(){
       const ended = isSessionEnded();
       let matchupHtml;
       let swapHint = '';
+      let autoStartHtml = '';
+      if (enough && !ended && !viewerMode){
+        if (courtReadySince[court.id] === undefined) courtReadySince[court.id] = Date.now();
+        const remainingMs = AUTO_START_MS - (Date.now() - courtReadySince[court.id]);
+        autoStartHtml = `<div class="auto-start-hint" data-role="autostart" data-court="${court.id}">Auto-starts in ${fmtClock(Math.max(0, remainingMs))} if nobody taps Start</div>`;
+      } else {
+        delete courtReadySince[court.id];
+      }
       if (enough){
         const naturalNames = orderForTeammatePairing(taken.map(p => p.name));
         // Keep any manual swap the host made as long as it's still the same
@@ -1583,6 +1597,7 @@ function renderCourts(){
         ${matchupHtml}
         ${swapHint}
         <button type="button" class="court-cta call" data-act="call" ${(enough && !ended) ? '' : 'disabled'}>${ended ? '🔒 Session ended' : '▶ Start Game'}</button>
+        ${autoStartHtml}
       `;
     } else {
       // Lazily attach a live score object if scoring was turned on mid-match.
@@ -2062,6 +2077,33 @@ setInterval(() => {
   });
 }, 1000);
 
+/* ================= Auto-start ready courts ================= */
+// Ticks the "auto-starts in…" countdown on any open, full court, and — if the
+// host really did just forget to tap Start Game — starts it for them once the
+// timer runs out. Never runs for viewers (read-only) or after the session ends.
+setInterval(() => {
+  if (viewerMode || isSessionEnded()) return;
+  let dueCourtId = null;
+  Object.keys(courtReadySince).forEach(courtId => {
+    const since = courtReadySince[courtId];
+    const remainingMs = AUTO_START_MS - (Date.now() - since);
+    if (remainingMs <= 0){
+      if (dueCourtId === null) dueCourtId = courtId; // start at most one per tick
+      return;
+    }
+    const el = document.querySelector(`[data-role="autostart"][data-court="${courtId}"]`);
+    if (el) el.textContent = `Auto-starts in ${fmtClock(remainingMs)} if nobody taps Start`;
+  });
+  if (dueCourtId){
+    const court = state.courts.find(c => c.id === dueCourtId);
+    delete courtReadySince[dueCourtId];
+    if (court && court.status === 'open'){
+      callNext(court);
+      toast(court.name + ' auto-started — nobody tapped Start Game in time');
+    }
+  }
+}, 1000);
+
 /* ================= Session name ================= */
 
 /* ================= Rankings modal ================= */
@@ -2501,8 +2543,10 @@ $('#importFile').addEventListener('change', async (e) => {
   e.target.value = '';
 });
 
-$('#newSessionBtn').addEventListener('click', async () => {
-  if (!(await showConfirm('This clears the stack, courts, blocks, and rankings — but keeps your list of player names so you can re-add them quickly. This cannot be undone.', {title: 'Start a new session?', confirmLabel: 'Start new session', danger: true}))) return;
+// Shared by the Settings "Start a new session" button and the Host Online
+// panel's "Start a new session & go live" option, so both paths reset state
+// identically.
+function startFreshSessionKeepingRoster(){
   state.arrivals = [];
   state.stack = [];
   state.winnersBlock = [];
@@ -2512,11 +2556,17 @@ $('#newSessionBtn').addEventListener('click', async () => {
   state.teammateHistory = {};
   state.session.status = 'active';
   state.courts.forEach(c => { c.status = 'open'; c.players = []; c.startTime = null; c.lastResult = null; c.swapInfo = null; c.previewOrder = null; c.previewSubMap = null; });
+  courtReadySince = {};
   persist();
   applySessionLockUI();
-  settingsOverlay.hidden = true;
   renderRosterList();
   renderAll();
+}
+
+$('#newSessionBtn').addEventListener('click', async () => {
+  if (!(await showConfirm('This clears the stack, courts, blocks, and rankings — but keeps your list of player names so you can re-add them quickly. This cannot be undone.', {title: 'Start a new session?', confirmLabel: 'Start new session', danger: true}))) return;
+  startFreshSessionKeepingRoster();
+  settingsOverlay.hidden = true;
   toast('New session started — player list kept');
 });
 
@@ -2612,6 +2662,9 @@ let remoteLiveSession = null; // { id, invite_code, session_name } | null — a 
                                // that then went offline/died before it could be stopped)
 let remoteLiveChecked = false; // whether we've asked the server yet this "logged out of host
                                 // locally" stretch — avoids re-querying on every re-render
+let lastStoppedHost = null; // { invite_code, session_name } | null — the match this device just
+                             // stopped hosting, kept around so the panel can offer to pick it
+                             // back up (same local match, new code) or start fresh instead
 
 function b64UrlDecode(str){
   str = str.replace(/-/g, '+').replace(/_/g, '/');
@@ -2845,6 +2898,7 @@ async function startHosting(){
     const row = await createHostedSessionWithRetry();
     if (!row){ hostErrorMsg = 'Could not start hosting — please try again.'; return; }
     saveHostSession({ id: row.id, invite_code: row.invite_code });
+    lastStoppedHost = null;
     toast('You\u2019re live \u2014 share the code or QR to invite viewers');
   }catch(e){
     // The client-side usage check above is just a UX nicety — the real
@@ -2865,6 +2919,7 @@ async function startHosting(){
 async function stopHosting(){
   if (!hostSession) return;
   const dying = hostSession;
+  lastStoppedHost = { invite_code: dying.invite_code, session_name: state.session.name };
   saveHostSession(null);
   updateHostIndicator();
   renderHostPanel();
@@ -3099,6 +3154,27 @@ function renderHostPanel(){
       return;
     }
 
+    if (lastStoppedHost){
+      hostPanelBody.innerHTML = `
+        <div class="host-account-row">
+          <span>Signed in as <b>${esc(authSession.user.email)}</b></span>
+          <button type="button" class="btn ghost sm" id="hostSignOutBtn">Log out</button>
+        </div>
+        ${hostErrorMsg ? `<div class="host-error">${esc(hostErrorMsg)}</div>` : ''}
+        <div class="host-live-card">
+          <span class="host-live-badge host-live-badge--stopped">⏸ Hosting stopped</span>
+          <p class="host-live-note" style="margin-top:.3rem">
+            You stopped hosting \u201c${esc(lastStoppedHost.session_name || 'your match')}\u201d (code ${esc(lastStoppedHost.invite_code)}). That code no longer works, but you can go live again with a fresh one.
+          </p>
+          <div class="host-usage-row"><span>Live matches used today</span><b>${used} / ${HOST_DAILY_LIMIT}</b></div>
+          <button type="button" class="btn primary" id="hostResumeStoppedBtn" style="width:100%;margin-top:.5rem" ${(hostBusy || atLimit) ? 'disabled' : ''}>${hostBusy ? 'Working…' : '🔴 Resume hosting this match'}</button>
+          <button type="button" class="btn ghost" id="hostNewSessionGoLiveBtn" style="width:100%;margin-top:.4rem" ${(hostBusy || atLimit) ? 'disabled' : ''}>Start a new session & go live</button>
+          <button type="button" class="btn ghost sm" id="hostDismissStoppedBtn" style="width:100%;margin-top:.4rem" ${hostBusy ? 'disabled' : ''}>Not now</button>
+        </div>
+      `;
+      return;
+    }
+
     hostPanelBody.innerHTML = `
       <div class="host-account-row">
         <span>Signed in as <b>${esc(authSession.user.email)}</b></span>
@@ -3192,6 +3268,17 @@ hostOverlay.addEventListener('click', (e) => {
   if (tabBtn){ hostPanelMode = tabBtn.dataset.tab; hostErrorMsg = ''; renderHostPanel(); return; }
   if (e.target.closest('#hostSignOutBtn')){ signOutEverywhere(); return; }
   if (e.target.closest('#hostGoLiveBtn')){ startHosting(); return; }
+  if (e.target.closest('#hostResumeStoppedBtn')){ lastStoppedHost = null; startHosting(); return; }
+  if (e.target.closest('#hostNewSessionGoLiveBtn')){
+    (async () => {
+      if (!(await showConfirm('This clears the stack, courts, blocks, and rankings — but keeps your list of player names so you can re-add them quickly. This cannot be undone.', {title: 'Start a new session?', confirmLabel: 'Start new session', danger: true}))) return;
+      startFreshSessionKeepingRoster();
+      lastStoppedHost = null;
+      startHosting();
+    })();
+    return;
+  }
+  if (e.target.closest('#hostDismissStoppedBtn')){ lastStoppedHost = null; renderHostPanel(); return; }
   if (e.target.closest('#hostStopBtn')){
     (async () => {
       if (!(await showConfirm('Stop hosting this live match? The link and code will stop working for anyone watching.', {title: 'Stop hosting?', confirmLabel: 'Stop hosting'}))) return;
