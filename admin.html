@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Renzku Admin</title>
+<meta name="theme-color" content="#0A1E3D">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="favicon.ico" sizes="any">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://js.hcaptcha.com https://newassets.hcaptcha.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://xqogfjttzsewrtnbwatv.supabase.co https://hcaptcha.com https://*.hcaptcha.com; frame-src https://newassets.hcaptcha.com https://hcaptcha.com; object-src 'none'; base-uri 'none'; form-action 'self';">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="admin.css">
+<script src="hcaptcha-stub.js"></script>
+<script src="https://js.hcaptcha.com/1/api.js?onload=onHcaptchaReady&render=explicit" async defer></script>
+</head>
+<body class="admin-body">
+
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-paddle" viewBox="0 0 20 28"><path fill="currentColor" d="M10 0c4.4 0 7 3 7 7.2 0 4.6-3 8-7 8s-7-3.4-7-8C3 3 5.6 0 10 0Z"/><rect fill="currentColor" x="8.2" y="14.6" width="3.6" height="12.4" rx="1.6"/></symbol>
+</svg>
+
+<header class="topbar">
+  <div class="logo"><svg viewBox="0 0 20 28"><use href="#i-paddle"/></svg></div>
+  <span class="session-name">Renzku Admin</span>
+  <div class="spacer"></div>
+  <span class="pill admin-whoami" id="adminWhoami" hidden></span>
+  <button class="btn ghost sm" id="adminLogoutBtn" hidden>Log out</button>
+</header>
+
+<main class="admin-shell">
+
+  <!-- Logged out -->
+  <section class="admin-card" id="adminLoginCard">
+    <h1 class="admin-h1">Admin sign in</h1>
+    <p class="admin-sub">Same account system as the main app — this only unlocks anything for accounts an existing admin has flagged as admin.</p>
+    <div id="adminLoginError" class="host-error" hidden></div>
+    <form id="adminLoginForm">
+      <fieldset id="adminLoginFieldset" style="border:0;margin:0;padding:0">
+        <div class="field">
+          <label for="adminEmailInput">Email</label>
+          <input type="email" id="adminEmailInput" required autocomplete="email">
+        </div>
+        <div class="field">
+          <label for="adminPasswordInput">Password</label>
+          <input type="password" id="adminPasswordInput" required minlength="6" autocomplete="current-password">
+        </div>
+        <div id="hcaptchaBox" style="margin:.6rem 0"></div>
+        <button type="submit" class="btn primary" style="width:100%" id="adminLoginSubmit">Log in</button>
+      </fieldset>
+    </form>
+  </section>
+
+  <!-- Logged in, not an admin -->
+  <section class="admin-card" id="adminDeniedCard" hidden>
+    <h1 class="admin-h1">Not an admin account</h1>
+    <p class="admin-sub" id="adminDeniedMsg">This account is signed in but isn't flagged as an admin. Ask an existing admin to promote it from the Accounts tab, or sign in with a different account.</p>
+    <button class="btn ghost" id="adminDeniedLogoutBtn">Log out</button>
+  </section>
+
+  <!-- Dashboard -->
+  <section id="adminDashboard" hidden>
+    <nav class="admin-tabs" id="adminTabs">
+      <button type="button" class="active" data-tab="accounts">Accounts</button>
+      <button type="button" data-tab="live">Live sessions</button>
+      <button type="button" data-tab="settings">Site settings</button>
+    </nav>
+
+    <!-- Accounts tab -->
+    <div class="admin-panel" id="tab-accounts">
+      <div class="admin-panel-head">
+        <h2>Accounts</h2>
+        <input type="text" id="accountsSearch" placeholder="Search by email…" class="admin-search">
+        <button class="btn ghost sm" id="accountsRefreshBtn">Refresh</button>
+      </div>
+      <p class="admin-hint">Hosting credits are the number of live matches an account can start per day. Leave the limit blank to use the site default below.</p>
+      <div id="accountsTableWrap" class="admin-table-wrap">
+        <p class="admin-loading">Loading…</p>
+      </div>
+    </div>
+
+    <!-- Live sessions tab -->
+    <div class="admin-panel" id="tab-live" hidden>
+      <div class="admin-panel-head">
+        <h2>Live sessions</h2>
+        <button class="btn ghost sm" id="liveRefreshBtn">Refresh</button>
+      </div>
+      <p class="admin-hint">Every currently-live "Host Online" broadcast, across all accounts.</p>
+      <div id="liveTableWrap" class="admin-table-wrap">
+        <p class="admin-loading">Loading…</p>
+      </div>
+    </div>
+
+    <!-- Site settings tab -->
+    <div class="admin-panel" id="tab-settings" hidden>
+      <h2>Site settings</h2>
+      <div id="settingsError" class="host-error" hidden></div>
+      <div class="admin-settings-form" id="settingsForm">
+        <p class="admin-loading">Loading…</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script src="admin.js" defer></script>
+</body>
+</html>
