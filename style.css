@@ -367,7 +367,6 @@ body.session-locked .quick-add-panel{opacity:.55;pointer-events:none}
   transition:box-shadow .15s, border-color .15s, transform .12s;
   position:relative;
 }
-.paddle.dragging{box-shadow:var(--shadow-md);border-color:var(--turf);z-index:5;cursor:grabbing}
 .paddle .pos{
   font-family:var(--font-mono);font-weight:600;font-size:.95rem;
   color:var(--clay-deep);width:24px;text-align:center;flex-shrink:0;
@@ -434,8 +433,6 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
 }
 .paddle .reorder button:hover{background:var(--court);color:var(--ink)}
 .paddle .reorder button svg{width:11px;height:11px}
-.paddle .drag-handle{cursor:grab;color:var(--slate);display:flex;align-items:center;padding:2px}
-.paddle .drag-handle svg{width:14px;height:14px}
 .paddle .remove-btn{
   border:none;background:none;color:var(--slate);cursor:pointer;
   width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;
@@ -936,7 +933,7 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
 .session-banner .msg{flex:1;min-width:220px;font-size:.82rem;font-weight:500;color:#7a3c22}
 body.session-locked .add-form{opacity:.55}
 body.session-locked .add-form input,body.session-locked .add-form button{cursor:not-allowed}
-body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn,body.session-locked .paddle .drag-handle{
+body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn{
   opacity:.35;pointer-events:none;
 }
 .endgame-row .choice button:disabled{opacity:.4;cursor:not-allowed}
@@ -1140,7 +1137,6 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn,bod
   }
   .paddle .remove-btn{width:30px;height:30px}
   .paddle .reorder button{width:22px;height:16px}
-  .paddle .drag-handle{padding:4px}
   .stepper button{width:42px;height:42px}
   .score-btn{width:32px;height:32px}
   .seg button{padding:.75rem .6rem}
@@ -1159,7 +1155,7 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn,bod
 }
 
 /* ---------- Queue rows: protect the name column at all costs ----------
-   With drag-handle + pos + name + reorder + remove all sharing one row,
+   With pos + name + reorder + remove all sharing one row,
    the name is the one thing that must never lose the fight for space. */
 .paddle{gap:.5rem}
 .paddle .name-col{flex:1 1 auto;min-width:0}
