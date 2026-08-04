@@ -732,6 +732,11 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
 .court-cta.end:hover{background:rgba(255,255,255,.22)}
 .court-cta:active:not(:disabled){transform:scale(.98)}
 
+.auto-start-hint{
+  margin-top:.4rem;font-size:.7rem;font-weight:600;color:var(--slate);text-align:center;
+  font-family:var(--font-mono);letter-spacing:.01em;
+}
+
 .courts-empty{
   padding:3rem 1rem;text-align:center;color:var(--slate);border:1.5px dashed var(--line);
   border-radius:var(--radius);
@@ -1399,6 +1404,7 @@ body.viewer-mode .courts-main{ display:block !important; }
   display:inline-flex;align-items:center;font-family:var(--font-mono);font-size:.72rem;font-weight:700;
   letter-spacing:.03em;background:var(--danger-pale);color:var(--danger);padding:.3rem .7rem;border-radius:99px;
 }
+.host-live-badge--stopped{background:var(--line);color:var(--slate)}
 .host-invite-code{
   font-family:var(--font-mono);font-size:1.6rem;font-weight:700;letter-spacing:.12em;
   color:var(--turf-deep);background:var(--turf-pale);border-radius:var(--radius-sm);
