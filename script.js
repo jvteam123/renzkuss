@@ -472,6 +472,15 @@ function findFixedDuo(names){
   }
   return null;
 }
+// True when `name` is half of an active Fixed Duo — used to lock the
+// manual swap-partner control so nobody can drag-and-drop split up a pair
+// the host explicitly asked to always keep together. Fixed duos only take
+// effect while "Avoid Repeating Teammates" is on, so the lock follows suit.
+function isInFixedDuo(name){
+  if (!state.session.avoidRepeatTeammates) return false;
+  const duos = state.session.fixedDuos || [];
+  return duos.some(d => d.a === name || d.b === name);
+}
 function computeTeamPairing(names){
   if (!state.session.avoidRepeatTeammates || names.length !== 4) return { order: names.slice(), forcedDuo: false };
   const duo = findFixedDuo(names);
@@ -1093,8 +1102,9 @@ function playerRowHtml(name, swap, sub){
   const winChip = (stats && stats.wins > 0) ? `<span class="win-chip">🏆${stats.wins}</span>` : '';
   const games = stats ? (stats.games || 0) : 0;
   const gamesChip = gamesChipHtml(games);
+  const duoLocked = !!(swap && isInFixedDuo(name));
   const swapBtn = swap
-    ? `<button type="button" class="player-swap-btn${swap.selected ? ' selecting' : ''}" data-act="swap-partner" data-idx="${swap.idx}" aria-label="${swap.selected ? 'Cancel swap' : ('Swap partner with ' + esc(name))}" title="Swap partner"><svg viewBox="0 0 24 24"><use href="#i-swap"/></svg></button>`
+    ? `<button type="button" class="player-swap-btn${swap.selected ? ' selecting' : ''}${duoLocked ? ' duo-locked' : ''}" data-act="swap-partner" data-idx="${swap.idx}" ${duoLocked ? 'disabled' : ''} aria-label="${duoLocked ? (esc(name) + ' is in a fixed duo \u2014 swap disabled') : (swap.selected ? 'Cancel swap' : ('Swap partner with ' + esc(name)))}" title="${duoLocked ? 'Fixed duo \u2014 can\u2019t split them up' : 'Swap partner'}"><svg viewBox="0 0 24 24"><use href="#i-swap"/></svg></button>`
     : '';
   const subBtn = sub
     ? `<button type="button" class="player-sub-btn" data-act="sub-player" data-idx="${sub.idx}" aria-label="Substitute ${esc(name)}" title="Sub in a replacement for ${esc(name)}"><svg viewBox="0 0 24 24"><use href="#i-sub"/></svg></button>`
@@ -1384,6 +1394,11 @@ function scoreboardHtml(court){
 let swapSelection = null; // { courtId, idx } | null — first player picked, awaiting a second
 
 function swapCourtPartner(court, idx){
+  const arr0 = court.status === 'open' ? court.previewOrder : court.players;
+  if (arr0 && isInFixedDuo(arr0[idx])){
+    toast('That pairing is fixed \u2014 can\u2019t swap them apart', 'warning');
+    return;
+  }
   if (!swapSelection || swapSelection.courtId !== court.id){
     swapSelection = { courtId: court.id, idx };
     renderCourts();
