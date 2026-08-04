@@ -1,0 +1,59 @@
+/* Admin portal — reuses style.css's CSS variables/fonts/buttons/toasts so it
+   matches the main app's (light) theme without duplicating them. */
+
+.admin-body{ background:var(--court); color:var(--ink); font-family:var(--font-body); min-height:100vh; margin:0; }
+
+.admin-shell{ max-width:980px; margin:0 auto; padding:1.2rem 1rem 3rem; }
+
+.admin-card{
+  max-width:420px; margin:3rem auto 0; background:var(--surface); border:1px solid var(--line);
+  border-radius:var(--radius); box-shadow:var(--shadow-md); padding:1.6rem 1.5rem;
+}
+.admin-h1{ font-family:var(--font-display); font-size:1.3rem; margin:0 0 .4rem; }
+.admin-sub{ color:var(--slate); font-size:.9rem; line-height:1.4; margin:0 0 1rem; }
+
+.admin-whoami{ font-size:.8rem; }
+
+.admin-tabs{ display:flex; gap:.4rem; border-bottom:1px solid var(--line); margin-bottom:1.1rem; }
+.admin-tabs button{
+  appearance:none; border:0; background:none; cursor:pointer; font:inherit; font-weight:600;
+  color:var(--slate); padding:.6rem .9rem; border-bottom:2px solid transparent;
+}
+.admin-tabs button.active{ color:var(--turf); border-bottom-color:var(--turf); }
+
+.admin-panel-head{ display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; margin-bottom:.5rem; }
+.admin-panel-head h2{ font-family:var(--font-display); font-size:1.05rem; margin:0; flex:0 0 auto; }
+.admin-search{
+  flex:1 1 180px; min-width:140px; padding:.5rem .7rem; border:1px solid var(--line);
+  border-radius:var(--radius-sm); background:var(--surface); color:var(--ink); font:inherit;
+}
+.admin-hint{ color:var(--slate); font-size:.85rem; margin:.1rem 0 .9rem; }
+.admin-loading{ color:var(--slate); font-size:.9rem; }
+
+.admin-table-wrap{ overflow-x:auto; border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); }
+table.admin-table{ width:100%; border-collapse:collapse; font-size:.88rem; }
+table.admin-table th, table.admin-table td{ padding:.55rem .7rem; text-align:left; border-bottom:1px solid var(--line); white-space:nowrap; }
+table.admin-table th{ color:var(--slate); font-weight:600; font-size:.78rem; text-transform:uppercase; letter-spacing:.02em; }
+table.admin-table tr:last-child td{ border-bottom:0; }
+table.admin-table td.wrap{ white-space:normal; }
+
+.admin-limit-input{
+  width:64px; padding:.3rem .4rem; border:1px solid var(--line); border-radius:var(--radius-sm);
+  background:var(--surface); color:var(--ink); font:inherit; text-align:center;
+}
+.admin-row-actions{ display:flex; gap:.35rem; flex-wrap:wrap; }
+.admin-badge{ display:inline-block; padding:.1rem .5rem; border-radius:999px; font-size:.72rem; font-weight:700; }
+.admin-badge.admin{ background:var(--gold-pale); color:var(--gold-deep); }
+.admin-badge.suspended{ background:var(--danger-pale); color:var(--danger); }
+.admin-badge.ok{ background:var(--turf-pale); color:var(--turf); }
+
+.admin-settings-form{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:1.1rem; max-width:520px; }
+.admin-settings-form .field{ margin-bottom:1rem; }
+.admin-settings-form .field-row{ display:flex; align-items:center; gap:.6rem; }
+.admin-settings-form label{ display:block; font-weight:600; font-size:.85rem; margin-bottom:.3rem; }
+.admin-settings-form input[type="text"], .admin-settings-form input[type="number"], .admin-settings-form textarea{
+  width:100%; padding:.55rem .7rem; border:1px solid var(--line); border-radius:var(--radius-sm);
+  background:var(--surface); color:var(--ink); font:inherit; box-sizing:border-box;
+}
+.admin-settings-form textarea{ min-height:70px; resize:vertical; }
+.admin-settings-note{ color:var(--slate); font-size:.8rem; margin:.2rem 0 0; }
