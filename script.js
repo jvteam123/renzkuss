@@ -2678,6 +2678,10 @@ let authSession = null;   // { access_token, refresh_token, expires_at, user:{id
 let hostSession = null;   // { id, invite_code } | null — the currently-live broadcast, if any
 let viewerMode = false;
 let hostPanelMode = 'login'; // 'login' | 'signup' — which auth tab is showing when logged out
+let pendingSignupConfirmation = null; // { email, sent:boolean } | null — set right after a
+                                       // successful sign-up that needs email confirmation;
+                                       // replaces the auth form with a confirmation notice
+                                       // until the person dismisses it or logs in
 let hostBusy = false;      // true while an auth/go-live/stop request is in flight
 let hostErrorMsg = '';
 let hostUsageToday = null; // cached count of sessions started today, refreshed on panel open
@@ -3225,6 +3229,21 @@ function renderHostPanel(){
   }
 
   if (!authSession){
+    if (pendingSignupConfirmation){
+      const { email, sent } = pendingSignupConfirmation;
+      hostPanelBody.innerHTML = `
+        <div class="host-live-card">
+          <span class="host-live-badge" style="background:var(--turf-pale);color:var(--turf)">✅ Account created</span>
+          <p class="host-live-note" style="margin-top:.5rem">
+            ${sent
+              ? `We\u2019ve sent a confirmation email to <b>${esc(email)}</b>, sent by Supabase on this app\u2019s behalf. Open it and confirm your address, then log in below.`
+              : `Your account was created, but we couldn\u2019t confirm Supabase actually queued a confirmation email to <b>${esc(email)}</b> \u2014 check spam, or this project\u2019s Supabase email sending may not be configured yet. Once confirmed, log in below.`}
+          </p>
+          <button type="button" class="btn primary" id="signupConfirmDismissBtn" style="width:100%;margin-top:.5rem">Go to log in</button>
+        </div>
+      `;
+      return;
+    }
     hostPanelBody.innerHTML = `
       <div class="host-auth-wrap${hostBusy ? ' is-busy' : ''}">
         <div class="host-auth-tabs">
@@ -3432,6 +3451,7 @@ $('#hostDone').addEventListener('click', () => { hostOverlay.hidden = true; });
 liveHostPill.addEventListener('click', openHostOverlay);
 
 hostOverlay.addEventListener('click', (e) => {
+  if (e.target.closest('#signupConfirmDismissBtn')){ pendingSignupConfirmation = null; hostPanelMode = 'login'; renderHostPanel(); return; }
   const tabBtn = e.target.closest('button[data-tab]');
   if (tabBtn){ hostPanelMode = tabBtn.dataset.tab; hostErrorMsg = ''; renderHostPanel(); return; }
   if (e.target.closest('#hostSignOutBtn')){ signOutEverywhere(); return; }
@@ -3487,12 +3507,7 @@ hostOverlay.addEventListener('submit', async (e) => {
       if (r.needsConfirmation){
         hostBusy = false;
         hostErrorMsg = '';
-        toast(
-          r.confirmationSent
-            ? `Account created \u2014 we\u2019ve sent a confirmation link to ${email}. Confirm it, then log in.`
-            : `Account created \u2014 check ${email} for a confirmation link, then log in. (Didn\u2019t get one? Check spam, or your Supabase project may have email sending unconfigured.)`,
-          'success'
-        );
+        pendingSignupConfirmation = { email, sent: !!r.confirmationSent };
         hostPanelMode = 'login';
         renderHostPanel();
         return;
@@ -3500,6 +3515,7 @@ hostOverlay.addEventListener('submit', async (e) => {
     } else {
       await signInEmail(email, password, captchaToken);
     }
+    pendingSignupConfirmation = null;
     hostUsageToday = null; hostAccountInfo = null; siteSettingsCache = null;
     toast('Signed in');
   }catch(err){
