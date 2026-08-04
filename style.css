@@ -594,6 +594,10 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
 .player-swap-btn:hover{background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.45);color:#fff}
 .player-swap-btn.selecting{background:var(--gold);border-color:var(--gold);color:var(--brand-ink)}
 .player-swap-btn.selecting:hover{background:var(--gold-deep);border-color:var(--gold-deep)}
+.player-swap-btn:disabled,
+.player-swap-btn.duo-locked{
+  opacity:.35;cursor:not-allowed;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.25);color:rgba(255,255,255,.8);
+}
 .swap-hint{
   font-size:.75rem;font-weight:600;color:var(--gold);text-align:center;
   background:rgba(252,209,22,.12);border:1px dashed rgba(252,209,22,.4);
@@ -610,6 +614,10 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
 }
 .court-card:not(.playing) .player-swap-btn:hover{background:var(--turf-pale);border-color:var(--turf);color:var(--turf-deep)}
 .court-card:not(.playing) .player-swap-btn.selecting{background:var(--gold);border-color:var(--gold);color:var(--brand-ink)}
+.court-card:not(.playing) .player-swap-btn:disabled,
+.court-card:not(.playing) .player-swap-btn.duo-locked{
+  opacity:.4;cursor:not-allowed;background:var(--court);border-color:var(--line);color:var(--slate);
+}
 .court-card:not(.playing) .swap-hint b{color:var(--ink)}
 .games-chip{
   font-family:var(--font-mono);font-size:.6rem;font-weight:600;
