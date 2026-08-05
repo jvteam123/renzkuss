@@ -179,6 +179,10 @@ button,a,.icon-btn,.panel-action-btn,.btn,select,[role="button"]{
   background:rgba(206,17,38,.18);color:#FFD7DA;border-color:rgba(255,120,130,.5);
   cursor:pointer;animation:live-pulse 2s ease-in-out infinite;
 }
+.topbar .pill.live-pill.is-reconnecting{
+  background:rgba(252,209,22,.18);color:var(--gold-pale);border-color:rgba(252,209,22,.5);
+  animation:live-pulse 1s ease-in-out infinite;
+}
 @keyframes live-pulse{0%,100%{opacity:1}50%{opacity:.6}}
 .icon-btn{
   width:38px;height:38px;border-radius:10px;border:none;
@@ -920,13 +924,21 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
 }
 .roster-manage-row .rm-name{flex:1;min-width:0;font-size:.85rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tag-pill.floor{background:var(--turf-pale);color:var(--turf-deep);flex-shrink:0}
-.rm-del{
+.rm-del,.rm-edit{
   border:none;background:none;color:var(--slate);cursor:pointer;
   width:23px;height:23px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;
 }
 .rm-del:hover{background:var(--danger-pale);color:var(--danger)}
-.rm-del svg{width:12px;height:12px}
+.rm-del svg,.rm-edit svg{width:12px;height:12px}
+.rm-edit:hover{background:var(--turf-pale);color:var(--turf-deep)}
 .roster-manage-empty{padding:1.1rem .5rem;text-align:center;color:var(--slate);font-size:.8rem}
+
+/* ---------- Rename player modal ---------- */
+.rename-player-modal #renamePlayerInput{
+  width:100%;box-sizing:border-box;font-size:.95rem;padding:.55rem .7rem;
+  border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--bg);color:inherit;
+}
+.rename-player-modal #renamePlayerInput:focus{outline:none;border-color:var(--accent, var(--turf-deep))}
 
 /* ---------- Session banner (read-only / ended state) ----------
    Styled like court-closure hazard tape — diagonal stripe edges framing
@@ -1391,6 +1403,7 @@ body.viewer-mode .courts-main{ display:block !important; }
   letter-spacing:.03em;background:var(--danger-pale);color:var(--danger);padding:.3rem .7rem;border-radius:99px;
 }
 .host-live-badge--stopped{background:var(--line);color:var(--slate)}
+.host-live-badge--reconnecting{background:var(--gold-pale);color:var(--gold-deep);animation:live-pulse 1s ease-in-out infinite}
 .host-invite-code{
   font-family:var(--font-mono);font-size:1.6rem;font-weight:700;letter-spacing:.12em;
   color:var(--turf-deep);background:var(--turf-pale);border-radius:var(--radius-sm);
