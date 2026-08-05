@@ -83,17 +83,7 @@
 <div class="viewer-banner" id="viewerBanner" hidden>
   <span class="eyebrow"><svg viewBox="0 0 24 24"><use href="#i-cloud"/></svg>Live spectator view</span>
   <span class="msg" id="viewerBannerMsg"></span>
-  <div class="viewer-watch" id="viewerWatch" title="Get an extra alert when this player is called up next">
-    <svg viewBox="0 0 24 24"><use href="#i-user"/></svg>
-    <button type="button" class="viewer-watch-btn" id="viewerWatchBtn" aria-haspopup="listbox" aria-expanded="false">
-      <span id="viewerWatchLabel">Watch a player…</span>
-      <svg viewBox="0 0 24 24" class="viewer-watch-caret"><use href="#i-chev"/></svg>
-    </button>
-    <div class="viewer-watch-menu" id="viewerWatchMenu" role="listbox" aria-label="Watch a specific player" hidden>
-      <button type="button" class="viewer-watch-option is-placeholder" data-value="" role="option" aria-selected="true">Watch a player…</button>
-    </div>
-  </div>
-  <button type="button" class="btn sm viewer-notify-btn" id="viewerNotifyBtn" title="Get a notification when a game ends, the next matchup is up, or a player you're watching is called"><svg viewBox="0 0 24 24"><use href="#i-bell"/></svg> Notify me</button>
+  <button type="button" class="btn sm viewer-notify-btn" id="viewerNotifyBtn" title="Get a notification when a game ends or the next matchup is up"><svg viewBox="0 0 24 24"><use href="#i-bell"/></svg> Notify me</button>
   <button type="button" class="viewer-notify-status" id="viewerNotifyStatus" hidden title="Notifications are on — tap to turn off"><svg viewBox="0 0 24 24"><use href="#i-bell"/></svg></button>
 </div>
 
@@ -139,6 +129,23 @@
   <main class="courts-main">
     <h2>Courts</h2>
     <div class="courts-grid" id="courtsGrid"></div>
+    <div class="blocks-panel viewer-blocks-panel" id="viewerBlocksPanel" hidden>
+      <div class="blocks-panel-title">⏳ Accumulating blocks</div>
+      <div class="block-group">
+        <div class="block-head">
+          <span class="block-head-label">🏆 Winners block</span>
+          <span class="block-head-count" id="viewerWinnersBlockCount">0 waiting</span>
+        </div>
+        <div class="block-list" id="viewerWinnersBlockList"></div>
+      </div>
+      <div class="block-group">
+        <div class="block-head">
+          <span class="block-head-label">💀 Losers block</span>
+          <span class="block-head-count" id="viewerLosersBlockCount">0 waiting</span>
+        </div>
+        <div class="block-list" id="viewerLosersBlockList"></div>
+      </div>
+    </div>
     <details class="history" open>
       <summary><svg viewBox="0 0 24 24"><use href="#i-chev"/></svg> Up next</summary>
       <div class="history-list" id="historyList"></div>
