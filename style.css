@@ -986,6 +986,12 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn{
 .winner-card.selected .score-input{border-color:var(--clay)}
 .winner-note{font-size:.75rem;color:var(--slate);text-align:center;margin:-.6rem 0 1rem}
 .section-label{font-size:.78rem;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:.03em;margin:0 0 .5rem}
+.about-steps{margin:0 0 1.2rem;padding-left:1.1rem;display:flex;flex-direction:column;gap:.5rem}
+.about-steps li{font-size:.84rem;line-height:1.5;color:var(--ink)}
+.about-steps li b{color:var(--turf-deep)}
+.about-credit{font-size:.85rem;line-height:1.6;color:var(--ink);margin:0 0 .2rem}
+.about-credit a{color:var(--turf-deep);font-weight:600;text-decoration:none}
+.about-credit a:hover{text-decoration:underline}
 
 /* ---------- Rankings modal: header, toolbar, summary ---------- */
 .rankings-modal-head{display:flex;align-items:center;justify-content:space-between;gap:.6rem;margin-bottom:.7rem}
