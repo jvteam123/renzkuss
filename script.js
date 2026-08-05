@@ -651,7 +651,7 @@ function blockItemsHtml(entries){
     </div>
   `).join('');
 }
-function blockListHtml(block, gameSize, blockKey){
+function blockListHtml(block, gameSize, blockKey, readOnly){
   if (block.length === 0) return '<div class="block-empty">Empty — waiting for a result.</div>';
   const levels = PLAYER_LEVELS.filter(lvl => block.some(e => getPlayerLevel(e.name) === lvl));
   // A single-level block is fully covered by the block header's own count
@@ -662,12 +662,13 @@ function blockListHtml(block, gameSize, blockKey){
   }
   return levels.map(level => {
     const entries = block.filter(e => getPlayerLevel(e.name) === level);
+    const flushBtn = readOnly ? '' : `<button type="button" class="block-level-flush-btn" data-block-flush="${blockKey}" data-level-flush="${esc(level)}" aria-label="Move ${esc(levelLabel(level))} group to queue now">Queue now</button>`;
     return `
       <div class="block-level-group">
         <div class="block-level-head">
           <span class="level-badge ${levelClass(level)}">${esc(levelLabel(level))}</span>
           <span class="block-level-count">${entries.length}/${gameSize}</span>
-          <button type="button" class="block-level-flush-btn" data-block-flush="${blockKey}" data-level-flush="${esc(level)}" aria-label="Move ${esc(levelLabel(level))} group to queue now">Queue now</button>
+          ${flushBtn}
         </div>
         ${blockItemsHtml(entries)}
       </div>
@@ -679,15 +680,31 @@ function renderBlocks(){
   const gameSize = state.session.gameSize;
   const hasAny = state.winnersBlock.length > 0 || state.losersBlock.length > 0;
   blocksPanel.hidden = !hasAny;
-  if (!hasAny) return;
+  if (hasAny){
+    winnersBlockCount.textContent = state.winnersBlock.length + ' waiting';
+    losersBlockCount.textContent = state.losersBlock.length + ' waiting';
+    winnersBlockList.innerHTML = blockListHtml(state.winnersBlock, gameSize, 'winnersBlock');
+    losersBlockList.innerHTML = blockListHtml(state.losersBlock, gameSize, 'losersBlock');
 
-  winnersBlockCount.textContent = state.winnersBlock.length + ' waiting';
-  losersBlockCount.textContent = state.losersBlock.length + ' waiting';
-  winnersBlockList.innerHTML = blockListHtml(state.winnersBlock, gameSize, 'winnersBlock');
-  losersBlockList.innerHTML = blockListHtml(state.losersBlock, gameSize, 'losersBlock');
+    blocksPanel.querySelector('[data-block="winners"]').disabled = state.winnersBlock.length === 0 || isSessionEnded();
+    blocksPanel.querySelector('[data-block="losers"]').disabled = state.losersBlock.length === 0 || isSessionEnded();
+  }
 
-  blocksPanel.querySelector('[data-block="winners"]').disabled = state.winnersBlock.length === 0 || isSessionEnded();
-  blocksPanel.querySelector('[data-block="losers"]').disabled = state.losersBlock.length === 0 || isSessionEnded();
+  // Read-only mirror of the same data for the spectator view (no "Queue
+  // now" controls — flushing blocks is a host action). Kept in sync
+  // whenever renderAll() runs, host or viewer, but only ever shown while
+  // body.viewer-mode is set (see CSS), so this is a no-op visually on the
+  // host's own screen.
+  const vPanel = $('#viewerBlocksPanel');
+  if (vPanel){
+    vPanel.hidden = !hasAny;
+    if (hasAny){
+      $('#viewerWinnersBlockCount').textContent = state.winnersBlock.length + ' waiting';
+      $('#viewerLosersBlockCount').textContent = state.losersBlock.length + ' waiting';
+      $('#viewerWinnersBlockList').innerHTML = blockListHtml(state.winnersBlock, gameSize, 'winnersBlock', true);
+      $('#viewerLosersBlockList').innerHTML = blockListHtml(state.losersBlock, gameSize, 'losersBlock', true);
+    }
+  }
 }
 
 // Moves an entire block into the main queue, in order, as an intact group —
@@ -3599,133 +3616,6 @@ function enterViewerMode(code){
   const NOTIFY_STORAGE_KEY = 'renzkuViewerNotify';
   let notifyEnabled = false;
 
-  /* ---- Watch a specific player ----
-     On top of the general "game ended" / "next matchup" alerts above, a
-     spectator can pick one name from the current session and get an extra,
-     personalized alert the moment that player's status changes: moving
-     into the immediate on-deck group, being slotted onto an open court
-     (ready for the host to tap Start), and their match actually starting.
-     This still rides on the same opt-in notification permission — picking
-     a player without turning notifications on just remembers the choice
-     for next time. */
-  const viewerWatchEl = $('#viewerWatch');
-  const viewerWatchBtn = $('#viewerWatchBtn');
-  const viewerWatchLabel = $('#viewerWatchLabel');
-  const viewerWatchMenu = $('#viewerWatchMenu');
-  const WATCH_STORAGE_KEY = 'renzkuViewerWatchPlayer:' + code;
-  let watchedPlayer = '';
-  try{ watchedPlayer = localStorage.getItem(WATCH_STORAGE_KEY) || ''; }catch(e){}
-  let lastWatchNames = null; // cached list, so we only rebuild option buttons when the roster actually changes
-  let lastWatchStatusState = null; // 'on-deck' | 'up-now' | 'playing' | 'waiting' | null
-  let watchNeedsBaseline = true; // true right after (re)selecting a player — the next poll just sets the baseline, never notifies
-
-  function updateWatchUI(){
-    if (!viewerWatchEl) return;
-    viewerWatchEl.classList.toggle('active', !!watchedPlayer);
-    if (viewerWatchLabel) viewerWatchLabel.textContent = watchedPlayer || 'Watch a player…';
-  }
-  updateWatchUI();
-
-  function closeWatchMenu(){
-    if (!viewerWatchMenu || viewerWatchMenu.hidden) return;
-    viewerWatchMenu.hidden = true;
-    if (viewerWatchBtn) viewerWatchBtn.setAttribute('aria-expanded', 'false');
-  }
-  function openWatchMenu(){
-    if (!viewerWatchMenu) return;
-    viewerWatchMenu.hidden = false;
-    if (viewerWatchBtn) viewerWatchBtn.setAttribute('aria-expanded', 'true');
-  }
-  function selectWatchPlayer(name){
-    watchedPlayer = name;
-    try{ localStorage.setItem(WATCH_STORAGE_KEY, watchedPlayer); }catch(e){}
-    lastWatchStatusState = null;
-    watchNeedsBaseline = true; // re-baseline so switching players doesn't fire a notification for their status as of right now
-    updateWatchUI();
-    if (viewerWatchMenu){
-      viewerWatchMenu.querySelectorAll('.viewer-watch-option').forEach(btn => {
-        btn.setAttribute('aria-selected', String(btn.dataset.value === watchedPlayer));
-      });
-    }
-    closeWatchMenu();
-    if (watchedPlayer && !notifyEnabled) toast('Tap \u201cNotify me\u201d above to get alerts for ' + watchedPlayer);
-    else if (watchedPlayer) toast('Watching ' + watchedPlayer + ' \u2014 you\u2019ll get an alert when they\u2019re called up');
-  }
-
-  if (viewerWatchBtn){
-    viewerWatchBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (viewerWatchMenu && viewerWatchMenu.hidden) openWatchMenu();
-      else closeWatchMenu();
-    });
-  }
-  if (viewerWatchMenu){
-    viewerWatchMenu.addEventListener('click', (e) => {
-      const opt = e.target.closest('.viewer-watch-option');
-      if (!opt) return;
-      selectWatchPlayer(opt.dataset.value || '');
-    });
-  }
-  document.addEventListener('click', (e) => {
-    if (!viewerWatchEl || viewerWatchEl.contains(e.target)) return;
-    closeWatchMenu();
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeWatchMenu();
-  });
-
-  function refreshWatchOptions(names){
-    if (!viewerWatchMenu) return;
-    const sorted = names.slice().sort((a, b) => a.localeCompare(b));
-    const key = sorted.join('\u241F');
-    if (key === lastWatchNames) return; // nobody joined/left since last poll — leave the dropdown alone
-    lastWatchNames = key;
-    // Keep the selection even if that player's briefly off the on-court list
-    // (e.g. mid-substitution) — only clear it if they leave the roster for good.
-    const stillActive = watchedPlayer && sorted.includes(watchedPlayer);
-    viewerWatchMenu.innerHTML = `<button type="button" class="viewer-watch-option is-placeholder" data-value="" role="option" aria-selected="${!watchedPlayer}">Watch a player…</button>` +
-      sorted.map(n => `<button type="button" class="viewer-watch-option" data-value="${esc(n)}" role="option" aria-selected="${n === watchedPlayer}">${esc(n)}</button>`).join('');
-    if (watchedPlayer && !stillActive){
-      // Player left the roster for good — clear the pick.
-      watchedPlayer = '';
-      try{ localStorage.removeItem(WATCH_STORAGE_KEY); }catch(e){}
-      updateWatchUI();
-    }
-  }
-
-  // Mirrors renderUpNext()'s own grouping logic against the current on-deck
-  // pool, but stops as soon as it finds (or rules out) the watched name
-  // instead of building HTML for the whole board.
-  function getWatchedStatus(name){
-    if (!name || !Array.isArray(state.courts) || !Array.isArray(state.stack)) return null;
-    const gameSize = state.session.gameSize;
-
-    const playingCourt = state.courts.find(c => c.status === 'playing' && Array.isArray(c.players) && c.players.includes(name));
-    if (playingCourt) return { state: 'playing', courtName: playingCourt.name || 'Court' };
-
-    const openQueue = computeOpenCourtQueue(gameSize);
-    const claimed = new Set();
-    for (const court of state.courts){
-      if (court.status !== 'open') continue;
-      const slot = openQueue.get(court.id);
-      if (!slot || !slot.taken) continue;
-      slot.taken.forEach(e => claimed.add(e.id));
-      if (slot.taken.some(e => e.name === name)) return { state: 'up-now', courtName: court.name || 'Court' };
-    }
-
-    let onDeck = state.stack.filter(e => !claimed.has(e.id));
-    let groupNum = 1;
-    while (onDeck.length >= gameSize && groupNum <= 3){
-      const chosen = selectMatchEntries(gameSize, onDeck);
-      if (chosen.some(e => e.name === name)) return { state: 'on-deck', group: groupNum };
-      const chosenIds = new Set(chosen.map(e => e.id));
-      onDeck = onDeck.filter(e => !chosenIds.has(e.id));
-      groupNum++;
-    }
-
-    if (state.stack.some(e => e.name === name)) return { state: 'waiting' };
-    return null;
-  }
   const notifySound = new Audio('./notify.wav');
   notifySound.volume = 0.6;
   notifySound.preload = 'auto';
@@ -3764,7 +3654,7 @@ function enterViewerMode(code){
       }
       try{ localStorage.setItem(NOTIFY_STORAGE_KEY, notifyEnabled ? '1' : '0'); }catch(e){}
       updateNotifyBtn();
-      if (notifyEnabled) toast(watchedPlayer ? 'Notifications on \u2014 you\u2019ll get alerts for the match and for ' + watchedPlayer : 'Notifications on \u2014 we\u2019ll alert you when a game ends');
+      if (notifyEnabled) toast('Notifications on \u2014 we\u2019ll alert you when a game ends');
     });
   }
 
@@ -3847,30 +3737,6 @@ function enterViewerMode(code){
       if (nameEl) nameEl.textContent = (row.session_name || 'Live match') + ' \u00b7 Live';
       setMsg('Updated ' + new Date(row.updated_at).toLocaleTimeString());
       renderAll();
-
-      // Keep the "watch a player" dropdown current, then check whether the
-      // watched player (if any) just moved into a more urgent status.
-      if (viewerWatchMenu){
-        const activeNames = new Set();
-        (state.stack || []).forEach(e => activeNames.add(e.name));
-        (state.courts || []).forEach(c => (c.players || []).forEach(n => activeNames.add(n)));
-        refreshWatchOptions(Array.from(activeNames));
-      }
-      if (watchedPlayer){
-        const status = getWatchedStatus(watchedPlayer);
-        const statusState = status ? status.state : null;
-        if (!firstPoll && !watchNeedsBaseline && statusState !== lastWatchStatusState){
-          if (statusState === 'on-deck'){
-            notify('\u{1F440} ' + watchedPlayer + ' is on deck', 'Next in line once an open court fills up \u2014 get ready.');
-          } else if (statusState === 'up-now'){
-            notify('\u{1F3F8} ' + watchedPlayer + ', you\u2019re up!', `Slotted in for ${status.courtName} \u2014 it can start anytime now.`);
-          } else if (statusState === 'playing'){
-            notify(watchedPlayer + '\u2019s match just started', `Live now on ${status.courtName}.`);
-          }
-        }
-        lastWatchStatusState = statusState;
-        watchNeedsBaseline = false;
-      }
 
       // A new game just started on some court — or, if the start time didn't
       // move but who's playing did, someone was subbed in mid-game.
