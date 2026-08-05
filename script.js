@@ -2107,6 +2107,15 @@ $('#themeToggleBtn').addEventListener('click', () => {
 });
 $('#matchHistoryDone').addEventListener('click', () => { matchHistoryOverlay.hidden = true; });
 
+/* ================= About modal ================= */
+const aboutOverlay = $('#aboutOverlay');
+function openAbout(){ aboutOverlay.hidden = false; }
+function closeAbout(){ aboutOverlay.hidden = true; }
+$('#aboutBtn').addEventListener('click', openAbout);
+$('#aboutDone').addEventListener('click', closeAbout);
+aboutOverlay.addEventListener('click', (e) => { if (e.target === aboutOverlay) closeAbout(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !aboutOverlay.hidden) closeAbout(); });
+
 /* ================= Live timers ================= */
 setInterval(() => {
   document.querySelectorAll('.court-card.playing').forEach(card => {
