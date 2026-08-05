@@ -21,88 +21,149 @@
 
 <svg style="display:none" aria-hidden="true">
   <symbol id="i-paddle" viewBox="0 0 20 28"><path fill="currentColor" d="M10 0c4.4 0 7 3 7 7.2 0 4.6-3 8-7 8s-7-3.4-7-8C3 3 5.6 0 10 0Z"/><rect fill="currentColor" x="8.2" y="14.6" width="3.6" height="12.4" rx="1.6"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><path fill="currentColor" d="M19.4 13a7.4 7.4 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.5 7.5 0 0 0-1.7-1L14.9 3H9.1l-.4 2.6a7.5 7.5 0 0 0-1.7 1l-2.4-1-2 3.4L4.6 11a7.4 7.4 0 0 0 0 2l-2 1.6 2 3.4 2.4-1c.5.4 1.1.75 1.7 1l.4 2.6h5.8l.4-2.6c.6-.25 1.2-.6 1.7-1l2.4 1 2-3.4-2-1.6ZM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Z"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><path fill="currentColor" d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0 2c-4.4 0-8 2.2-8 5v2h16v-2c0-2.8-3.6-5-8-5Z"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><path fill="currentColor" d="M7 18a5 5 0 0 1-.6-9.97A6 6 0 0 1 18 6.1 4.5 4.5 0 0 1 17.5 18H7Z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><path fill="currentColor" d="M12 4a1 1 0 0 1-1-1V1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1Zm0 16a1 1 0 0 1 1 1v2a1 1 0 1 1-2 0v-2a1 1 0 0 1 1-1ZM4 12a1 1 0 0 1-1 1H1a1 1 0 1 1 0-2h2a1 1 0 0 1 1 1Zm19-1h-2a1 1 0 1 0 0 2h2a1 1 0 1 0 0-2ZM5.6 4.2a1 1 0 0 1 1.4 0l1.4 1.4a1 1 0 1 1-1.4 1.4L5.6 5.6a1 1 0 0 1 0-1.4Zm11.8 11.8a1 1 0 0 1 1.4 0l1.4 1.4a1 1 0 1 1-1.4 1.4l-1.4-1.4a1 1 0 0 1 0-1.4ZM18.4 4.2l1.4 1.4a1 1 0 0 1-1.4 1.4l-1.4-1.4a1 1 0 1 1 1.4-1.4ZM6.6 16l1.4 1.4a1 1 0 1 1-1.4 1.4L5.2 17.4A1 1 0 1 1 6.6 16ZM12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10Z"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path fill="currentColor" d="M20.7 14.6A8.3 8.3 0 0 1 9.4 3.3a.7.7 0 0 0-.9-.9A10 10 0 1 0 21.6 15.5a.7.7 0 0 0-.9-.9Z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><path fill="currentColor" d="M10 2a8 8 0 1 0 4.9 14.3l5.4 5.4 1.4-1.4-5.4-5.4A8 8 0 0 0 10 2Zm0 2a6 6 0 1 1 0 12 6 6 0 0 1 0-12Z"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5Zm-3 8V7a3 3 0 1 1 6 0v3H9Z"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path fill="currentColor" d="M3 6h18v2H3V6Zm0 5h18v2H3v-2Zm0 5h18v2H3v-2Z"/></symbol>
+  <symbol id="i-logout" viewBox="0 0 24 24"><path fill="currentColor" d="M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5v-2H5V5h5V3Zm4.3 4.3-1.4 1.4L15.2 11H8v2h7.2l-2.3 2.3 1.4 1.4L19 12l-4.7-4.7Z"/></symbol>
 </svg>
 
-<header class="topbar">
+<header class="topbar admin-topbar">
+  <button type="button" class="icon-btn admin-menu-btn" id="adminMenuBtn" aria-label="Open menu" hidden>
+    <svg viewBox="0 0 24 24"><use href="#i-menu"/></svg>
+  </button>
   <div class="logo"><svg viewBox="0 0 20 28"><use href="#i-paddle"/></svg></div>
-  <span class="session-name">Renzku Admin</span>
+  <span class="session-name">Renzku <span class="admin-brand-accent">Admin</span></span>
   <div class="spacer"></div>
+  <button type="button" class="icon-btn" id="themeToggleBtn" aria-label="Toggle dark mode">
+    <svg viewBox="0 0 24 24"><use href="#i-moon" id="themeToggleIconUse"/></svg>
+  </button>
   <span class="pill admin-whoami" id="adminWhoami" hidden></span>
-  <button class="btn ghost sm" id="adminLogoutBtn" hidden>Log out</button>
+  <button class="icon-btn admin-logout-icon" id="adminLogoutBtn" aria-label="Log out" hidden>
+    <svg viewBox="0 0 24 24"><use href="#i-logout"/></svg>
+  </button>
 </header>
 
-<main class="admin-shell">
+<main class="admin-root">
 
   <!-- Logged out -->
-  <section class="admin-card" id="adminLoginCard">
-    <h1 class="admin-h1">Admin sign in</h1>
-    <p class="admin-sub">Same account system as the main app — this only unlocks anything for accounts an existing admin has flagged as admin.</p>
-    <div id="adminLoginError" class="host-error" hidden></div>
-    <form id="adminLoginForm">
-      <fieldset id="adminLoginFieldset" style="border:0;margin:0;padding:0">
-        <div class="field">
-          <label for="adminEmailInput">Email</label>
-          <input type="email" id="adminEmailInput" required autocomplete="email">
-        </div>
-        <div class="field">
-          <label for="adminPasswordInput">Password</label>
-          <input type="password" id="adminPasswordInput" required minlength="6" autocomplete="current-password">
-        </div>
-        <div id="hcaptchaBox" style="margin:.6rem 0"></div>
-        <button type="submit" class="btn primary" style="width:100%" id="adminLoginSubmit">Log in</button>
-      </fieldset>
-    </form>
+  <section class="admin-centered" id="adminLoginCard">
+    <div class="admin-card">
+      <span class="admin-badge-icon"><svg viewBox="0 0 24 24"><use href="#i-lock"/></svg></span>
+      <h1 class="admin-h1">Admin sign in</h1>
+      <p class="admin-sub">Same account system as the main app — this only unlocks anything for accounts an existing admin has flagged as admin.</p>
+      <div id="adminLoginError" class="host-error" hidden></div>
+      <form id="adminLoginForm">
+        <fieldset id="adminLoginFieldset" style="border:0;margin:0;padding:0">
+          <div class="field">
+            <label for="adminEmailInput">Email</label>
+            <input type="email" id="adminEmailInput" required autocomplete="email">
+          </div>
+          <div class="field">
+            <label for="adminPasswordInput">Password</label>
+            <input type="password" id="adminPasswordInput" required minlength="6" autocomplete="current-password">
+          </div>
+          <div id="hcaptchaBox" style="margin:.6rem 0"></div>
+          <button type="submit" class="btn primary" style="width:100%" id="adminLoginSubmit">Log in</button>
+        </fieldset>
+      </form>
+    </div>
   </section>
 
   <!-- Logged in, not an admin -->
-  <section class="admin-card" id="adminDeniedCard" hidden>
-    <h1 class="admin-h1">Not an admin account</h1>
-    <p class="admin-sub" id="adminDeniedMsg">This account is signed in but isn't flagged as an admin. Ask an existing admin to promote it from the Accounts tab, or sign in with a different account.</p>
-    <button class="btn ghost" id="adminDeniedLogoutBtn">Log out</button>
+  <section class="admin-centered" id="adminDeniedCard" hidden>
+    <div class="admin-card">
+      <span class="admin-badge-icon warn"><svg viewBox="0 0 24 24"><use href="#i-lock"/></svg></span>
+      <h1 class="admin-h1">Not an admin account</h1>
+      <p class="admin-sub" id="adminDeniedMsg">This account is signed in but isn't flagged as an admin. Ask an existing admin to promote it from the Accounts tab, or sign in with a different account.</p>
+      <button class="btn ghost" style="width:100%" id="adminDeniedLogoutBtn">Log out</button>
+    </div>
   </section>
 
   <!-- Dashboard -->
-  <section id="adminDashboard" hidden>
-    <nav class="admin-tabs" id="adminTabs">
-      <button type="button" class="active" data-tab="accounts">Accounts</button>
-      <button type="button" data-tab="live">Live sessions</button>
-      <button type="button" data-tab="settings">Site settings</button>
-    </nav>
+  <div class="admin-layout" id="adminDashboard" hidden>
+    <div class="admin-sidebar-backdrop" id="adminSidebarBackdrop"></div>
+    <aside class="admin-sidebar" id="adminSidebar">
+      <nav class="admin-nav" id="adminTabs">
+        <button type="button" class="active" data-tab="accounts">
+          <svg viewBox="0 0 24 24"><use href="#i-user"/></svg><span>Accounts</span>
+        </button>
+        <button type="button" data-tab="live">
+          <svg viewBox="0 0 24 24"><use href="#i-cloud"/></svg><span>Live sessions</span>
+        </button>
+        <button type="button" data-tab="settings">
+          <svg viewBox="0 0 24 24"><use href="#i-gear"/></svg><span>Site settings</span>
+        </button>
+      </nav>
+      <div class="admin-sidebar-foot">
+        <div class="admin-whoami-card">
+          <span class="admin-avatar" id="adminAvatar">A</span>
+          <div class="admin-whoami-text">
+            <span class="admin-whoami-email" id="adminSidebarEmail">—</span>
+            <span class="admin-whoami-role">Administrator</span>
+          </div>
+        </div>
+      </div>
+    </aside>
 
-    <!-- Accounts tab -->
-    <div class="admin-panel" id="tab-accounts">
-      <div class="admin-panel-head">
-        <h2>Accounts</h2>
-        <input type="text" id="accountsSearch" placeholder="Search by email…" class="admin-search">
-        <button class="btn ghost sm" id="accountsRefreshBtn">Refresh</button>
-      </div>
-      <p class="admin-hint">Hosting credits are the number of live matches an account can start per day. Leave the limit blank to use the site default below.</p>
-      <div id="accountsTableWrap" class="admin-table-wrap">
-        <p class="admin-loading">Loading…</p>
-      </div>
-    </div>
+    <div class="admin-content">
+      <div class="admin-kpi-row" id="adminKpiRow"></div>
 
-    <!-- Live sessions tab -->
-    <div class="admin-panel" id="tab-live" hidden>
-      <div class="admin-panel-head">
-        <h2>Live sessions</h2>
-        <button class="btn ghost sm" id="liveRefreshBtn">Refresh</button>
-      </div>
-      <p class="admin-hint">Every currently-live "Host Online" broadcast, across all accounts.</p>
-      <div id="liveTableWrap" class="admin-table-wrap">
-        <p class="admin-loading">Loading…</p>
-      </div>
-    </div>
+      <!-- Accounts tab -->
+      <section class="admin-panel" id="tab-accounts">
+        <div class="admin-panel-head">
+          <div>
+            <h2>Accounts</h2>
+            <p class="admin-hint">Hosting credits are the number of live matches an account can start per day. Leave the limit blank to use the site default.</p>
+          </div>
+          <div class="admin-panel-head-actions">
+            <div class="admin-search-wrap">
+              <svg viewBox="0 0 24 24"><use href="#i-search"/></svg>
+              <input type="text" id="accountsSearch" placeholder="Search by email…" class="admin-search">
+            </div>
+            <button class="btn ghost sm" id="accountsRefreshBtn">Refresh</button>
+          </div>
+        </div>
+        <div id="accountsTableWrap" class="admin-table-wrap">
+          <div class="admin-skeleton"></div>
+        </div>
+      </section>
 
-    <!-- Site settings tab -->
-    <div class="admin-panel" id="tab-settings" hidden>
-      <h2>Site settings</h2>
-      <div id="settingsError" class="host-error" hidden></div>
-      <div class="admin-settings-form" id="settingsForm">
-        <p class="admin-loading">Loading…</p>
-      </div>
+      <!-- Live sessions tab -->
+      <section class="admin-panel" id="tab-live" hidden>
+        <div class="admin-panel-head">
+          <div>
+            <h2>Live sessions</h2>
+            <p class="admin-hint">Every currently-live "Host Online" broadcast, across all accounts.</p>
+          </div>
+          <div class="admin-panel-head-actions">
+            <button class="btn ghost sm" id="liveRefreshBtn">Refresh</button>
+          </div>
+        </div>
+        <div id="liveTableWrap" class="admin-table-wrap">
+          <div class="admin-skeleton"></div>
+        </div>
+      </section>
+
+      <!-- Site settings tab -->
+      <section class="admin-panel" id="tab-settings" hidden>
+        <div class="admin-panel-head">
+          <div>
+            <h2>Site settings</h2>
+            <p class="admin-hint">Sitewide defaults — applied to every account without a per-account override.</p>
+          </div>
+        </div>
+        <div id="settingsError" class="host-error" hidden></div>
+        <div class="admin-settings-form" id="settingsForm">
+          <div class="admin-skeleton"></div>
+        </div>
+      </section>
     </div>
-  </section>
+  </div>
 
 </main>
 
