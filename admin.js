@@ -11,6 +11,29 @@
    (same project, same anon key — it's the same site, just a different page).
    ========================================================================= */
 
+/* ---- theme (shared with the main app — same localStorage key, so if
+   someone already picked dark/light there, /admin opens matching it) ---- */
+const THEME_KEY = 'paddleStackTheme';
+function getStoredTheme(){ try{ return localStorage.getItem(THEME_KEY); }catch(e){ return null; } }
+function preferredTheme(){
+  const stored = getStoredTheme();
+  if (stored === 'dark' || stored === 'light') return stored;
+  return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+}
+function applyTheme(theme){
+  document.documentElement.setAttribute('data-theme', theme);
+  const iconUse = document.getElementById('themeToggleIconUse');
+  if (iconUse) iconUse.setAttribute('href', theme === 'dark' ? '#i-sun' : '#i-moon');
+  const btn = document.getElementById('themeToggleBtn');
+  if (btn) btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+}
+applyTheme(preferredTheme());
+document.getElementById('themeToggleBtn').addEventListener('click', () => {
+  const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
+  try{ localStorage.setItem(THEME_KEY, next); }catch(e){}
+});
+
 const SUPABASE_URL = 'https://xqogfjttzsewrtnbwatv.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhxb2dmanR0enNld3J0bmJ3YXR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2OTM3NzMsImV4cCI6MjEwMTI2OTc3M30.IEnaOjWzu7pmnEiiIvdw6NmZWPfa4q3CQ40GlKIB05k';
 const AUTH_STORAGE_KEY = 'renzkuAdminAuthSession'; // deliberately its own key —
@@ -153,20 +176,35 @@ const deniedCard = $('#adminDeniedCard');
 const dashboard = $('#adminDashboard');
 const whoamiEl = $('#adminWhoami');
 const logoutBtn = $('#adminLogoutBtn');
+const menuBtn = $('#adminMenuBtn');
+const sidebar = $('#adminSidebar');
+const sidebarBackdrop = $('#adminSidebarBackdrop');
+const sidebarEmailEl = $('#adminSidebarEmail');
+const avatarEl = $('#adminAvatar');
+
+function initials(email){
+  const name = (email || '').split('@')[0] || 'A';
+  return name.slice(0, 2).toUpperCase();
+}
+function closeMobileNav(){ dashboard.classList.remove('admin-nav-open'); }
+menuBtn.addEventListener('click', () => dashboard.classList.toggle('admin-nav-open'));
+sidebarBackdrop.addEventListener('click', closeMobileNav);
 
 function showLoggedOut(){
   loginCard.hidden = false; deniedCard.hidden = true; dashboard.hidden = true;
-  whoamiEl.hidden = true; logoutBtn.hidden = true;
+  whoamiEl.hidden = true; logoutBtn.hidden = true; menuBtn.hidden = true;
   resetHcaptcha();
 }
 function showDenied(){
   loginCard.hidden = true; deniedCard.hidden = false; dashboard.hidden = true;
-  whoamiEl.hidden = true; logoutBtn.hidden = true;
+  whoamiEl.hidden = true; logoutBtn.hidden = true; menuBtn.hidden = true;
 }
 function showDashboard(){
   loginCard.hidden = true; deniedCard.hidden = true; dashboard.hidden = false;
   whoamiEl.hidden = false; whoamiEl.textContent = authSession.user.email;
-  logoutBtn.hidden = false;
+  logoutBtn.hidden = false; menuBtn.hidden = false;
+  sidebarEmailEl.textContent = authSession.user.email;
+  avatarEl.textContent = initials(authSession.user.email);
   loadAccounts(); loadLiveSessions(); loadSettings();
 }
 
@@ -214,40 +252,78 @@ $('#adminTabs').addEventListener('click', (e) => {
   ['accounts','live','settings'].forEach(name => {
     $('#tab-' + name).hidden = (name !== btn.dataset.tab);
   });
+  closeMobileNav();
 });
+
+/* ============================================================== KPI row */
+let liveSessionsCache = [];
+function renderKpis(){
+  const wrap = $('#adminKpiRow');
+  const total = accountsCache.length;
+  const admins = accountsCache.filter(a => a.is_admin).length;
+  const suspended = accountsCache.filter(a => a.is_suspended).length;
+  const liveNow = liveSessionsCache.length;
+  wrap.innerHTML = `
+    <div class="admin-kpi-card">
+      <div class="admin-kpi-label"><svg viewBox="0 0 24 24"><use href="#i-user"/></svg>Accounts</div>
+      <div class="admin-kpi-value">${total}</div>
+    </div>
+    <div class="admin-kpi-card">
+      <div class="admin-kpi-label"><svg viewBox="0 0 24 24"><use href="#i-cloud"/></svg>Live now</div>
+      <div class="admin-kpi-value turf">${liveNow}</div>
+    </div>
+    <div class="admin-kpi-card">
+      <div class="admin-kpi-label"><svg viewBox="0 0 24 24"><use href="#i-lock"/></svg>Admins</div>
+      <div class="admin-kpi-value">${admins}</div>
+    </div>
+    <div class="admin-kpi-card">
+      <div class="admin-kpi-label"><svg viewBox="0 0 24 24"><use href="#i-gear"/></svg>Suspended</div>
+      <div class="admin-kpi-value${suspended ? ' danger' : ''}">${suspended}</div>
+    </div>
+  `;
+}
 
 /* ============================================================= Accounts */
 let accountsCache = [];
 async function loadAccounts(){
   const wrap = $('#accountsTableWrap');
-  wrap.innerHTML = '<p class="admin-loading">Loading…</p>';
+  wrap.innerHTML = '<div class="admin-skeleton"></div><div class="admin-skeleton" style="width:80%"></div><div class="admin-skeleton" style="width:60%"></div>';
   try{
     accountsCache = await rpc('admin_list_accounts') || [];
     renderAccounts();
+    renderKpis();
   }catch(e){
-    wrap.innerHTML = '<p class="admin-loading">' + esc(e.message || 'Could not load accounts') + '</p>';
+    wrap.innerHTML = '<p class="admin-empty">' + esc(e.message || 'Could not load accounts') + '</p>';
   }
 }
 function renderAccounts(){
   const wrap = $('#accountsTableWrap');
   const q = ($('#accountsSearch').value || '').trim().toLowerCase();
   const rows = accountsCache.filter(a => !q || (a.email || '').toLowerCase().includes(q));
-  if (!rows.length){ wrap.innerHTML = '<p class="admin-loading">No matching accounts.</p>'; return; }
+  if (!rows.length){ wrap.innerHTML = '<p class="admin-empty">No matching accounts.</p>'; return; }
   wrap.innerHTML = `
     <table class="admin-table">
       <thead><tr>
-        <th>Email</th><th>Joined</th><th>Status</th>
+        <th>Account</th><th>Joined</th><th>Status</th>
         <th>Used today</th><th>Daily limit</th><th>Actions</th>
       </tr></thead>
       <tbody>
         ${rows.map(a => `
           <tr data-id="${esc(a.id)}">
-            <td class="wrap">${esc(a.email || '(no email)')}${a.is_admin ? ' <span class="admin-badge admin">admin</span>' : ''}${a.is_suspended ? ' <span class="admin-badge suspended">suspended</span>' : ''}</td>
-            <td>${a.created_at ? new Date(a.created_at).toLocaleDateString() : '—'}</td>
-            <td>${a.is_suspended ? '<span class="admin-badge suspended">Suspended</span>' : '<span class="admin-badge ok">Active</span>'}</td>
-            <td>${a.sessions_today} / ${a.host_daily_limit == null ? 'default' : a.host_daily_limit}</td>
-            <td><input type="number" min="0" class="admin-limit-input" data-role="limit" placeholder="default" value="${a.host_daily_limit == null ? '' : a.host_daily_limit}"></td>
-            <td>
+            <td class="wrap" data-label="Account">
+              <div class="admin-cell-identity">
+                <span class="admin-row-avatar">${esc(initials(a.email))}</span>
+                <div>
+                  <div>${esc(a.email || '(no email)')}</div>
+                  ${(a.is_admin || a.is_suspended) ? `<div class="admin-cell-badges">${a.is_admin ? '<span class="admin-badge admin">Admin</span>' : ''}${a.is_suspended ? '<span class="admin-badge suspended">Suspended</span>' : ''}</div>` : ''}
+                </div>
+              </div>
+            </td>
+            <td data-label="Joined">${a.created_at ? new Date(a.created_at).toLocaleDateString() : '—'}</td>
+            <td data-label="Status">${a.is_suspended ? '<span class="admin-badge suspended">Suspended</span>' : '<span class="admin-badge ok">Active</span>'}</td>
+            <td data-label="Used today">${a.sessions_today} / ${a.host_daily_limit == null ? 'default' : a.host_daily_limit}</td>
+            <td data-label="Daily limit"><input type="number" min="0" class="admin-limit-input" data-role="limit" placeholder="default" value="${a.host_daily_limit == null ? '' : a.host_daily_limit}"></td>
+            <td class="admin-cell-full" data-label="Actions">
               <div class="admin-row-actions">
                 <button type="button" class="btn ghost sm" data-action="save-limit">Save limit</button>
                 <button type="button" class="btn ghost sm" data-action="toggle-suspend">${a.is_suspended ? 'Unsuspend' : 'Suspend'}</button>
@@ -318,28 +394,34 @@ $('#accountsTableWrap').addEventListener('click', async (e) => {
 /* ========================================================= Live sessions */
 async function loadLiveSessions(){
   const wrap = $('#liveTableWrap');
-  wrap.innerHTML = '<p class="admin-loading">Loading…</p>';
+  wrap.innerHTML = '<div class="admin-skeleton"></div><div class="admin-skeleton" style="width:70%"></div>';
   try{
-    const rows = await rpc('admin_list_live_sessions') || [];
-    if (!rows.length){ wrap.innerHTML = '<p class="admin-loading">Nothing live right now.</p>'; return; }
+    liveSessionsCache = await rpc('admin_list_live_sessions') || [];
+    renderKpis();
+    if (!liveSessionsCache.length){ wrap.innerHTML = '<p class="admin-empty">Nothing live right now.</p>'; return; }
     wrap.innerHTML = `
       <table class="admin-table">
         <thead><tr><th>Host</th><th>Session</th><th>Code</th><th>Started</th><th>Actions</th></tr></thead>
         <tbody>
-          ${rows.map(r => `
+          ${liveSessionsCache.map(r => `
             <tr data-id="${esc(r.id)}">
-              <td class="wrap">${esc(r.host_email || '—')}</td>
-              <td class="wrap">${esc(r.session_name || '—')}</td>
-              <td><code>${esc(r.invite_code)}</code></td>
-              <td>${new Date(r.created_at).toLocaleString()}</td>
-              <td><button type="button" class="btn danger sm" data-action="end">End session</button></td>
+              <td class="wrap" data-label="Host">
+                <div class="admin-cell-identity">
+                  <span class="admin-row-avatar">${esc(initials(r.host_email))}</span>
+                  <span>${esc(r.host_email || '—')}</span>
+                </div>
+              </td>
+              <td class="wrap" data-label="Session">${esc(r.session_name || '—')}</td>
+              <td data-label="Code"><code>${esc(r.invite_code)}</code></td>
+              <td data-label="Started">${new Date(r.created_at).toLocaleString()}</td>
+              <td class="admin-cell-full" data-label="Actions"><button type="button" class="btn danger sm" data-action="end">End session</button></td>
             </tr>
           `).join('')}
         </tbody>
       </table>
     `;
   }catch(e){
-    wrap.innerHTML = '<p class="admin-loading">' + esc(e.message || 'Could not load live sessions') + '</p>';
+    wrap.innerHTML = '<p class="admin-empty">' + esc(e.message || 'Could not load live sessions') + '</p>';
   }
 }
 $('#liveRefreshBtn').addEventListener('click', loadLiveSessions);
@@ -362,7 +444,7 @@ async function loadSettings(){
   const form = $('#settingsForm');
   const errBox = $('#settingsError');
   errBox.hidden = true;
-  form.innerHTML = '<p class="admin-loading">Loading…</p>';
+  form.innerHTML = '<div class="admin-skeleton"></div><div class="admin-skeleton" style="width:70%"></div><div class="admin-skeleton" style="width:85%"></div>';
   try{
     const rows = await sb('/rest/v1/site_settings?select=key,value', { method: 'GET' });
     const map = {};
