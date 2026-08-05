@@ -55,6 +55,7 @@
   <symbol id="i-sub" viewBox="0 0 24 24"><path fill="currentColor" d="M17 3a4 4 0 0 1 4 4v1h-2V7a2 2 0 0 0-2-2h-1.6l1.3 1.3-1.4 1.4L11.7 4l3.6-3.7 1.4 1.4L15.4 3H17Zm-10 18a4 4 0 0 1-4-4v-1h2v1a2 2 0 0 0 2 2h1.6l-1.3-1.3 1.4-1.4 3.6 3.7-3.6 3.7-1.4-1.4L8.6 21H7ZM12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8Zm0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z"/></symbol>
   <symbol id="i-user" viewBox="0 0 24 24"><path fill="currentColor" d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0 2c-4.4 0-8 2.2-8 5v2h16v-2c0-2.8-3.6-5-8-5Z"/></symbol>
   <symbol id="i-info" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 2a8 8 0 1 1 0 16 8 8 0 0 1 0-16Zm-1.1 5.6h2.2v2.2h-2.2V9.6Zm0 3.7h2.2v5.9h-2.2v-5.9Z"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25ZM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83Z"/></symbol>
 </svg>
 
 <div class="flag-strip" aria-hidden="true"></div>
@@ -508,6 +509,21 @@
     <div class="modal-actions">
       <button type="button" class="btn ghost" id="levelPickerCancelBtn">Cancel</button>
     </div>
+  </div>
+</div>
+
+<!-- Rename player modal (Settings → Known players) -->
+<div class="overlay" id="renamePlayerOverlay" hidden>
+  <div class="modal rename-player-modal" role="dialog" aria-modal="true" aria-labelledby="renamePlayerTitle">
+    <h3 id="renamePlayerTitle">Rename player</h3>
+    <p class="add-hint" style="padding:0;margin:0 0 .6rem">Updates this player everywhere they currently appear — waiting to check in, in the stack, in a block, or on a court.</p>
+    <form id="renamePlayerForm">
+      <input type="text" id="renamePlayerInput" maxlength="40" autocomplete="off" required>
+      <div class="modal-actions">
+        <button type="submit" class="btn primary">Save</button>
+        <button type="button" class="btn ghost" id="renamePlayerCancelBtn">Cancel</button>
+      </div>
+    </form>
   </div>
 </div>
 
