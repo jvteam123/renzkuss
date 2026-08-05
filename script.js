@@ -2912,7 +2912,8 @@ async function getSiteSettings(){
       '/rest/v1/site_settings?select=key,value&key=in.(host_daily_limit_default,maintenance_mode,maintenance_message)',
       { method: 'GET' }, false
     );
-    const rows = await res.json().catch(() => []);
+    if (!res.ok) throw new Error('site_settings fetch failed: HTTP ' + res.status);
+    const rows = await res.json();
     const map = {};
     (Array.isArray(rows) ? rows : []).forEach(r => { map[r.key] = r.value; });
     return {
@@ -2922,6 +2923,11 @@ async function getSiteSettings(){
         'Online hosting is temporarily paused for maintenance — check back soon.'
     };
   }catch(e){
+    // Swallowed on purpose so a hiccup here can't block the whole panel from
+    // rendering — but logged, because silently falling back to the generic
+    // default here means the effective limit shown could be wrong (see the
+    // matching note in getHostAccountInfo below).
+    console.warn('getSiteSettings failed, using fallback default:', e);
     return { defaultLimit: HOST_DAILY_LIMIT_FALLBACK, maintenanceMode: false, maintenanceMessage: '' };
   }
 }
@@ -2936,13 +2942,28 @@ async function getHostAccountInfo(){
       `/rest/v1/profiles?id=eq.${authSession.user.id}&select=host_daily_limit,is_suspended`,
       { method: 'GET' }, true
     );
-    const rows = await res.json().catch(() => []);
+    // IMPORTANT: don't just call res.json() unconditionally here. sbFetch
+    // never throws on a non-2xx response (it just returns whatever the
+    // fetch gave back), so a real error — an expired token, a rejected
+    // request, anything — comes back as a JSON *error object*, not an
+    // array. `Array.isArray(rows)` would be false either way, so treating
+    // "not an array" as "no override, fall back to the site default" means
+    // a genuine failure here looks identical to a normal "no override" —
+    // and this account then gets billed against the SITE default while the
+    // real per-account override (still sitting in the database, and still
+    // what the server-side trigger actually enforces, since that runs as
+    // security definer and doesn't depend on this fetch at all) silently
+    // disagrees. That mismatch is exactly what shows up as "the panel says
+    // I still have credits left, but going live says the limit's reached".
+    if (!res.ok) throw new Error('profiles fetch failed: HTTP ' + res.status);
+    const rows = await res.json();
     const row = Array.isArray(rows) ? rows[0] : null;
     return {
       limit: row && row.host_daily_limit != null ? row.host_daily_limit : null,
       suspended: !!(row && row.is_suspended)
     };
   }catch(e){
+    console.warn('getHostAccountInfo failed \u2014 falling back to "no override"; the actual limit enforced server-side may differ:', e);
     return { limit: null, suspended: false };
   }
 }
@@ -2998,6 +3019,8 @@ async function startHosting(){
       return;
     }
     const usage = await getHostUsageToday();
+    hostUsageToday = usage; // keep the displayed "used today" count in sync with
+                             // the number this check just used, not last render's
     const limit = effectiveHostLimit();
     if (usage >= limit){
       hostErrorMsg = `You've used all ${limit} live matches for today — try again tomorrow.`;
@@ -3014,6 +3037,18 @@ async function startHosting(){
     // trigger (see supabase-schema.sql), which raises these exact error
     // codes if any of this is ever raced or bypassed client-side.
     if (e.message && e.message.indexOf('daily_limit_reached') !== -1){
+      // The server just rejected this using whatever it actually has on
+      // file — which may not match what this tab cached (e.g. an admin
+      // changed the limit, or an earlier fetch of it silently failed and
+      // fell back to a default that didn't apply). Re-pull everything
+      // fresh before wording the message, so what's shown can't disagree
+      // with what the server just enforced.
+      const [freshUsage, freshAccountInfo, freshSettings] = await Promise.all([
+        getHostUsageToday().catch(() => hostUsageToday),
+        getHostAccountInfo(),
+        getSiteSettings()
+      ]);
+      hostUsageToday = freshUsage; hostAccountInfo = freshAccountInfo; siteSettingsCache = freshSettings;
       hostErrorMsg = `You've used all ${effectiveHostLimit()} live matches for today — try again tomorrow.`;
     } else if (e.message && e.message.indexOf('host_suspended') !== -1){
       hostErrorMsg = 'This account has been suspended from online hosting.';
