@@ -869,6 +869,7 @@ function renderRosterManageList(filter){
       <span class="rm-avatar" style="background:${avatarColor(name)}">${initials(name)}</span>
       <span class="rm-name">${esc(name)}</span>
       ${statusTag}
+      <button type="button" class="rm-edit" data-name="${esc(name)}" aria-label="Rename ${esc(name)}"><svg viewBox="0 0 24 24"><use href="#i-pencil"/></svg></button>
       <button type="button" class="rm-del" data-name="${esc(name)}" aria-label="Remove ${esc(name)} from saved players"><svg viewBox="0 0 24 24"><use href="#i-x"/></svg></button>
     </div>
   `;
@@ -877,7 +878,9 @@ function renderRosterManageList(filter){
 const rosterManageListEl = $('#rosterManageList');
 if (rosterManageListEl){
   rosterManageListEl.addEventListener('click', async (e) => {
-    const btn = e.target.closest('button[data-name]');
+    const editBtn = e.target.closest('.rm-edit');
+    if (editBtn){ openRenamePlayer(editBtn.dataset.name); return; }
+    const btn = e.target.closest('.rm-del');
     if (!btn) return;
     const name = btn.dataset.name;
     if (!(await showConfirm('This just clears the suggestion — it won\'t affect history or rankings.', {title: 'Remove "' + name + '" from saved players?', confirmLabel: 'Remove', danger: true}))) return;
@@ -885,6 +888,83 @@ if (rosterManageListEl){
     toast(name + ' removed from saved players');
   });
 }
+
+/* ---- Rename a known player (Settings) ----
+   Renames the player everywhere they currently appear — arrivals (waiting
+   to check in), the stack, a winners/losers block, and any court they're
+   playing on — plus their saved roster entry, skill level, fixed-duo
+   entries, and teammate-pairing memory. Past history and stats keep the
+   name that was recorded at the time, same as a real match record would. */
+const renamePlayerOverlay = $('#renamePlayerOverlay');
+const renamePlayerForm = $('#renamePlayerForm');
+const renamePlayerInput = $('#renamePlayerInput');
+const renamePlayerCancelBtn = $('#renamePlayerCancelBtn');
+let renamePlayerOriginal = null;
+function openRenamePlayer(name){
+  if (!name || !renamePlayerOverlay) return;
+  renamePlayerOriginal = name;
+  renamePlayerInput.value = name;
+  renamePlayerOverlay.hidden = false;
+  renamePlayerInput.focus();
+  renamePlayerInput.select();
+}
+function closeRenamePlayer(){
+  if (!renamePlayerOverlay || renamePlayerOverlay.hidden) return;
+  renamePlayerOverlay.hidden = true;
+  renamePlayerOriginal = null;
+}
+function renamePlayerEverywhere(oldName, newName){
+  const oldLower = oldName.toLowerCase();
+  state.arrivals.forEach(p => { if (p.name.toLowerCase() === oldLower) p.name = newName; });
+  state.stack.forEach(p => { if (p.name.toLowerCase() === oldLower) p.name = newName; });
+  state.winnersBlock.forEach(p => { if (p.name.toLowerCase() === oldLower) p.name = newName; });
+  state.losersBlock.forEach(p => { if (p.name.toLowerCase() === oldLower) p.name = newName; });
+  state.courts.forEach(c => {
+    c.players = c.players.map(n => n.toLowerCase() === oldLower ? newName : n);
+  });
+  const rIdx = state.roster.findIndex(r => r.toLowerCase() === oldLower);
+  if (rIdx !== -1) state.roster[rIdx] = newName; else state.roster.push(newName);
+  if (state.playerLevels && Object.prototype.hasOwnProperty.call(state.playerLevels, oldName)){
+    state.playerLevels[newName] = state.playerLevels[oldName];
+    delete state.playerLevels[oldName];
+  }
+  if (Array.isArray(state.session.fixedDuos)){
+    state.session.fixedDuos.forEach(d => {
+      if (d.a.toLowerCase() === oldLower) d.a = newName;
+      if (d.b.toLowerCase() === oldLower) d.b = newName;
+    });
+  }
+  if (state.teammateHistory){
+    const rebuilt = {};
+    Object.keys(state.teammateHistory).forEach(key => {
+      const parts = key.split('||');
+      const renamed = parts.map(p => p.toLowerCase() === oldLower ? newName : p);
+      const newKey = pairKey(renamed[0], renamed[1]);
+      rebuilt[newKey] = (rebuilt[newKey] || 0) + state.teammateHistory[key];
+    });
+    state.teammateHistory = rebuilt;
+  }
+}
+if (renamePlayerForm){
+  renamePlayerForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (!renamePlayerOriginal) return closeRenamePlayer();
+    const oldName = renamePlayerOriginal;
+    const newName = renamePlayerInput.value.trim();
+    if (!newName){ toast('Enter a name'); return; }
+    if (newName === oldName){ closeRenamePlayer(); return; }
+    const newLower = newName.toLowerCase();
+    const collision = newLower !== oldName.toLowerCase() && (state.roster.some(n => n.toLowerCase() === newLower) || isNameActive(newName));
+    if (collision){ toast(newName + ' is already in use by another player'); return; }
+    renamePlayerEverywhere(oldName, newName);
+    closeRenamePlayer();
+    renderAll(); persist();
+    toast(oldName + ' renamed to ' + newName);
+  });
+}
+if (renamePlayerCancelBtn) renamePlayerCancelBtn.addEventListener('click', closeRenamePlayer);
+if (renamePlayerOverlay) renamePlayerOverlay.addEventListener('click', (e) => { if (e.target === renamePlayerOverlay) closeRenamePlayer(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && renamePlayerOverlay && !renamePlayerOverlay.hidden) closeRenamePlayer(); });
 const rosterClearAllBtn = $('#rosterClearAllBtn');
 if (rosterClearAllBtn){
   rosterClearAllBtn.addEventListener('click', async () => {
@@ -2739,6 +2819,15 @@ let siteSettingsCache = null; // { maintenanceMode, maintenanceMessage, defaultL
 let hostPushTimer = null;
 let hostPushPending = false;
 let viewerPollTimer = null;
+let hostReconnecting = false;       // true once a push/keepalive to Supabase has failed while
+                                     // still (as far as we know) live — drives the "Reconnecting…"
+                                     // pill/badge until a request succeeds again
+let hostReconnectRetryTimer = null; // fast retry loop, only running while hostReconnecting
+let viewerPollFn = null;            // set inside enterViewerMode; lets the global 'online'
+                                     // listener trigger an immediate re-poll instead of waiting
+                                     // out the rest of the current 4s interval
+let viewerSetMsgFn = null;          // ditto, for writing "Reconnecting to live…" into the banner
+                                     // the instant the browser reports it went offline
 let remoteLiveSession = null; // { id, invite_code, session_name } | null — a live match this
                                // account is already hosting, per the server, that this device
                                // doesn't know about locally (e.g. started on another device
@@ -2774,6 +2863,11 @@ function loadAuthSession(){
 }
 function saveHostSession(session){
   hostSession = session;
+  // Whatever session we had before (if any) is gone either way — don't carry
+  // a stale "reconnecting" pill or a queued push for it into the new state.
+  hostReconnecting = false;
+  hostPushPending = false;
+  stopHostReconnectRetry();
   try{
     if (session) localStorage.setItem(HOST_STORAGE_KEY, JSON.stringify(session));
     else localStorage.removeItem(HOST_STORAGE_KEY);
@@ -3257,34 +3351,77 @@ async function checkHostStillLive(){
     const data = await res.json().catch(() => []);
     const row = Array.isArray(data) ? data[0] : null;
     if (!row || row.status !== 'live'){
+      stopHostReconnectRetry();
       saveHostSession(null);
       updateHostIndicator();
       renderHostPanel();
       toast('Your hosted match ended \u2014 it was idle for a while, so it auto-stopped. Go live again to keep sharing.', 'info');
       return false;
     }
+    setHostReconnecting(false); // this request reached the server, so we're clearly connected
     return true;
   }catch(e){
-    return true; // network hiccup — don't clear a possibly-still-live session over a blip
+    setHostReconnecting(true); // network hiccup — flag it, but don't clear a possibly-still-live
+                                // session over a blip; the retry loop will keep checking
+    return true;
   }
 }
 setInterval(() => { if (hostSession) checkHostStillLive(); }, 2 * 60 * 1000);
+
+/* ---- Reconnection handling ----
+   A push or keepalive failing doesn't necessarily mean the match stopped —
+   most of the time it's a wifi blip or a spotty venue connection. Instead
+   of failing silently (the old behavior) or tearing down the session, we
+   flag it as "reconnecting", surface that in the LIVE pill and host panel,
+   and keep retrying every few seconds until one succeeds — at which point
+   we flip straight back to "Live now" with no action needed from the host. */
+function setHostReconnecting(flag){
+  if (hostReconnecting === flag) return;
+  hostReconnecting = flag;
+  updateHostIndicator();
+  renderHostPanel();
+  if (flag){
+    if (!hostReconnectRetryTimer){
+      hostReconnectRetryTimer = setInterval(() => {
+        if (!hostSession){ stopHostReconnectRetry(); return; }
+        if (hostPushPending) pushStateNow();
+        else checkHostStillLive();
+      }, 4000);
+    }
+  } else {
+    stopHostReconnectRetry();
+    toast('Back online \u2014 still live', 'info');
+  }
+}
+function stopHostReconnectRetry(){
+  if (hostReconnectRetryTimer){ clearInterval(hostReconnectRetryTimer); hostReconnectRetryTimer = null; }
+}
+
+async function pushStateNow(){
+  if (!hostSession) return;
+  try{
+    await sbFetch(`/rest/v1/hosted_sessions?id=eq.${hostSession.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ state: state, session_name: state.session.name })
+    }, true);
+    hostPushPending = false;
+    setHostReconnecting(false);
+  }catch(e){
+    // Leave hostPushPending true — the fast retry loop (or the next state
+    // change, whichever comes first) will resend this same latest state.
+    setHostReconnecting(true);
+  }
+}
 
 function queueHostPush(){
   if (!hostSession || viewerMode) return;
   hostPushPending = true;
   if (hostPushTimer) return;
-  hostPushTimer = setTimeout(async () => {
+  hostPushTimer = setTimeout(() => {
     hostPushTimer = null;
     if (!hostPushPending || !hostSession) return;
-    hostPushPending = false;
-    try{
-      await sbFetch(`/rest/v1/hosted_sessions?id=eq.${hostSession.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-        body: JSON.stringify({ state: state, session_name: state.session.name })
-      }, true);
-    }catch(e){ /* silent — next state change will retry the push */ }
+    pushStateNow();
   }, 1500);
 }
 
@@ -3294,7 +3431,11 @@ const hostPanelBody = $('#hostPanelBody');
 const liveHostPill = $('#liveHostPill');
 
 function updateHostIndicator(){
-  if (liveHostPill) liveHostPill.hidden = !hostSession;
+  if (!liveHostPill) return;
+  liveHostPill.hidden = !hostSession;
+  const showReconnecting = !!hostSession && hostReconnecting;
+  liveHostPill.textContent = showReconnecting ? '\uD83D\uDFE1 Reconnecting\u2026' : '\uD83D\uDD34 LIVE';
+  liveHostPill.classList.toggle('is-reconnecting', showReconnecting);
 }
 
 function joinUrlFor(code){
@@ -3453,7 +3594,8 @@ function renderHostPanel(){
   hostPanelBody.innerHTML = `
     ${hostAccountRowHTML()}
     <div class="host-live-card">
-      <span class="host-live-badge">🔴 Live now</span>
+      <span class="host-live-badge${hostReconnecting ? ' host-live-badge--reconnecting' : ''}">${hostReconnecting ? '🟡 Reconnecting…' : '🔴 Live now'}</span>
+      ${hostReconnecting ? `<p class="host-live-note" style="margin-top:.3rem">Lost the connection to the server — retrying automatically. Viewers may see a slightly stale score until this reconnects; no need to stop and restart.</p>` : ''}
       <div class="host-invite-code" id="hostInviteCodeText">${esc(hostSession.invite_code)}</div>
       <div class="host-qr-box" id="hostQrBox"></div>
       <div class="host-live-actions">
@@ -3609,6 +3751,7 @@ function enterViewerMode(code){
   if (banner) banner.hidden = false;
   function setMsg(text){ if (msgEl) msgEl.textContent = text; }
   setMsg('Connecting…');
+  viewerSetMsgFn = setMsg; // let the global 'offline' listener update this banner instantly
 
   /* ---- Opt-in browser notifications: "match ended" + "next up changed" ----
      Spectators tap the bell once to grant permission; after that we notify
@@ -3800,13 +3943,40 @@ function enterViewerMode(code){
       lastStatus = row.status;
       firstPoll = false;
     }catch(e){
-      setMsg('Having trouble connecting: ' + (e.message || e) + ' \u2014 retrying…');
+      // A thrown fetch (as opposed to a non-OK response, handled above) usually
+      // means the request never left the device — no internet, DNS failure,
+      // etc. Lead with "Reconnecting to live…" in that case since that's the
+      // actionable, reassuring read; fall back to the raw error otherwise.
+      setMsg(!navigator.onLine
+        ? 'Reconnecting to live\u2026'
+        : 'Having trouble connecting: ' + (e.message || e) + ' \u2014 retrying…');
       console.error('Viewer poll error:', e);
     }
   }
   poll();
+  viewerPollFn = poll; // let the global 'online' listener re-poll immediately instead of
+                        // waiting out the rest of the current 4s interval
   viewerPollTimer = setInterval(poll, 4000);
 }
+
+/* ---- Network status: shared by the host push loop and the viewer poll loop ----
+   The browser fires 'offline'/'online' the moment the OS notices a change,
+   which is faster and more reliable than waiting for a scheduled push/poll
+   to happen to fail. 'offline' flips the UI to "Reconnecting…" right away;
+   'online' immediately retries instead of sitting out the rest of the
+   current interval, so things snap back to live within a second or two of
+   the network actually coming back. */
+window.addEventListener('offline', () => {
+  if (hostSession) setHostReconnecting(true);
+  if (viewerMode && viewerSetMsgFn) viewerSetMsgFn('Reconnecting to live\u2026');
+});
+window.addEventListener('online', () => {
+  if (hostSession){
+    if (hostPushPending) pushStateNow();
+    else checkHostStillLive();
+  }
+  if (viewerMode && viewerPollFn) viewerPollFn();
+});
 
 /* ================= Render orchestration ================= */
 function renderAll(){
