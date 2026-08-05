@@ -1097,6 +1097,23 @@ function splitTeams(names){
 function avatarHtml(name){
   return `<span class="avatar" style="background:${avatarColor(name)}">${initials(name)}</span>`;
 }
+// Shared "Signed in as ..." row shown at the top of every logged-in host-panel
+// state — one place so the avatar chip and any status badge (e.g. suspended)
+// stay consistent everywhere it appears, instead of six copies drifting apart.
+function hostAccountRowHTML(){
+  const email = authSession.user.email;
+  const suspended = hostAccountInfo && hostAccountInfo.suspended;
+  return `
+    <div class="host-account-row">
+      <div class="host-account-identity">
+        ${avatarHtml(email)}
+        <span>Signed in as <b>${esc(email)}</b></span>
+        ${suspended ? '<span class="host-status-badge suspended">Suspended</span>' : ''}
+      </div>
+      <button type="button" class="btn ghost sm" id="hostSignOutBtn">Log out</button>
+    </div>
+  `;
+}
 function playerRowHtml(name, swap, sub){
   const stats = state.playerStats[name];
   const winChip = (stats && stats.wins > 0) ? `<span class="win-chip">🏆${stats.wins}</span>` : '';
@@ -3328,16 +3345,18 @@ function renderHostPanel(){
     const used = hostUsageToday === null ? '…' : hostUsageToday;
     const limit = effectiveHostLimit();
     const atLimit = typeof used === 'number' && used >= limit;
+    // While the day's usage count is still loading, show a shimmer instead of
+    // a bare "… / N" — same treatment as /admin's loading placeholders.
+    const usageRowHTML = hostUsageToday === null
+      ? `<div class="host-skeleton" style="width:70%"></div>`
+      : `<div class="host-usage-row"><span>Live matches used today</span><b>${used} / ${limit}</b></div>`;
 
     // A suspended account is blocked outright, regardless of any other
     // state (already-live-elsewhere, a just-stopped session, etc.) — an
     // admin turned hosting off for this account specifically.
     if (hostAccountInfo && hostAccountInfo.suspended){
       hostPanelBody.innerHTML = `
-        <div class="host-account-row">
-          <span>Signed in as <b>${esc(authSession.user.email)}</b></span>
-          <button type="button" class="btn ghost sm" id="hostSignOutBtn">Log out</button>
-        </div>
+        ${hostAccountRowHTML()}
         <div class="host-error">This account has been suspended from online hosting. Contact the site admin if you think that's a mistake.</div>
       `;
       return;
@@ -3345,21 +3364,16 @@ function renderHostPanel(){
 
     if (!remoteLiveChecked){
       hostPanelBody.innerHTML = `
-        <div class="host-account-row">
-          <span>Signed in as <b>${esc(authSession.user.email)}</b></span>
-          <button type="button" class="btn ghost sm" id="hostSignOutBtn">Log out</button>
-        </div>
-        <p class="host-live-note">Checking for a live match already running on this account…</p>
+        ${hostAccountRowHTML()}
+        <div class="host-skeleton" style="width:85%"></div>
+        <div class="host-skeleton" style="width:55%"></div>
       `;
       return;
     }
 
     if (remoteLiveSession){
       hostPanelBody.innerHTML = `
-        <div class="host-account-row">
-          <span>Signed in as <b>${esc(authSession.user.email)}</b></span>
-          <button type="button" class="btn ghost sm" id="hostSignOutBtn">Log out</button>
-        </div>
+        ${hostAccountRowHTML()}
         ${hostErrorMsg ? `<div class="host-error">${esc(hostErrorMsg)}</div>` : ''}
         <div class="host-live-card">
           <span class="host-live-badge">🔴 Already live elsewhere</span>
@@ -3376,17 +3390,14 @@ function renderHostPanel(){
 
     if (lastStoppedHost){
       hostPanelBody.innerHTML = `
-        <div class="host-account-row">
-          <span>Signed in as <b>${esc(authSession.user.email)}</b></span>
-          <button type="button" class="btn ghost sm" id="hostSignOutBtn">Log out</button>
-        </div>
+        ${hostAccountRowHTML()}
         ${hostErrorMsg ? `<div class="host-error">${esc(hostErrorMsg)}</div>` : ''}
         <div class="host-live-card">
           <span class="host-live-badge host-live-badge--stopped">⏸ Hosting stopped</span>
           <p class="host-live-note" style="margin-top:.3rem">
             You stopped hosting \u201c${esc(lastStoppedHost.session_name || 'your match')}\u201d (code ${esc(lastStoppedHost.invite_code)}). Resume to go live again on that exact same code and link — or start a new session instead.
           </p>
-          <div class="host-usage-row"><span>Live matches used today</span><b>${used} / ${limit}</b></div>
+          ${usageRowHTML}
           ${siteSettingsCache && siteSettingsCache.maintenanceMode ? `<p class="host-live-note">${esc(siteSettingsCache.maintenanceMessage)}</p>` : ''}
           <button type="button" class="btn primary" id="hostResumeStoppedBtn" style="width:100%;margin-top:.5rem" ${hostBusy ? 'disabled' : ''}>${hostBusy ? 'Working…' : `🔴 Resume on code ${esc(lastStoppedHost.invite_code)}`}</button>
           <button type="button" class="btn ghost" id="hostNewSessionGoLiveBtn" style="width:100%;margin-top:.4rem" ${(hostBusy || atLimit || (siteSettingsCache && siteSettingsCache.maintenanceMode)) ? 'disabled' : ''}>Start a new session & go live</button>
@@ -3397,12 +3408,9 @@ function renderHostPanel(){
     }
 
     hostPanelBody.innerHTML = `
-      <div class="host-account-row">
-        <span>Signed in as <b>${esc(authSession.user.email)}</b></span>
-        <button type="button" class="btn ghost sm" id="hostSignOutBtn">Log out</button>
-      </div>
+      ${hostAccountRowHTML()}
       ${hostErrorMsg ? `<div class="host-error">${esc(hostErrorMsg)}</div>` : ''}
-      <div class="host-usage-row"><span>Live matches used today</span><b>${used} / ${limit}</b></div>
+      ${usageRowHTML}
       ${siteSettingsCache && siteSettingsCache.maintenanceMode ? `<p class="host-live-note">${esc(siteSettingsCache.maintenanceMessage)}</p>` : ''}
       <button type="button" class="btn primary" id="hostGoLiveBtn" style="width:100%" ${(hostBusy || atLimit || (siteSettingsCache && siteSettingsCache.maintenanceMode)) ? 'disabled' : ''}>
         ${hostBusy ? 'Going live…' : (atLimit ? 'Daily limit reached' : ((siteSettingsCache && siteSettingsCache.maintenanceMode) ? 'Paused for maintenance' : '🔴 Go live'))}
@@ -3414,10 +3422,7 @@ function renderHostPanel(){
 
   const url = joinUrlFor(hostSession.invite_code);
   hostPanelBody.innerHTML = `
-    <div class="host-account-row">
-      <span>Signed in as <b>${esc(authSession.user.email)}</b></span>
-      <button type="button" class="btn ghost sm" id="hostSignOutBtn">Log out</button>
-    </div>
+    ${hostAccountRowHTML()}
     <div class="host-live-card">
       <span class="host-live-badge">🔴 Live now</span>
       <div class="host-invite-code" id="hostInviteCodeText">${esc(hostSession.invite_code)}</div>
