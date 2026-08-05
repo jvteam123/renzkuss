@@ -2767,6 +2767,43 @@ const HOST_DAILY_LIMIT_FALLBACK = 5;
 const AUTH_STORAGE_KEY = 'renzkuAuthSession';
 const HOST_STORAGE_KEY = 'renzkuHostSession';
 
+/* ---- Single-device login ----
+   One account can only be "logged in" (i.e. eligible to host) on one
+   device at a time. This device's own id is a random token that lives in
+   localStorage for as long as the browser keeps it; the currently-claimed
+   device for the account lives server-side on profiles.active_device_id
+   (see the claim_device_session / force_claim_device_session functions in
+   supabase-schema.sql). A human-readable label rides along purely for the
+   "log out Chrome on Windows?" wording — it's never used to decide
+   anything. */
+const DEVICE_ID_KEY = 'renzkuDeviceId';
+function getDeviceId(){
+  try{
+    let id = localStorage.getItem(DEVICE_ID_KEY);
+    if (!id){
+      id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ('dev-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2));
+      localStorage.setItem(DEVICE_ID_KEY, id);
+    }
+    return id;
+  }catch(e){ return 'dev-' + Date.now().toString(36); } // storage unavailable (private mode etc.) — still usable, just not stable across reloads
+}
+function deviceLabel(){
+  const ua = navigator.userAgent || '';
+  let browser = 'a browser';
+  if (/Edg\//.test(ua)) browser = 'Edge';
+  else if (/OPR\//.test(ua)) browser = 'Opera';
+  else if (/Chrome\//.test(ua) && !/Chromium/.test(ua)) browser = 'Chrome';
+  else if (/Firefox\//.test(ua)) browser = 'Firefox';
+  else if (/Safari\//.test(ua) && !/Chrome/.test(ua)) browser = 'Safari';
+  let os = '';
+  if (/Windows/.test(ua)) os = 'Windows';
+  else if (/Android/.test(ua)) os = 'Android';
+  else if (/iPhone|iPad|iPod/.test(ua)) os = 'iOS';
+  else if (/Mac OS X/.test(ua)) os = 'Mac';
+  else if (/Linux/.test(ua)) os = 'Linux';
+  return os ? `${browser} on ${os}` : browser;
+}
+
 /* ---- hCaptcha (login/signup only — spectators never see this) ---- */
 const HCAPTCHA_SITE_KEY = '07e29e48-5c84-4020-a036-36ba3aa4758e';
 let hcaptchaReady = false;
@@ -2971,6 +3008,76 @@ async function signOutEverywhere(){
   hostUsageToday = null; hostAccountInfo = null; siteSettingsCache = null;
   renderHostPanel();
 }
+
+/* ---- Single-device login: claim / release / poll ----
+   claim_device_session and force_claim_device_session are Postgres
+   functions (see supabase-schema.sql) that atomically read-then-write
+   profiles.active_device_id so two logins racing on the same account can't
+   both "win". Both fail open (treat as claimed) if the call errors —
+   e.g. the SQL hasn't been applied to this project yet — so a problem
+   here can't lock anyone out of an otherwise-working app. */
+async function claimDeviceSession(token){
+  try{
+    const res = await fetch(SUPABASE_URL + '/rest/v1/rpc/claim_device_session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ p_device_id: getDeviceId(), p_device_label: deviceLabel() })
+    });
+    if (!res.ok) throw new Error('claim_device_session failed: HTTP ' + res.status);
+    const data = await res.json();
+    const row = Array.isArray(data) ? data[0] : data;
+    return row || { claimed: true };
+  }catch(e){
+    console.warn('claimDeviceSession failed, allowing login:', e);
+    return { claimed: true };
+  }
+}
+async function forceClaimDeviceSession(token){
+  try{
+    await fetch(SUPABASE_URL + '/rest/v1/rpc/force_claim_device_session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ p_device_id: getDeviceId(), p_device_label: deviceLabel() })
+    });
+  }catch(e){}
+}
+/* Clears this device's session locally only — no server calls beyond what
+   already happened (the other device already claimed the account server-
+   side). Deliberately does NOT call stopHosting()'s "mark ended" PATCH: if
+   this device was mid-match when it got bumped, the match itself should
+   stay live for the new device to pick up via the existing cross-device
+   resume flow, not get killed out from under it. */
+function forceLocalLogout(message){
+  saveHostSession(null);
+  saveAuthSession(null);
+  hostUsageToday = null; hostAccountInfo = null; siteSettingsCache = null;
+  remoteLiveSession = null; remoteLiveChecked = false;
+  updateHostIndicator();
+  renderHostPanel();
+  toast(message, 'warning');
+}
+/* Polls whether this device still holds the account's claim. Called on a
+   standing interval while logged in, on load, and when the browser comes
+   back online — mirrors checkHostStillLive()'s pattern below. */
+async function checkDeviceStillActive(){
+  if (!authSession) return true;
+  try{
+    const token = await ensureFreshToken();
+    if (!token) return true; // ensureFreshToken already cleared a dead session
+    const res = await fetch(SUPABASE_URL + `/rest/v1/profiles?id=eq.${authSession.user.id}&select=active_device_id`, {
+      headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token }
+    });
+    if (!res.ok) return true; // migration not applied yet, or a hiccup — don't punish for that
+    const rows = await res.json().catch(() => []);
+    const row = Array.isArray(rows) ? rows[0] : null;
+    if (row && row.active_device_id && row.active_device_id !== getDeviceId()){
+      forceLocalLogout('You were logged out here \u2014 this account was signed in on another device.');
+      return false;
+    }
+    return true;
+  }catch(e){ return true; } // network hiccup — the next scheduled check will catch a real change
+}
+setInterval(() => { if (authSession) checkDeviceStillActive(); }, 2 * 60 * 1000);
 
 /* Generic helper for the hosted_sessions REST/RPC calls. Pass useAuth=true
    to sign the request as the logged-in host; otherwise it goes out under
@@ -3727,6 +3834,22 @@ hostOverlay.addEventListener('submit', async (e) => {
       }
     } else {
       await signInEmail(email, password, captchaToken);
+      const claim = await claimDeviceSession(authSession.access_token);
+      if (!claim.claimed){
+        const otherLabel = claim.active_device_label || 'another device';
+        const proceed = await showConfirm(
+          `This account was already logged in on ${otherLabel}. Do you want to log out that device and continue here?`,
+          { title: 'Already logged in elsewhere', confirmLabel: 'Log out other device', cancelLabel: 'Cancel' }
+        );
+        if (!proceed){
+          // Undo the session we just created on this device — the person
+          // chose to leave the other device signed in instead.
+          await signOutEverywhere();
+          return;
+        }
+        await forceClaimDeviceSession(authSession.access_token);
+        toast('Logged out the other device');
+      }
     }
     pendingSignupConfirmation = null;
     hostUsageToday = null; hostAccountInfo = null; siteSettingsCache = null;
@@ -3977,6 +4100,7 @@ window.addEventListener('online', () => {
     if (hostPushPending) pushStateNow();
     else checkHostStillLive();
   }
+  if (authSession) checkDeviceStillActive();
   if (viewerMode && viewerPollFn) viewerPollFn();
 });
 
@@ -4050,6 +4174,7 @@ function renderAll(){
   updateHostIndicator();
   if (hostSession && !authSession) saveHostSession(null); // stale local session with no login to back it
   if (hostSession) checkHostStillLive(); // catch an idle/cron auto-stop that happened while this device was closed
+  if (authSession) checkDeviceStillActive(); // catch a takeover by another device that happened while this device was closed
 })();
 
 })();
