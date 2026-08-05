@@ -20,11 +20,20 @@
                             offline banner slot — admin has no such banner */
 .admin-brand-accent{ color:var(--gold); font-weight:400; }
 .admin-menu-btn{ display:none; }
+/* Both buttons below are .icon-btn (from style.css, display:flex unconditionally)
+   AND get toggled via the `hidden` attribute in admin.js — same author-vs-UA
+   override issue as .admin-centered/.admin-layout above. Scoped here rather
+   than patched into the shared style.css since the main app never hides an
+   .icon-btn this way. */
+#adminLogoutBtn[hidden], #adminMenuBtn[hidden]{ display:none; }
 .admin-whoami{ font-size:.78rem; }
 .admin-logout-icon svg{ width:18px; height:18px; }
 
 /* ---------- Centered auth cards (login / access denied) ---------- */
 .admin-centered{ display:flex; justify-content:center; padding:3rem 1rem; }
+.admin-centered[hidden]{ display:none; } /* an author `display` declaration always wins over
+  the browser's built-in [hidden]{display:none}, even at equal specificity — so without this,
+  toggling .hidden in JS stopped actually hiding this element once display:flex was added above */
 .admin-card{
   width:100%; max-width:420px; background:var(--surface); border:1px solid var(--line);
   border-radius:var(--radius); box-shadow:var(--shadow-md); padding:1.8rem 1.6rem;
@@ -41,6 +50,8 @@
 /* ---------- Overall layout ---------- */
 .admin-root{ max-width:1400px; margin:0 auto; }
 .admin-layout{ display:flex; align-items:flex-start; min-height:calc(100vh - 58px); }
+.admin-layout[hidden]{ display:none; } /* same fix as .admin-centered above — this is the
+  dashboard's own root element, and it also gets toggled via .hidden in admin.js */
 
 .admin-sidebar-backdrop{ display:none; }
 
