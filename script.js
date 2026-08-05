@@ -107,7 +107,7 @@ function cyclePlayerLevel(name){
 function defaultCourts(n){
   return Array.from({length:n}, (_, i) => ({
     id: 'c'+(i+1), name: 'Court '+(i+1), level: 'Open', status:'open', players: [], startTime: null, lastResult: null, swapInfo: null, score: null,
-    previewOrder: null, previewSubMap: null
+    previewOrder: null, previewSubMap: null, openedAt: Date.now()
   }));
 }
 
@@ -1516,9 +1516,14 @@ let swapSelection = null; // { courtId, idx } | null — first player picked, aw
    once there are enough players for it. The 2-minute window is anchored to
    when the court opened — NOT to whether it briefly looks "enough" or not
    as the stack shuffles around — so it doesn't keep resetting itself and
-   never actually firing. ---- */
+   never actually firing.
+
+   That open timestamp lives on the court itself (court.openedAt) rather
+   than in a separate in-memory map, so it's saved with the rest of the
+   state and survives a page reload/reconnect — otherwise a refresh right
+   after a game ended would wipe the clock and hand the host a brand new
+   2 minutes instead of picking up where the real elapsed time left off. ---- */
 const AUTO_START_MS = 2 * 60 * 1000; // how long an open court waits before auto-starting once ready
-let courtOpenSince = {}; // courtId -> timestamp the court became open (last game ended / court created)
 
 function swapCourtPartner(court, idx){
   const arr0 = court.status === 'open' ? court.previewOrder : court.players;
@@ -1677,9 +1682,9 @@ function renderCourts(){
       let matchupHtml;
       let swapHint = '';
       let autoStartHtml = '';
-      if (courtOpenSince[court.id] === undefined) courtOpenSince[court.id] = Date.now(); // e.g. just loaded from storage
+      if (court.openedAt == null) court.openedAt = Date.now(); // e.g. an older saved session predating this field
       if (enough && !ended && !viewerMode && state.session.autoStartEnabled){
-        const remainingMs = AUTO_START_MS - (Date.now() - courtOpenSince[court.id]);
+        const remainingMs = AUTO_START_MS - (Date.now() - court.openedAt);
         autoStartHtml = `<div class="auto-start-hint" data-role="autostart" data-court="${court.id}">Auto-starts in ${fmtClock(Math.max(0, remainingMs))} if nobody taps Start</div>`;
       }
       if (enough){
@@ -1813,7 +1818,7 @@ function callNext(court){
   // the new match), so clear it.
   if (lastUndo && lastUndo.courtId === court.id) lastUndo = null;
   if (swapSelection && swapSelection.courtId === court.id) swapSelection = null;
-  delete courtOpenSince[court.id]; // no longer open — reset once it opens again
+  court.openedAt = null; // no longer open — reset once it opens again
   court.status = 'playing';
   const naturalNames = taken.map(p => p.name);
   const pairing = computeTeamPairing(naturalNames);
@@ -2062,7 +2067,7 @@ $('#endgameConfirm').addEventListener('click', async () => {
   court.score = null;
   court.previewOrder = null;
   court.previewSubMap = null;
-  courtOpenSince[court.id] = Date.now(); // start the 2-minute auto-start window fresh from right now
+  court.openedAt = Date.now(); // start the 2-minute auto-start window fresh from right now
   endgameOverlay.hidden = true;
   toast(court.name + ' cleared');
   renderAll(); persist();
@@ -2219,8 +2224,8 @@ setInterval(() => {
   let dueCourt = null;
   state.courts.forEach(court => {
     if (court.status !== 'open') return;
-    if (courtOpenSince[court.id] === undefined) courtOpenSince[court.id] = Date.now();
-    const remainingMs = AUTO_START_MS - (Date.now() - courtOpenSince[court.id]);
+    if (court.openedAt == null) court.openedAt = Date.now();
+    const remainingMs = AUTO_START_MS - (Date.now() - court.openedAt);
     const slot = openQueue.get(court.id);
     const enough = !!(slot && slot.taken);
     if (remainingMs <= 0){
@@ -2558,9 +2563,8 @@ gameSizeSeg.addEventListener('click', (e) => {
 $('#courtPlus').addEventListener('click', () => {
   if (state.courts.length >= 24) return;
   const n = state.courts.length + 1;
-  const newCourt = { id: nextId('c'), name: 'Court ' + n, level: 'Open', status:'open', players:[], startTime:null, lastResult:null, swapInfo:null, score:null, previewOrder:null, previewSubMap:null };
+  const newCourt = { id: nextId('c'), name: 'Court ' + n, level: 'Open', status:'open', players:[], startTime:null, lastResult:null, swapInfo:null, score:null, previewOrder:null, previewSubMap:null, openedAt: Date.now() };
   state.courts.push(newCourt);
-  courtOpenSince[newCourt.id] = Date.now();
   courtCountNum.textContent = state.courts.length;
   renderCourtNameRows(); persist(); renderAll();
 });
@@ -2625,7 +2629,7 @@ autoStartToggle.addEventListener('change', () => {
   if (autoStartToggle.checked){
     // Give every open court a fresh full window starting now, rather than
     // picking up wherever an old (pre-toggle-off) clock left off.
-    state.courts.forEach(c => { if (c.status === 'open') courtOpenSince[c.id] = Date.now(); });
+    state.courts.forEach(c => { if (c.status === 'open') c.openedAt = Date.now(); });
   }
   persist(); renderAll();
 });
@@ -2704,9 +2708,7 @@ function startFreshSessionKeepingRoster(){
   state.playerStats = {};
   state.teammateHistory = {};
   state.session.status = 'active';
-  state.courts.forEach(c => { c.status = 'open'; c.players = []; c.startTime = null; c.lastResult = null; c.swapInfo = null; c.previewOrder = null; c.previewSubMap = null; });
-  courtOpenSince = {};
-  state.courts.forEach(c => { courtOpenSince[c.id] = Date.now(); });
+  state.courts.forEach(c => { c.status = 'open'; c.players = []; c.startTime = null; c.lastResult = null; c.swapInfo = null; c.previewOrder = null; c.previewSubMap = null; c.openedAt = Date.now(); });
   persist();
   applySessionLockUI();
   renderRosterList();
