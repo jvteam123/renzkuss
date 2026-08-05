@@ -691,18 +691,21 @@ function renderBlocks(){
   }
 
   // Read-only mirror of the same data for the spectator view (no "Queue
-  // now" controls — flushing blocks is a host action). Kept in sync
-  // whenever renderAll() runs, host or viewer, but only ever shown while
-  // body.viewer-mode is set (see CSS), so this is a no-op visually on the
-  // host's own screen.
+  // now" controls — flushing blocks is a host action). Only ever populated
+  // and shown in viewer mode — on the host's own screen it stays hidden,
+  // since the host already has the full interactive panel above.
   const vPanel = $('#viewerBlocksPanel');
   if (vPanel){
-    vPanel.hidden = !hasAny;
-    if (hasAny){
-      $('#viewerWinnersBlockCount').textContent = state.winnersBlock.length + ' waiting';
-      $('#viewerLosersBlockCount').textContent = state.losersBlock.length + ' waiting';
-      $('#viewerWinnersBlockList').innerHTML = blockListHtml(state.winnersBlock, gameSize, 'winnersBlock', true);
-      $('#viewerLosersBlockList').innerHTML = blockListHtml(state.losersBlock, gameSize, 'losersBlock', true);
+    if (!viewerMode){
+      vPanel.hidden = true;
+    } else {
+      vPanel.hidden = !hasAny;
+      if (hasAny){
+        $('#viewerWinnersBlockCount').textContent = state.winnersBlock.length + ' waiting';
+        $('#viewerLosersBlockCount').textContent = state.losersBlock.length + ' waiting';
+        $('#viewerWinnersBlockList').innerHTML = blockListHtml(state.winnersBlock, gameSize, 'winnersBlock', true);
+        $('#viewerLosersBlockList').innerHTML = blockListHtml(state.losersBlock, gameSize, 'losersBlock', true);
+      }
     }
   }
 }
