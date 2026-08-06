@@ -1515,6 +1515,21 @@ function scoreboardHtml(court){
    court.players, letting the host remix teams before hitting "Start Game". */
 let swapSelection = null; // { courtId, idx } | null — first player picked, awaiting a second
 
+/* Looks up who (and which court) the pending swap selection points at, so
+   every court's card can show a hint — not just the one the selection was
+   made on. Swaps aren't limited to trading two spots on the same court:
+   tapping a player on any other court's lineup completes a cross-court
+   swap instead, letting the host pull a partner over from a different
+   match rather than only reshuffling players already on their own court. */
+function pendingSwapInfo(){
+  if (!swapSelection) return null;
+  const c = state.courts.find(x => x.id === swapSelection.courtId);
+  if (!c) return null;
+  const arr = c.status === 'open' ? c.previewOrder : c.players;
+  const name = arr ? arr[swapSelection.idx] : null;
+  return name ? { court: c, idx: swapSelection.idx, name } : null;
+}
+
 /* ---- Auto-start: give the host up to 2 minutes after a court opens (a
    previous game there just ended, or it's a freshly added/reset court) to
    tap "Start Game" themselves; if they never do, start it automatically
@@ -1536,23 +1551,42 @@ function swapCourtPartner(court, idx){
     toast('That pairing is fixed \u2014 can\u2019t swap them apart', 'warning');
     return;
   }
-  if (!swapSelection || swapSelection.courtId !== court.id){
+  if (!swapSelection){
     swapSelection = { courtId: court.id, idx };
     renderCourts();
     return;
   }
-  if (swapSelection.idx === idx){
+  if (swapSelection.courtId === court.id && swapSelection.idx === idx){
     swapSelection = null;
     renderCourts();
     return;
   }
+  const fromCourt = state.courts.find(c => c.id === swapSelection.courtId);
+  if (!fromCourt){ swapSelection = null; renderCourts(); return; }
+  const fromArr = fromCourt.status === 'open' ? fromCourt.previewOrder : fromCourt.players;
+  const toArr = arr0;
+  if (!fromArr || !toArr){ swapSelection = null; renderCourts(); return; }
   const otherIdx = swapSelection.idx;
-  const arr = court.status === 'open' ? court.previewOrder : court.players;
-  if (!arr){ swapSelection = null; renderCourts(); return; }
-  const nameA = arr[otherIdx], nameB = arr[idx];
-  [arr[otherIdx], arr[idx]] = [arr[idx], arr[otherIdx]];
+
+  if (fromCourt.id === court.id){
+    // Same-court swap: trade two spots within one lineup, same as before.
+    const nameA = fromArr[otherIdx], nameB = toArr[idx];
+    [fromArr[otherIdx], fromArr[idx]] = [fromArr[idx], fromArr[otherIdx]];
+    swapSelection = null;
+    toast(`Swapped ${nameA} \u2194 ${nameB}`);
+    renderAll(); persist();
+    return;
+  }
+
+  // Cross-court swap: pull a player over from a different court's lineup
+  // and send whoever was tapped here back to fill the spot they left —
+  // works between two previews, two live matches, or a mix of both.
+  const nameA = fromArr[otherIdx];
+  const nameB = toArr[idx];
+  fromArr[otherIdx] = nameB;
+  toArr[idx] = nameA;
   swapSelection = null;
-  toast(`Swapped ${nameA} ↔ ${nameB}`);
+  toast(`Swapped ${nameA} (${fromCourt.name}) \u2194 ${nameB} (${court.name})`);
   renderAll(); persist();
 }
 
@@ -1706,11 +1740,15 @@ function renderCourts(){
         }
         const [a, b] = splitTeams(names);
         const canSwapPartners = gameSize > 2;
-        const activeSwap = swapSelection && swapSelection.courtId === court.id ? swapSelection.idx : null;
+        const pending = pendingSwapInfo();
+        const activeSwap = (pending && pending.court.id === court.id) ? pending.idx : null;
         const swapCtxA = canSwapPartners ? { baseIdx: 0, selectedIdx: activeSwap } : null;
         const swapCtxB = canSwapPartners ? { baseIdx: a.length, selectedIdx: activeSwap } : null;
-        swapHint = (canSwapPartners && activeSwap !== null)
-          ? `<div class="swap-hint">Tap another player to swap with <b>${esc(names[activeSwap])}</b></div>` : '';
+        swapHint = (canSwapPartners && pending)
+          ? (pending.court.id === court.id
+              ? `<div class="swap-hint">Tap another player to swap with <b>${esc(pending.name)}</b></div>`
+              : `<div class="swap-hint swap-hint-remote">Tap a player here to swap with <b>${esc(pending.name)}</b> <span class="swap-hint-court">(${esc(pending.court.name)})</span></div>`)
+          : '';
         matchupHtml = `<div class="matchup">${teamColHtml(a,'a',gameSize,swapCtxA,0)}<div class="vs-divider"></div>${teamColHtml(b,'b',gameSize,swapCtxB,a.length)}</div>`;
       } else {
         const lvlNote = court.level ? ` ${levelLabel(court.level)}` : '';
@@ -1748,11 +1786,15 @@ function renderCourts(){
       // to swap in singles) and only once a court actually has its full
       // roster of players on it.
       const canSwapPartners = gameSize > 2 && court.players.length === gameSize;
-      const activeSwap = swapSelection && swapSelection.courtId === court.id ? swapSelection.idx : null;
+      const pending = pendingSwapInfo();
+      const activeSwap = (pending && pending.court.id === court.id) ? pending.idx : null;
       const swapCtxA = canSwapPartners ? { baseIdx: 0, selectedIdx: activeSwap } : null;
       const swapCtxB = canSwapPartners ? { baseIdx: a.length, selectedIdx: activeSwap } : null;
-      const swapHint = (canSwapPartners && activeSwap !== null)
-        ? `<div class="swap-hint">Tap another player to swap with <b>${esc(court.players[activeSwap])}</b></div>` : '';
+      const swapHint = (canSwapPartners && pending)
+        ? (pending.court.id === court.id
+            ? `<div class="swap-hint">Tap another player to swap with <b>${esc(pending.name)}</b></div>`
+            : `<div class="swap-hint swap-hint-remote">Tap a player here to swap with <b>${esc(pending.name)}</b> <span class="swap-hint-court">(${esc(pending.court.name)})</span></div>`)
+        : '';
       card.innerHTML = `
         <div class="court-top">
           <span class="court-name-wrap">${courtIcon}<input class="court-name" value="${esc(court.name)}" data-act="rename" maxlength="24" aria-label="Court name"></span>
