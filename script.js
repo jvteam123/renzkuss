@@ -2850,11 +2850,26 @@ let pendingSignupConfirmation = null; // { email, sent:boolean } | null — set 
 let hostBusy = false;      // true while an auth/go-live/stop request is in flight
 let hostErrorMsg = '';
 let hostUsageToday = null; // cached count of sessions started today, refreshed on panel open
-let hostAccountInfo = null; // { limit: number|null, suspended: boolean } for the signed-in
+let hostAccountInfo = null; // { limit: number|null, suspended: boolean, creditBalance: number } for the signed-in
                              // account — null limit means "use the site default"; refreshed
                              // alongside hostUsageToday each time the panel opens
 let siteSettingsCache = null; // { maintenanceMode, maintenanceMessage, defaultLimit } — read
                                // from the public site_settings table; refreshed on panel open
+
+/* ---- Buy credits: purchased credits are a separate carry-over balance
+   (profiles.credit_balance) — they don't reset daily like the free limit
+   does. Going live draws from the daily limit first; only once that's
+   used up does the server start spending from this balance. ---- */
+const CREDIT_PACKAGES = [
+  { credits: 50,  priceLabel: '\u20b1150', amountPhp: 150 },
+  { credits: 100, priceLabel: '\u20b1250', amountPhp: 250 }
+];
+const GCASH_NUMBER = '09624056575';
+let hostBuyOpen = false;          // whether the "Buy credits" packages are expanded
+let hostSelectedPackage = null;   // the CREDIT_PACKAGES entry the user picked, or null
+let hostReceiptFile = null;       // File the user attached, pending upload
+let hostCreditBusy = false;       // true while a purchase request is uploading/submitting
+let hostPendingCreditRequest = undefined; // undefined = not yet fetched, null = none pending, else the row
 let hostPushTimer = null;
 let hostPushPending = false;
 let viewerPollTimer = null;
@@ -3005,7 +3020,7 @@ async function signOutEverywhere(){
     }
   }catch(e){}
   saveAuthSession(null);
-  hostUsageToday = null; hostAccountInfo = null; siteSettingsCache = null;
+  hostUsageToday = null; hostAccountInfo = null; siteSettingsCache = null; hostPendingCreditRequest = undefined; resetBuyCreditsFlow();
   renderHostPanel();
 }
 
@@ -3050,7 +3065,7 @@ async function forceClaimDeviceSession(token){
 function forceLocalLogout(message){
   saveHostSession(null);
   saveAuthSession(null);
-  hostUsageToday = null; hostAccountInfo = null; siteSettingsCache = null;
+  hostUsageToday = null; hostAccountInfo = null; siteSettingsCache = null; hostPendingCreditRequest = undefined; resetBuyCreditsFlow();
   remoteLiveSession = null; remoteLiveChecked = false;
   updateHostIndicator();
   renderHostPanel();
@@ -3185,10 +3200,10 @@ async function getSiteSettings(){
    override (null = use the site default above) and whether an admin has
    suspended it. Requires auth since it's a row keyed to this user's id. */
 async function getHostAccountInfo(){
-  if (!authSession) return { limit: null, suspended: false };
+  if (!authSession) return { limit: null, suspended: false, creditBalance: 0 };
   try{
     const res = await sbFetch(
-      `/rest/v1/profiles?id=eq.${authSession.user.id}&select=host_daily_limit,is_suspended`,
+      `/rest/v1/profiles?id=eq.${authSession.user.id}&select=host_daily_limit,is_suspended,credit_balance`,
       { method: 'GET' }, true
     );
     // IMPORTANT: don't just call res.json() unconditionally here. sbFetch
@@ -3209,12 +3224,77 @@ async function getHostAccountInfo(){
     const row = Array.isArray(rows) ? rows[0] : null;
     return {
       limit: row && row.host_daily_limit != null ? row.host_daily_limit : null,
-      suspended: !!(row && row.is_suspended)
+      suspended: !!(row && row.is_suspended),
+      creditBalance: (row && typeof row.credit_balance === 'number') ? row.credit_balance : 0
     };
   }catch(e){
     console.warn('getHostAccountInfo failed \u2014 falling back to "no override"; the actual limit enforced server-side may differ:', e);
-    return { limit: null, suspended: false };
+    return { limit: null, suspended: false, creditBalance: 0 };
   }
+}
+// Purchased credits still sitting on this account, unspent — 0 if not
+// loaded yet or on a failed fetch (see the warning above).
+function hostCreditBalance(){
+  return (hostAccountInfo && hostAccountInfo.creditBalance) || 0;
+}
+
+/* The most recent credit purchase this account submitted that's still
+   awaiting admin review, if any — shown so the person isn't left
+   wondering whether their "Go live" is still blocked after they already
+   sent a receipt. Cached like hostUsageToday/hostAccountInfo; cleared on
+   logout and after a fresh submission. */
+async function getPendingCreditRequest(){
+  if (!authSession) return null;
+  try{
+    const res = await sbFetch(
+      `/rest/v1/credit_purchase_requests?host_id=eq.${authSession.user.id}&status=eq.pending&select=id,package_credits,amount_php,created_at&order=created_at.desc&limit=1`,
+      { method: 'GET' }, true
+    );
+    if (!res.ok) throw new Error('credit request fetch failed: HTTP ' + res.status);
+    const rows = await res.json();
+    return (Array.isArray(rows) && rows[0]) || null;
+  }catch(e){
+    console.warn('getPendingCreditRequest failed:', e);
+    return null;
+  }
+}
+
+/* Uploads the receipt to private storage, then files the purchase request
+   row. Two steps because the row references the uploaded object's path —
+   if the upload fails we never create a dangling request with no receipt. */
+async function submitCreditPurchase(pkg, file){
+  const token = await ensureFreshToken();
+  if (!token) throw new Error('Session expired — please log in again.');
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+  const path = `${authSession.user.id}/${Date.now()}.${ext}`;
+  const uploadRes = await fetch(`${SUPABASE_URL}/storage/v1/object/receipts/${path}`, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': 'Bearer ' + token,
+      'Content-Type': file.type || 'application/octet-stream'
+    },
+    body: file
+  });
+  if (!uploadRes.ok){
+    const errData = await uploadRes.json().catch(() => null);
+    throw new Error((errData && (errData.message || errData.error)) || 'Could not upload receipt');
+  }
+  const insertRes = await sbFetch('/rest/v1/credit_purchase_requests', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+    body: JSON.stringify({
+      host_id: authSession.user.id,
+      package_credits: pkg.credits,
+      amount_php: pkg.amountPhp,
+      receipt_path: path
+    })
+  }, true);
+  const data = await insertRes.json().catch(() => null);
+  if (!insertRes.ok){
+    throw new Error((data && (data.message || data.error_description || data.hint)) || 'Could not submit purchase request');
+  }
+  return Array.isArray(data) ? data[0] : data;
 }
 
 // Combines the two above into the number that actually governs this
@@ -3271,8 +3351,8 @@ async function startHosting(){
     hostUsageToday = usage; // keep the displayed "used today" count in sync with
                              // the number this check just used, not last render's
     const limit = effectiveHostLimit();
-    if (usage >= limit){
-      hostErrorMsg = `You've used all ${limit} live matches for today — try again tomorrow.`;
+    if (usage >= limit && hostCreditBalance() <= 0){
+      hostErrorMsg = `You've used all ${limit} live matches for today — try again tomorrow, or buy credits below.`;
       return;
     }
     const row = await createHostedSessionWithRetry();
@@ -3298,7 +3378,7 @@ async function startHosting(){
         getSiteSettings()
       ]);
       hostUsageToday = freshUsage; hostAccountInfo = freshAccountInfo; siteSettingsCache = freshSettings;
-      hostErrorMsg = `You've used all ${effectiveHostLimit()} live matches for today — try again tomorrow.`;
+      hostErrorMsg = `You've used all ${effectiveHostLimit()} live matches for today — try again tomorrow, or buy credits below.`;
     } else if (e.message && e.message.indexOf('host_suspended') !== -1){
       hostErrorMsg = 'This account has been suspended from online hosting.';
     } else if (e.message && e.message.indexOf('maintenance_mode') !== -1){
@@ -3621,14 +3701,27 @@ function renderHostPanel(){
     if (!remoteLiveChecked){
       checkRemoteLiveSession().then(renderHostPanel);
     }
+    if (hostPendingCreditRequest === undefined){
+      hostPendingCreditRequest = null; // placeholder so this only kicks off once while the real fetch resolves
+      getPendingCreditRequest().then(r => { hostPendingCreditRequest = r; renderHostPanel(); });
+    }
     const used = hostUsageToday === null ? '…' : hostUsageToday;
     const limit = effectiveHostLimit();
-    const atLimit = typeof used === 'number' && used >= limit;
+    const credits = hostCreditBalance();
+    // The daily free allowance is exhausted AND there's no purchased balance
+    // left to fall back on — this is the only state that actually blocks
+    // "Go live" (the server draws from credits automatically once the daily
+    // count runs out, so having credits left means the button stays enabled).
+    const atLimit = typeof used === 'number' && used >= limit && credits <= 0;
     // While the day's usage count is still loading, show a shimmer instead of
     // a bare "… / N" — same treatment as /admin's loading placeholders.
     const usageRowHTML = hostUsageToday === null
       ? `<div class="host-skeleton" style="width:70%"></div>`
-      : `<div class="host-usage-row"><span>Live matches used today</span><b>${used} / ${limit}</b></div>`;
+      : `<div class="host-usage-row"><span>Live matches used today</span><b>${used} / ${limit}${credits > 0 ? ` <span class="host-credit-balance">+ ${credits} credit${credits === 1 ? '' : 's'}</span>` : ''}</b></div>`;
+    const pendingCreditHTML = hostPendingCreditRequest
+      ? `<div class="host-credit-pending">Your \u20b1${esc(hostPendingCreditRequest.amount_php)} request for ${esc(hostPendingCreditRequest.package_credits)} credits is pending admin review.</div>`
+      : '';
+    const buyCreditsHTML = buyCreditsSectionHTML();
 
     // A suspended account is blocked outright, regardless of any other
     // state (already-live-elsewhere, a just-stopped session, etc.) — an
@@ -3677,10 +3770,12 @@ function renderHostPanel(){
             You stopped hosting \u201c${esc(lastStoppedHost.session_name || 'your match')}\u201d (code ${esc(lastStoppedHost.invite_code)}). Resume to go live again on that exact same code and link — or start a new session instead.
           </p>
           ${usageRowHTML}
+          ${pendingCreditHTML}
           ${siteSettingsCache && siteSettingsCache.maintenanceMode ? `<p class="host-live-note">${esc(siteSettingsCache.maintenanceMessage)}</p>` : ''}
           <button type="button" class="btn primary" id="hostResumeStoppedBtn" style="width:100%;margin-top:.5rem" ${hostBusy ? 'disabled' : ''}>${hostBusy ? 'Working…' : `🔴 Resume on code ${esc(lastStoppedHost.invite_code)}`}</button>
           <button type="button" class="btn ghost" id="hostNewSessionGoLiveBtn" style="width:100%;margin-top:.4rem" ${(hostBusy || atLimit || (siteSettingsCache && siteSettingsCache.maintenanceMode)) ? 'disabled' : ''}>Start a new session & go live</button>
           <button type="button" class="btn ghost sm" id="hostDismissStoppedBtn" style="width:100%;margin-top:.4rem" ${hostBusy ? 'disabled' : ''}>Not now</button>
+          ${buyCreditsHTML}
         </div>
       `;
       return;
@@ -3690,10 +3785,12 @@ function renderHostPanel(){
       ${hostAccountRowHTML()}
       ${hostErrorMsg ? `<div class="host-error">${esc(hostErrorMsg)}</div>` : ''}
       ${usageRowHTML}
+      ${pendingCreditHTML}
       ${siteSettingsCache && siteSettingsCache.maintenanceMode ? `<p class="host-live-note">${esc(siteSettingsCache.maintenanceMessage)}</p>` : ''}
       <button type="button" class="btn primary" id="hostGoLiveBtn" style="width:100%" ${(hostBusy || atLimit || (siteSettingsCache && siteSettingsCache.maintenanceMode)) ? 'disabled' : ''}>
         ${hostBusy ? 'Going live…' : (atLimit ? 'Daily limit reached' : ((siteSettingsCache && siteSettingsCache.maintenanceMode) ? 'Paused for maintenance' : '🔴 Go live'))}
       </button>
+      ${buyCreditsHTML}
       <p class="host-live-note">Going live creates a read-only link anyone can open to see court status and who's next — no account needed on their end.</p>
     `;
     return;
@@ -3724,10 +3821,56 @@ function renderHostPanel(){
   }
 }
 
+/* Renders the "Buy credits" flow: collapsed to a single toggle button
+   normally, auto-expanded to the package picker once the daily allowance
+   is actually exhausted (see the atLimit comment above), then swaps to
+   the GCash instructions + receipt upload once a package is picked. */
+function buyCreditsSectionHTML(){
+  if (!authSession) return '';
+  const used = hostUsageToday;
+  const limit = effectiveHostLimit();
+  const limitReached = typeof used === 'number' && used >= limit && hostCreditBalance() <= 0;
+  if (!limitReached && !hostBuyOpen) return '';
+
+  if (!hostBuyOpen){
+    return `<button type="button" class="btn ghost" id="hostBuyCreditsToggleBtn" style="width:100%;margin-bottom:.8rem">Buy credits</button>`;
+  }
+
+  if (!hostSelectedPackage){
+    return `
+      <div class="host-live-note" style="margin-top:0;margin-bottom:.4rem">Pick a credit package \u2014 these don\u2019t reset daily, and are only spent once your free daily matches run out.</div>
+      <div class="host-credit-pkgs">
+        ${CREDIT_PACKAGES.map((p, i) => `
+          <button type="button" class="host-credit-pkg-btn" data-package-index="${i}">
+            <b>${p.credits} credits</b><span>${p.priceLabel}</span>
+          </button>
+        `).join('')}
+      </div>
+      <button type="button" class="btn ghost sm" id="hostBuyCreditsCancelBtn" style="width:100%">Cancel</button>
+    `;
+  }
+
+  const pkg = hostSelectedPackage;
+  return `
+    <div class="host-credit-gcash">Send <b>${pkg.priceLabel}</b> via GCash to <b>${GCASH_NUMBER}</b>, then attach a screenshot of the receipt below \u2014 an admin will review it and add your credits.</div>
+    <div class="field">
+      <label for="hostReceiptInput">Receipt screenshot</label>
+      <input type="file" id="hostReceiptInput" accept="image/*" ${hostCreditBusy ? 'disabled' : ''}>
+      ${hostReceiptFile ? `<div class="host-receipt-filename">${esc(hostReceiptFile.name)}</div>` : ''}
+    </div>
+    <button type="button" class="btn primary" id="hostSubmitReceiptBtn" style="width:100%;margin-top:.5rem" ${(hostCreditBusy || !hostReceiptFile) ? 'disabled' : ''}>${hostCreditBusy ? '<span class="btn-spinner" aria-hidden="true"></span>Submitting…' : `Submit \u2014 ${pkg.credits} credits for ${pkg.priceLabel}`}</button>
+    <button type="button" class="btn ghost sm" id="hostBuyCreditsBackBtn" style="width:100%;margin-top:.4rem" ${hostCreditBusy ? 'disabled' : ''}>Back</button>
+  `;
+}
+function resetBuyCreditsFlow(){
+  hostBuyOpen = false; hostSelectedPackage = null; hostReceiptFile = null; hostCreditBusy = false;
+}
+
 function openHostOverlay(){
   hostErrorMsg = '';
   if (!hostSession) remoteLiveChecked = false; // re-check each time the panel opens, in case
                                                 // the other device came back and stopped it, etc.
+  hostPendingCreditRequest = undefined; // re-fetch too, in case an admin reviewed it since the overlay was last open
   renderHostPanel();
   hostOverlay.hidden = false;
   if (hostSession) checkHostStillLive(); // catch an idle/cron auto-stop that happened while this
@@ -3798,6 +3941,36 @@ hostOverlay.addEventListener('click', (e) => {
   if (e.target.closest('#hostEndRemoteBtn')){ endRemoteSession(); return; }
   if (e.target.closest('#hostCopyLinkBtn')){ copyText(joinUrlFor(hostSession.invite_code)); return; }
   if (e.target.closest('#hostCopyCodeBtn')){ copyText(hostSession.invite_code); return; }
+
+  if (e.target.closest('#hostBuyCreditsToggleBtn')){ hostBuyOpen = true; renderHostPanel(); return; }
+  if (e.target.closest('#hostBuyCreditsCancelBtn')){ resetBuyCreditsFlow(); renderHostPanel(); return; }
+  if (e.target.closest('#hostBuyCreditsBackBtn')){ hostSelectedPackage = null; hostReceiptFile = null; renderHostPanel(); return; }
+  const pkgBtn = e.target.closest('button[data-package-index]');
+  if (pkgBtn){ hostSelectedPackage = CREDIT_PACKAGES[parseInt(pkgBtn.dataset.packageIndex, 10)] || null; renderHostPanel(); return; }
+  if (e.target.closest('#hostSubmitReceiptBtn')){
+    (async () => {
+      if (!hostReceiptFile || !hostSelectedPackage || hostCreditBusy) return;
+      hostCreditBusy = true; renderHostPanel();
+      try{
+        await submitCreditPurchase(hostSelectedPackage, hostReceiptFile);
+        resetBuyCreditsFlow();
+        hostPendingCreditRequest = undefined; // re-fetch so the "pending review" banner shows up
+        toast('Receipt submitted \u2014 an admin will review it shortly');
+      }catch(err){
+        toast(err.message || 'Could not submit receipt', 'error');
+        hostCreditBusy = false;
+      }finally{
+        renderHostPanel();
+      }
+    })();
+    return;
+  }
+});
+hostOverlay.addEventListener('change', (e) => {
+  if (e.target.id === 'hostReceiptInput'){
+    hostReceiptFile = (e.target.files && e.target.files[0]) || null;
+    renderHostPanel();
+  }
 });
 
 hostOverlay.addEventListener('submit', async (e) => {
@@ -3852,7 +4025,7 @@ hostOverlay.addEventListener('submit', async (e) => {
       }
     }
     pendingSignupConfirmation = null;
-    hostUsageToday = null; hostAccountInfo = null; siteSettingsCache = null;
+    hostUsageToday = null; hostAccountInfo = null; siteSettingsCache = null; hostPendingCreditRequest = undefined; resetBuyCreditsFlow();
     toast('Signed in');
   }catch(err){
     hostErrorMsg = normalizeAuthError(err, hostPanelMode);
