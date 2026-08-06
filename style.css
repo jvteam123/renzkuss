@@ -817,28 +817,41 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
    single run-on sentence in the same small gray text as everything else,
    which made the actual players easy to miss. */
 .ondeck-row{
-  display:flex;align-items:center;flex-wrap:wrap;gap:.35rem .8rem;
+  position:relative;isolation:isolate;
+  display:flex;align-items:center;flex-wrap:wrap;gap:.35rem .9rem;
   background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);
-  padding:.65rem .8rem;
+  padding:.7rem .9rem .7rem 1.05rem;box-shadow:var(--shadow-sm);
+  transition:box-shadow .15s ease,border-color .15s ease,transform .15s ease;
 }
+.ondeck-row::before{
+  content:'';position:absolute;left:0;top:.45rem;bottom:.45rem;width:3px;
+  border-radius:99px;background:var(--line);transition:background .15s ease;
+}
+.ondeck-row:hover{box-shadow:var(--shadow-md);transform:translateY(-1px)}
+.ondeck-row:first-child{border-color:var(--turf-pale);background:linear-gradient(180deg,var(--turf-pale) 0%,var(--surface) 65%)}
+.ondeck-row:first-child::before{background:var(--turf)}
 .ondeck-num{
-  font-family:var(--font-mono);font-size:.66rem;font-weight:700;letter-spacing:.05em;
-  text-transform:uppercase;color:var(--turf-deep);background:var(--turf-pale);
-  padding:.28rem .6rem;border-radius:99px;white-space:nowrap;flex-shrink:0;
+  display:inline-flex;align-items:center;gap:.3rem;
+  font-family:var(--font-mono);font-size:.64rem;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--slate);background:var(--court);
+  border:1px solid var(--line);
+  padding:.26rem .55rem;border-radius:99px;white-space:nowrap;flex-shrink:0;
 }
+.ondeck-row:first-child .ondeck-num{color:var(--turf-deep);background:var(--surface);border-color:var(--turf-pale)}
 .ondeck-matchup{
-  display:flex;align-items:center;flex-wrap:wrap;gap:.4rem .5rem;
+  display:flex;align-items:center;flex-wrap:wrap;gap:.4rem .55rem;
   font-size:.92rem;font-weight:700;color:var(--ink);min-width:0;flex:1;
 }
 .ondeck-team{min-width:0;overflow-wrap:anywhere}
 .ondeck-vs{
-  font-family:var(--font-mono);font-size:.62rem;font-weight:700;color:var(--slate);
-  text-transform:uppercase;letter-spacing:.05em;flex-shrink:0;
+  font-family:var(--font-mono);font-size:.6rem;font-weight:700;color:var(--slate);
+  text-transform:uppercase;letter-spacing:.06em;flex-shrink:0;
+  background:var(--court);border-radius:5px;padding:.1rem .35rem;
 }
 .ondeck-more,.ondeck-empty{
-  text-align:center;color:var(--slate);font-size:.8rem;
-  background:var(--surface);border:1px dashed var(--line);border-radius:var(--radius-sm);
-  padding:.65rem .8rem;
+  text-align:center;color:var(--slate);font-size:.78rem;
+  background:var(--court);border:1px dashed var(--line);border-radius:var(--radius-sm);
+  padding:.6rem .8rem;
 }
 
 /* ---------- Match history modal ---------- */
@@ -1367,6 +1380,51 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn{
   .viewer-banner{gap:.5rem .6rem}
   .viewer-banner .msg{order:1}
   .viewer-notify-btn{order:2;margin-left:0;flex:1 1 100%;justify-content:center}
+}
+
+/* Spectator "up next" notification: a floating card that sits above the
+   courts grid so anyone watching remotely sees the very next matchup at a
+   glance, instead of having to scroll down to the collapsed "Up next"
+   details panel at the bottom of the page. Only ever shown in viewer mode
+   (see body.viewer-mode rules below), and only when there's an actual
+   on-deck matchup to report — see updateViewerUpNext() in script.js. */
+.viewer-upnext-notify{
+  max-width:1400px;margin:.75rem auto 0;padding:0 1.1rem;
+}
+.viewer-upnext-notify[hidden]{display:none}
+.viewer-upnext-notify-inner{
+  display:flex;align-items:center;flex-wrap:wrap;gap:.5rem 1rem;
+  background:linear-gradient(135deg,var(--turf) 0%,var(--turf-deep) 100%);
+  color:#fff;border-radius:var(--radius);padding:.85rem 1.1rem;
+  box-shadow:var(--shadow-md);
+  animation:viewer-upnext-in .32s cubic-bezier(.2,.8,.3,1);
+}
+.viewer-upnext-badge{
+  display:inline-flex;align-items:center;gap:.4rem;flex-shrink:0;
+  font-family:var(--font-mono);font-size:.68rem;font-weight:700;letter-spacing:.07em;
+  text-transform:uppercase;background:rgba(255,255,255,.2);color:#fff;
+  padding:.35rem .7rem;border-radius:99px;
+}
+.viewer-upnext-badge svg{width:13px;height:13px;flex-shrink:0}
+.viewer-upnext-body{
+  flex:1 1 auto;min-width:180px;
+  display:flex;align-items:center;flex-wrap:wrap;gap:.35rem .6rem;
+  font-size:1.02rem;font-weight:800;letter-spacing:-.01em;
+}
+.viewer-upnext-body .ondeck-team{color:#fff}
+.viewer-upnext-body .ondeck-vs{
+  font-family:var(--font-mono);font-size:.62rem;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:rgba(255,255,255,.8);
+  background:rgba(255,255,255,.16);border-radius:5px;padding:.1rem .4rem;
+}
+@keyframes viewer-upnext-in{
+  from{opacity:0;transform:translateY(-8px)}
+  to{opacity:1;transform:translateY(0)}
+}
+@media (max-width:520px){
+  .viewer-upnext-notify{padding:0 .8rem}
+  .viewer-upnext-notify-inner{padding:.7rem .85rem}
+  .viewer-upnext-body{font-size:.9rem}
 }
 
 /* Read-only mode: hide everything a spectator shouldn't touch, without
