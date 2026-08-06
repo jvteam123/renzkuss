@@ -2702,6 +2702,13 @@ $('#courtMinus').addEventListener('click', async () => {
     const returning = last.players.map(name => ({ id: nextId('p'), name, joinedAt: Date.now(), tag: 'queued' }));
     state.stack.unshift(...returning);
   }
+  // A pending swap (same-court or cross-court) that points at the court
+  // being removed would otherwise dangle — pendingSwapInfo() would find no
+  // matching court and quietly drop the hint, but the stray selection would
+  // still eat the host's next tap on some other court's swap icon instead
+  // of starting a fresh pick. Clear it up front so removal always leaves a
+  // clean slate.
+  if (swapSelection && swapSelection.courtId === last.id) swapSelection = null;
   state.courts.pop();
   courtCountNum.textContent = state.courts.length;
   renderCourtNameRows(); persist(); renderAll();
