@@ -3726,7 +3726,7 @@ function renderHostPanel(){
     // a bare "… / N" — same treatment as /admin's loading placeholders.
     const usageRowHTML = hostUsageToday === null
       ? `<div class="host-skeleton" style="width:70%"></div>`
-      : `<div class="host-usage-row"><span>Live matches used today</span><b>${used} / ${limit}${credits > 0 ? ` <span class="host-credit-balance">+ ${credits} credit${credits === 1 ? '' : 's'}</span>` : ''}</b></div>`;
+      : `<div class="host-usage-row"><span>Live matches used today</span><b>${used} / ${limit}</b></div>`;
     const pendingCreditHTML = hostPendingCreditRequest
       ? `<div class="host-credit-pending">Your \u20b1${esc(hostPendingCreditRequest.amount_php)} request for ${esc(hostPendingCreditRequest.package_credits)} credits is pending admin review.</div>`
       : '';
