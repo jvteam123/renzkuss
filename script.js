@@ -2125,6 +2125,7 @@ $('#endgameConfirm').addEventListener('click', async () => {
 function renderUpNext(){
   if (state.courts.length === 0){
     historyList.innerHTML = '<div class="ondeck-empty">Add a court to see who plays next.</div>';
+    updateViewerUpNext();
     return;
   }
   const gameSize = state.session.gameSize;
@@ -2139,6 +2140,7 @@ function renderUpNext(){
     historyList.innerHTML = state.stack.length === 0
       ? '<div class="ondeck-empty">The stack is empty — add players to fill the next match.</div>'
       : '<div class="ondeck-empty">Everyone waiting is already lined up for an open court.</div>';
+    updateViewerUpNext();
     return;
   }
 
@@ -2168,6 +2170,35 @@ function renderUpNext(){
     rows.push(`<div class="ondeck-empty">Waiting on ${need} more player${need === 1 ? '' : 's'} for the next match.</div>`);
   }
   historyList.innerHTML = rows.join('');
+  updateViewerUpNext();
+}
+
+/* Mirrors the first "On deck" row (if any) into the floating spectator
+   notification card that sits above the courts grid — see
+   .viewer-upnext-notify in style.css. Only relevant in viewer mode; a no-op
+   (and hidden) otherwise, since hosts already see the full stack rail. */
+let lastViewerUpNextHtml = null;
+function updateViewerUpNext(){
+  const notify = $('#viewerUpNextNotify');
+  const body = $('#viewerUpNextBody');
+  if (!notify || !body) return;
+  if (!viewerMode){ notify.hidden = true; return; }
+  const matchupEl = historyList && historyList.querySelector('.ondeck-row .ondeck-matchup');
+  if (!matchupEl){
+    notify.hidden = true;
+    lastViewerUpNextHtml = null;
+    return;
+  }
+  notify.hidden = false;
+  if (matchupEl.innerHTML !== lastViewerUpNextHtml){
+    lastViewerUpNextHtml = matchupEl.innerHTML;
+    body.innerHTML = lastViewerUpNextHtml;
+    // Re-trigger the slide/fade-in so a change in who's up next is visible
+    // even if the spectator isn't looking right at the card at that instant.
+    notify.querySelector('.viewer-upnext-notify-inner').style.animation = 'none';
+    void notify.offsetWidth;
+    notify.querySelector('.viewer-upnext-notify-inner').style.animation = '';
+  }
 }
 
 /* ================= Match History modal (full detail + swap log) ================= */
