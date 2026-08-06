@@ -564,7 +564,11 @@ async function signedReceiptUrl(path){
   });
   const data = await res.json().catch(() => null);
   if (!res.ok || !data || !data.signedURL) throw new Error((data && data.message) || 'Could not sign receipt URL');
-  return SUPABASE_URL + data.signedURL;
+  // Supabase's storage REST API returns signedURL WITHOUT the /storage/v1
+  // prefix (that's normally added back in by the supabase-js SDK). Since
+  // we're calling the REST endpoint directly, we have to add it ourselves.
+  const signedPath = data.signedURL.startsWith('/storage/v1') ? data.signedURL : `/storage/v1${data.signedURL}`;
+  return SUPABASE_URL + signedPath;
 }
 
 /* =========================================================== Settings */
