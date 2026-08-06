@@ -95,6 +95,9 @@
         <button type="button" data-tab="live">
           <svg viewBox="0 0 24 24"><use href="#i-cloud"/></svg><span>Live sessions</span>
         </button>
+        <button type="button" data-tab="credits">
+          <svg viewBox="0 0 24 24"><use href="#i-cloud"/></svg><span>Credit requests</span>
+        </button>
         <button type="button" data-tab="settings">
           <svg viewBox="0 0 24 24"><use href="#i-gear"/></svg><span>Site settings</span>
         </button>
@@ -145,6 +148,22 @@
           </div>
         </div>
         <div id="liveTableWrap" class="admin-table-wrap">
+          <div class="admin-skeleton"></div>
+        </div>
+      </section>
+
+      <!-- Credit requests tab -->
+      <section class="admin-panel" id="tab-credits" hidden>
+        <div class="admin-panel-head">
+          <div>
+            <h2>Credit requests</h2>
+            <p class="admin-hint">GCash top-ups hosts submitted with a receipt screenshot. Approving adds the credits to that account's balance right away.</p>
+          </div>
+          <div class="admin-panel-head-actions">
+            <button class="btn ghost sm" id="creditsRefreshBtn">Refresh</button>
+          </div>
+        </div>
+        <div id="creditsTableWrap" class="admin-table-wrap">
           <div class="admin-skeleton"></div>
         </div>
       </section>
