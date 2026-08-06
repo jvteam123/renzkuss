@@ -1226,8 +1226,9 @@ function playerRowHtml(name, swap, sub){
   const subBtn = sub
     ? `<button type="button" class="player-sub-btn" data-act="sub-player" data-idx="${sub.idx}" aria-label="Substitute ${esc(name)}" title="Sub in a replacement for ${esc(name)}"><svg viewBox="0 0 24 24"><use href="#i-sub"/></svg></button>`
     : '';
+  const previewBtn = `<button type="button" class="player-preview-btn" data-act="preview-name" data-name="${esc(name)}" aria-label="Show full name for ${esc(name)}" title="Show full name"><svg viewBox="0 0 24 24"><use href="#i-expand"/></svg></button>`;
   return `<span class="player-col">
-    <span class="player-row">${avatarHtml(name)}<span class="player-name-txt" title="${esc(name)}">${esc(courtCardName(name))}</span>${winChip}${swapBtn}${subBtn}</span>
+    <span class="player-row">${avatarHtml(name)}<span class="player-name-txt" title="${esc(name)}">${esc(courtCardName(name))}</span>${winChip}${previewBtn}${swapBtn}${subBtn}</span>
     <span class="player-games-row">${gamesChip}</span>
   </span>`;
 }
@@ -1768,7 +1769,45 @@ function renderCourts(){
   });
 }
 
+/* ---- Preview full name ----
+   Card names are uppercased and clamped to two lines to keep the court
+   card compact, which is occasionally still not enough room for a very
+   long name. This button pops up the original, full, normal-case name
+   right above where it was tapped. Works even in viewer mode since it
+   doesn't change any state. */
+let namePreviewEl = null;
+let namePreviewHideTimer = null;
+function showNamePreview(btn, name){
+  if (!namePreviewEl){
+    namePreviewEl = document.createElement('div');
+    namePreviewEl.className = 'name-preview-pop';
+    document.body.appendChild(namePreviewEl);
+  }
+  namePreviewEl.textContent = name;
+  const r = btn.getBoundingClientRect();
+  const x = Math.min(Math.max(60, r.left + r.width / 2), window.innerWidth - 60);
+  namePreviewEl.style.left = x + 'px';
+  namePreviewEl.style.top = Math.max(8, r.top - 6) + 'px';
+  // Restart the show transition even if it's already visible for another name.
+  namePreviewEl.classList.remove('show');
+  void namePreviewEl.offsetWidth;
+  namePreviewEl.classList.add('show');
+  clearTimeout(namePreviewHideTimer);
+  namePreviewHideTimer = setTimeout(hideNamePreview, 2800);
+}
+function hideNamePreview(){
+  if (namePreviewEl) namePreviewEl.classList.remove('show');
+}
+document.addEventListener('click', (e) => {
+  if (!namePreviewEl || !namePreviewEl.classList.contains('show')) return;
+  if (e.target.closest('.player-preview-btn')) return;
+  hideNamePreview();
+});
+document.addEventListener('scroll', hideNamePreview, true);
+
 courtsGrid.addEventListener('click', (e) => {
+  const previewBtn = e.target.closest('button[data-act="preview-name"]');
+  if (previewBtn){ showNamePreview(previewBtn, previewBtn.dataset.name); return; }
   if (viewerMode) return;
   const btn = e.target.closest('button[data-act]');
   if (!btn) return;
