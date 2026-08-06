@@ -587,7 +587,15 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
   display:flex;align-items:center;justify-content:center;
   font-family:var(--font-mono);font-weight:700;font-size:.68rem;color:#fff;
 }
-.player-name-txt{font-weight:700;font-size:.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.player-name-txt{
+  font-weight:700;font-size:.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  /* Flex items default to a min-width equal to their content's full intrinsic
+     width, which overrides white-space:nowrap + text-overflow:ellipsis and
+     lets a long name push the swap/sub buttons out of the row (or off-card)
+     instead of truncating. flex:1 1 auto + min-width:0 lets the name actually
+     shrink to fit the space left after the avatar and action buttons. */
+  flex:1 1 auto;min-width:0;
+}
 .win-chip{font-size:.68rem;flex-shrink:0;opacity:.85}
 
 /* ---- Swap partner (mid-match) ---- */
