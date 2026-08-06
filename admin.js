@@ -205,7 +205,7 @@ function showDashboard(){
   logoutBtn.hidden = false; menuBtn.hidden = false;
   sidebarEmailEl.textContent = authSession.user.email;
   avatarEl.textContent = initials(authSession.user.email);
-  loadAccounts(); loadLiveSessions(); loadSettings();
+  loadAccounts(); loadLiveSessions(); loadSettings(); loadCreditRequests();
 }
 
 async function afterLogin(){
@@ -249,7 +249,7 @@ $('#adminTabs').addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-tab]');
   if (!btn) return;
   $('#adminTabs').querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
-  ['accounts','live','settings'].forEach(name => {
+  ['accounts','live','credits','settings'].forEach(name => {
     $('#tab-' + name).hidden = (name !== btn.dataset.tab);
   });
   closeMobileNav();
@@ -257,12 +257,14 @@ $('#adminTabs').addEventListener('click', (e) => {
 
 /* ============================================================== KPI row */
 let liveSessionsCache = [];
+let creditRequestsCache = [];
 function renderKpis(){
   const wrap = $('#adminKpiRow');
   const total = accountsCache.length;
   const admins = accountsCache.filter(a => a.is_admin).length;
   const suspended = accountsCache.filter(a => a.is_suspended).length;
   const liveNow = liveSessionsCache.length;
+  const pendingCredits = creditRequestsCache.filter(r => r.status === 'pending').length;
   wrap.innerHTML = `
     <div class="admin-kpi-card">
       <div class="admin-kpi-label"><svg viewBox="0 0 24 24"><use href="#i-user"/></svg>Accounts</div>
@@ -271,6 +273,10 @@ function renderKpis(){
     <div class="admin-kpi-card">
       <div class="admin-kpi-label"><svg viewBox="0 0 24 24"><use href="#i-cloud"/></svg>Live now</div>
       <div class="admin-kpi-value turf">${liveNow}</div>
+    </div>
+    <div class="admin-kpi-card">
+      <div class="admin-kpi-label"><svg viewBox="0 0 24 24"><use href="#i-cloud"/></svg>Credit requests</div>
+      <div class="admin-kpi-value${pendingCredits ? ' danger' : ''}">${pendingCredits}</div>
     </div>
     <div class="admin-kpi-card">
       <div class="admin-kpi-label"><svg viewBox="0 0 24 24"><use href="#i-lock"/></svg>Admins</div>
@@ -438,6 +444,124 @@ $('#liveTableWrap').addEventListener('click', async (e) => {
   }catch(err){ toast(err.message || 'Could not end session', 'error'); }
   finally{ btn.disabled = false; }
 });
+
+/* ====================================================== Credit requests */
+async function loadCreditRequests(){
+  const wrap = $('#creditsTableWrap');
+  wrap.innerHTML = '<div class="admin-skeleton"></div><div class="admin-skeleton" style="width:70%"></div>';
+  try{
+    creditRequestsCache = await rpc('admin_list_credit_requests') || [];
+    renderCreditRequests();
+    renderKpis();
+  }catch(e){
+    wrap.innerHTML = '<p class="admin-empty">' + esc(e.message || 'Could not load credit requests') + '</p>';
+  }
+}
+function renderCreditRequests(){
+  const wrap = $('#creditsTableWrap');
+  if (!creditRequestsCache.length){ wrap.innerHTML = '<p class="admin-empty">No credit requests yet.</p>'; return; }
+  // Pending first (oldest first, so the longest-waiting request is reviewed
+  // first), then everything already decided, most recent first.
+  const rows = creditRequestsCache.slice().sort((a, b) => {
+    if (a.status === 'pending' && b.status !== 'pending') return -1;
+    if (b.status === 'pending' && a.status !== 'pending') return 1;
+    const dir = a.status === 'pending' ? 1 : -1;
+    return dir * (new Date(a.created_at) - new Date(b.created_at));
+  });
+  wrap.innerHTML = `
+    <table class="admin-table">
+      <thead><tr>
+        <th>Host</th><th>Package</th><th>Submitted</th><th>Receipt</th><th>Status</th><th>Actions</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(r => `
+          <tr data-id="${esc(r.id)}">
+            <td class="wrap" data-label="Host">
+              <div class="admin-cell-identity">
+                <span class="admin-row-avatar">${esc(initials(r.host_email))}</span>
+                <span>${esc(r.host_email || '—')}</span>
+              </div>
+            </td>
+            <td data-label="Package">${esc(r.package_credits)} credits — \u20b1${esc(r.amount_php)}</td>
+            <td data-label="Submitted">${r.created_at ? new Date(r.created_at).toLocaleString() : '—'}</td>
+            <td data-label="Receipt"><button type="button" class="btn ghost sm" data-action="view-receipt">View</button></td>
+            <td data-label="Status">${
+              r.status === 'pending' ? '<span class="admin-badge">Pending</span>'
+              : r.status === 'approved' ? '<span class="admin-badge ok">Approved</span>'
+              : '<span class="admin-badge suspended">Rejected</span>'
+            }</td>
+            <td class="admin-cell-full" data-label="Actions">
+              ${r.status === 'pending' ? `
+                <div class="admin-row-actions">
+                  <button type="button" class="btn ghost sm" data-action="approve">Approve</button>
+                  <button type="button" class="btn ghost sm" data-action="reject">Reject</button>
+                </div>
+              ` : (r.admin_note ? `<span class="admin-hint">${esc(r.admin_note)}</span>` : '—')}
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+$('#creditsRefreshBtn').addEventListener('click', loadCreditRequests);
+$('#creditsTableWrap').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-action]');
+  if (!btn) return;
+  const row = btn.closest('tr');
+  const id = row.dataset.id;
+  const request = creditRequestsCache.find(r => r.id === id);
+  if (!request) return;
+
+  if (btn.dataset.action === 'view-receipt'){
+    btn.disabled = true; btn.textContent = 'Loading…';
+    try{
+      const url = await signedReceiptUrl(request.receipt_path);
+      window.open(url, '_blank', 'noopener');
+    }catch(err){ toast(err.message || 'Could not open receipt', 'error'); }
+    finally{ btn.disabled = false; btn.textContent = 'View'; }
+    return;
+  }
+
+  if (btn.dataset.action === 'approve'){
+    if (!confirm(`Approve ${request.package_credits} credits for ${request.host_email}? This adds them to the account's balance immediately.`)) return;
+    btn.disabled = true;
+    try{
+      await rpc('admin_review_credit_purchase', { p_request_id: id, p_approve: true });
+      toast('Approved — credits added', 'success');
+      await loadCreditRequests();
+    }catch(err){ toast(err.message || 'Could not approve request', 'error'); }
+    finally{ btn.disabled = false; }
+    return;
+  }
+
+  if (btn.dataset.action === 'reject'){
+    const note = prompt('Optional note for the rejection (shown to you here, not sent to the host automatically):') || null;
+    btn.disabled = true;
+    try{
+      await rpc('admin_review_credit_purchase', { p_request_id: id, p_approve: false, p_note: note });
+      toast('Rejected', 'success');
+      await loadCreditRequests();
+    }catch(err){ toast(err.message || 'Could not reject request', 'error'); }
+    finally{ btn.disabled = false; }
+    return;
+  }
+});
+/* Signed URLs are short-lived on purpose — the bucket is private, so
+   nothing about a receipt is reachable without an admin session minting
+   one of these first. */
+async function signedReceiptUrl(path){
+  const token = await ensureFreshToken();
+  if (!token) throw new Error('Session expired — please log in again.');
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/receipts/${path}`, {
+    method: 'POST',
+    headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ expiresIn: 300 })
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data || !data.signedURL) throw new Error((data && data.message) || 'Could not sign receipt URL');
+  return SUPABASE_URL + data.signedURL;
+}
 
 /* =========================================================== Settings */
 async function loadSettings(){
