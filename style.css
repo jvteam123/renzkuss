@@ -580,7 +580,7 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
 .player-col{display:flex;flex-direction:column;gap:3px;min-width:0}
 .player-row{display:flex;align-items:center;gap:.4rem;min-width:0}
 .team-b .player-row{flex-direction:row-reverse}
-.player-actions-row{display:flex;align-items:center;gap:.28rem;min-width:0}
+.player-actions-row{display:flex;align-items:center;gap:.28rem;min-width:0;min-height:20px}
 .team-b .player-actions-row{justify-content:flex-end}
 .player-games-row{display:flex}
 .team-b .player-games-row{justify-content:flex-end}
@@ -598,7 +598,10 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
   overflow:hidden;word-break:break-word;overflow-wrap:anywhere;white-space:normal;
   flex:1 1 auto;min-width:0;
 }
-.win-chip{font-size:.68rem;flex-shrink:0;opacity:.85}
+.win-chip{
+  font-size:.68rem;flex-shrink:0;opacity:.85;
+  display:inline-flex;align-items:center;height:20px;line-height:1;
+}
 
 /* ---- Preview full name ---- */
 /* A small button next to every player name that pops up the complete,
@@ -686,6 +689,7 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
   .matchup .team{flex:none}
   .matchup .team.team-b{align-items:flex-start;text-align:left}
   .team-b .player-row{flex-direction:row}
+  .team-b .player-actions-row{justify-content:flex-start}
   .team-b .player-games-row{justify-content:flex-start}
   .matchup .vs-divider{
     width:100%;height:1px;margin:0;align-self:stretch;flex-shrink:0;
