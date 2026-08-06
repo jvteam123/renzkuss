@@ -2173,26 +2173,35 @@ function renderUpNext(){
   updateViewerUpNext();
 }
 
-/* Mirrors the first "On deck" row (if any) into the floating spectator
-   notification card that sits above the courts grid — see
+/* Mirrors up to the first 2 "On deck" rows (if any) into the floating
+   spectator notification card that sits above the courts grid — see
    .viewer-upnext-notify in style.css. Only relevant in viewer mode; a no-op
-   (and hidden) otherwise, since hosts already see the full stack rail. */
+   (and hidden) otherwise, since hosts already see the full stack rail. The
+   old collapsed "Up next" panel further down the page is hidden outright
+   in viewer mode (body.viewer-mode .history in style.css) since this card
+   now covers the same ground without making a spectator scroll for it. */
 let lastViewerUpNextHtml = null;
 function updateViewerUpNext(){
   const notify = $('#viewerUpNextNotify');
   const body = $('#viewerUpNextBody');
   if (!notify || !body) return;
   if (!viewerMode){ notify.hidden = true; return; }
-  const matchupEl = historyList && historyList.querySelector('.ondeck-row .ondeck-matchup');
-  if (!matchupEl){
+  const rows = historyList ? Array.from(historyList.querySelectorAll('.ondeck-row')).slice(0, 2) : [];
+  if (rows.length === 0){
     notify.hidden = true;
     lastViewerUpNextHtml = null;
     return;
   }
   notify.hidden = false;
-  if (matchupEl.innerHTML !== lastViewerUpNextHtml){
-    lastViewerUpNextHtml = matchupEl.innerHTML;
-    body.innerHTML = lastViewerUpNextHtml;
+  const tags = ['Next', 'Then'];
+  const html = rows.map((row, i) => {
+    const matchupEl = row.querySelector('.ondeck-matchup');
+    const matchupHtml = matchupEl ? matchupEl.innerHTML : '';
+    return `<div class="viewer-upnext-item"><span class="viewer-upnext-tag">${tags[i] || ''}</span>${matchupHtml}</div>`;
+  }).join('');
+  if (html !== lastViewerUpNextHtml){
+    lastViewerUpNextHtml = html;
+    body.innerHTML = html;
     // Re-trigger the slide/fade-in so a change in who's up next is visible
     // even if the spectator isn't looking right at the card at that instant.
     notify.querySelector('.viewer-upnext-notify-inner').style.animation = 'none';
