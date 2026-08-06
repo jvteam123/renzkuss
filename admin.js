@@ -311,7 +311,7 @@ function renderAccounts(){
     <table class="admin-table">
       <thead><tr>
         <th>Account</th><th>Joined</th><th>Status</th>
-        <th>Used today</th><th>Daily limit</th><th>Actions</th>
+        <th>Used today</th><th>Daily limit</th><th>Credit balance</th><th>Actions</th>
       </tr></thead>
       <tbody>
         ${rows.map(a => `
@@ -329,6 +329,7 @@ function renderAccounts(){
             <td data-label="Status">${a.is_suspended ? '<span class="admin-badge suspended">Suspended</span>' : '<span class="admin-badge ok">Active</span>'}</td>
             <td data-label="Used today">${a.sessions_today} / ${a.host_daily_limit == null ? 'default' : a.host_daily_limit}</td>
             <td data-label="Daily limit"><input type="number" min="0" class="admin-limit-input" data-role="limit" placeholder="default" value="${a.host_daily_limit == null ? '' : a.host_daily_limit}"></td>
+            <td data-label="Credit balance">${typeof a.credit_balance === 'number' ? a.credit_balance : '—'}</td>
             <td class="admin-cell-full" data-label="Actions">
               <div class="admin-row-actions">
                 <button type="button" class="btn ghost sm" data-action="save-limit">Save limit</button>
