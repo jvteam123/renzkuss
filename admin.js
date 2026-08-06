@@ -551,6 +551,10 @@ $('#creditsTableWrap').addEventListener('click', async (e) => {
    nothing about a receipt is reachable without an admin session minting
    one of these first. */
 async function signedReceiptUrl(path){
+  if (!path || typeof path !== 'string' || !path.trim()){
+    console.error('signedReceiptUrl called with invalid path:', path);
+    throw new Error('This request has no receipt on file (missing receipt_path).');
+  }
   const token = await ensureFreshToken();
   if (!token) throw new Error('Session expired — please log in again.');
   const res = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/receipts/${path}`, {
