@@ -2864,6 +2864,15 @@ const CREDIT_PACKAGES = [
   { credits: 50,  priceLabel: '\u20b1150', amountPhp: 150 },
   { credits: 100, priceLabel: '\u20b1250', amountPhp: 250 }
 ];
+// Cheapest per-credit rate is flagged as "Best value" and the rate itself is
+// shown on every card — both computed once here rather than hardcoded, so
+// adding/reordering packages above can't silently make the badge wrong.
+const bestPkgRate = Math.min(...CREDIT_PACKAGES.map(p => p.amountPhp / p.credits));
+CREDIT_PACKAGES.forEach(p => {
+  p.rate = p.amountPhp / p.credits;
+  p.rateLabel = `\u20b1${p.rate % 1 === 0 ? p.rate : p.rate.toFixed(2)} / credit`;
+  p.isBest = p.rate === bestPkgRate;
+});
 const GCASH_NUMBER = '09624056575';
 let hostBuyOpen = false;          // whether the "Buy credits" packages are expanded
 let hostSelectedPackage = null;   // the CREDIT_PACKAGES entry the user picked, or null
@@ -3833,7 +3842,7 @@ function buyCreditsSectionHTML(){
   if (!limitReached && !hostBuyOpen) return '';
 
   if (!hostBuyOpen){
-    return `<button type="button" class="btn ghost" id="hostBuyCreditsToggleBtn" style="width:100%;margin-bottom:.8rem">Buy credits</button>`;
+    return `<button type="button" class="btn ghost host-buy-credits-toggle" id="hostBuyCreditsToggleBtn" style="width:100%;margin-bottom:.8rem"><span>Buy credits</span><span class="host-buy-credits-toggle-arrow">\u2192</span></button>`;
   }
 
   if (!hostSelectedPackage){
@@ -3841,8 +3850,11 @@ function buyCreditsSectionHTML(){
       <div class="host-live-note" style="margin-top:0;margin-bottom:.4rem">Pick a credit package \u2014 these don\u2019t reset daily, and are only spent once your free daily matches run out.</div>
       <div class="host-credit-pkgs">
         ${CREDIT_PACKAGES.map((p, i) => `
-          <button type="button" class="host-credit-pkg-btn" data-package-index="${i}">
-            <b>${p.credits} credits</b><span>${p.priceLabel}</span>
+          <button type="button" class="host-credit-pkg-btn${p.isBest ? ' is-best' : ''}" data-package-index="${i}">
+            ${p.isBest ? '<span class="host-credit-pkg-badge">Best value</span>' : ''}
+            <span class="host-credit-pkg-credits">${p.credits}<small>credits</small></span>
+            <span class="host-credit-pkg-price">${p.priceLabel}</span>
+            <span class="host-credit-pkg-rate">${p.rateLabel}</span>
           </button>
         `).join('')}
       </div>
