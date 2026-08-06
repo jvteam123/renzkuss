@@ -656,6 +656,17 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
   border-radius:var(--radius-sm);padding:.45rem .6rem;
 }
 .swap-hint b{color:#fff}
+/* Cross-court variant: shown on every OTHER eligible court while a swap is
+   pending elsewhere, so the host knows tapping a player here will pull
+   them into a swap with whoever's already selected on the other court.
+   Blue instead of gold so it reads as "elsewhere is waiting on you" rather
+   than "you have something selected here" — assumes the dark .playing
+   card background like the base .swap-hint above; see the light-card
+   override further down alongside the other .court-card:not(.playing)
+   swap overrides. */
+.swap-hint-remote{color:#9CBEFF;background:rgba(91,141,239,.16);border-color:rgba(91,141,239,.4)}
+.swap-hint-remote b{color:#fff}
+.swap-hint-court{opacity:.8;font-weight:500}
 /* The base .player-swap-btn/.swap-hint styles above assume the dark
    .court-card.playing background. The preview matchup on a not-yet-started
    court uses the regular light/surface card background, so those same
@@ -671,6 +682,8 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
   opacity:.4;cursor:not-allowed;background:var(--court);border-color:var(--line);color:var(--slate);
 }
 .court-card:not(.playing) .swap-hint b{color:var(--ink)}
+.court-card:not(.playing) .swap-hint-remote{color:var(--turf-deep);background:var(--turf-pale);border-color:var(--turf)}
+.court-card:not(.playing) .swap-hint-remote b{color:var(--turf-deep)}
 .games-chip{
   font-family:var(--font-mono);font-size:.6rem;font-weight:600;
   color:var(--slate);flex-shrink:0;opacity:.85;
