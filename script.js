@@ -3020,7 +3020,7 @@ let hostReconnecting = false;       // true once a push/keepalive to Supabase ha
 let hostReconnectRetryTimer = null; // fast retry loop, only running while hostReconnecting
 let viewerPollFn = null;            // set inside enterViewerMode; lets the global 'online'
                                      // listener trigger an immediate re-poll instead of waiting
-                                     // out the rest of the current 4s interval
+                                     // out the rest of the current 2s interval
 let viewerSetMsgFn = null;          // ditto, for writing "Reconnecting to live…" into the banner
                                      // the instant the browser reports it went offline
 let remoteLiveSession = null; // { id, invite_code, session_name } | null — a live match this
@@ -3748,11 +3748,16 @@ function queueHostPush(){
   if (!hostSession || viewerMode) return;
   hostPushPending = true;
   if (hostPushTimer) return;
+  // Debounced so a burst of rapid taps (e.g. mashing the score buttons)
+  // collapses into one push instead of one per tap, while still keeping
+  // spectators close to real time. Shortened from 1500ms — 500ms still
+  // coalesces a fast double-tap but no longer sits on a finished state
+  // change for a second and a half before anyone watching sees it.
   hostPushTimer = setTimeout(() => {
     hostPushTimer = null;
     if (!hostPushPending || !hostSession) return;
     pushStateNow();
-  }, 1500);
+  }, 500);
 }
 
 /* ---- Host panel UI (inside the Host Online modal) ---- */
@@ -4397,8 +4402,8 @@ function enterViewerMode(code){
   }
   poll();
   viewerPollFn = poll; // let the global 'online' listener re-poll immediately instead of
-                        // waiting out the rest of the current 4s interval
-  viewerPollTimer = setInterval(poll, 4000);
+                        // waiting out the rest of the current 2s interval
+  viewerPollTimer = setInterval(poll, 2000);
 }
 
 /* ---- Network status: shared by the host push loop and the viewer poll loop ----
