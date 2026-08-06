@@ -1227,8 +1227,12 @@ function playerRowHtml(name, swap, sub){
     ? `<button type="button" class="player-sub-btn" data-act="sub-player" data-idx="${sub.idx}" aria-label="Substitute ${esc(name)}" title="Sub in a replacement for ${esc(name)}"><svg viewBox="0 0 24 24"><use href="#i-sub"/></svg></button>`
     : '';
   const previewBtn = `<button type="button" class="player-preview-btn" data-act="preview-name" data-name="${esc(name)}" aria-label="Show full name for ${esc(name)}" title="Show full name"><svg viewBox="0 0 24 24"><use href="#i-expand"/></svg></button>`;
+  // Name gets its own row with just the avatar, so it has the full column
+  // width to wrap into instead of fighting the win/preview/swap/sub buttons
+  // for space — those move to a compact row underneath.
   return `<span class="player-col">
-    <span class="player-row">${avatarHtml(name)}<span class="player-name-txt" title="${esc(name)}">${esc(courtCardName(name))}</span>${winChip}${previewBtn}${swapBtn}${subBtn}</span>
+    <span class="player-row">${avatarHtml(name)}<span class="player-name-txt" title="${esc(name)}">${esc(courtCardName(name))}</span></span>
+    <span class="player-actions-row">${winChip}${previewBtn}${swapBtn}${subBtn}</span>
     <span class="player-games-row">${gamesChip}</span>
   </span>`;
 }
