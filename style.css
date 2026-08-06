@@ -522,7 +522,7 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
 .court-card{
   position:relative;background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius);
   padding:0 1.05rem 1.05rem;box-shadow:var(--shadow-sm);
-  display:flex;flex-direction:column;min-height:236px;overflow:hidden;
+  display:flex;flex-direction:column;min-height:252px;overflow:hidden;
   transition:box-shadow .15s, transform .15s;
   container-type:inline-size;container-name:court;
 }
@@ -561,7 +561,7 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
 /* --- Matchup: two team columns with a vs divider, tennis-net style --- */
 .matchup{
   flex:1;display:flex;align-items:stretch;gap:0;margin:.9rem 0 .7rem;
-  position:relative;min-height:64px;
+  position:relative;min-height:80px;
 }
 .matchup .team{flex:1;display:flex;flex-direction:column;gap:.4rem;justify-content:center;min-width:0}
 .matchup .team.team-b{align-items:flex-end;text-align:right}
@@ -577,26 +577,60 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
 }
 .court-card.playing .vs-divider::after{background:#0E2748;color:#7F9FD1}
 
-.player-col{display:flex;flex-direction:column;gap:1px;min-width:0}
-.player-row{display:flex;align-items:center;gap:.45rem;min-width:0}
+.player-col{display:flex;flex-direction:column;gap:2px;min-width:0}
+.player-row{display:flex;align-items:flex-start;gap:.4rem;min-width:0}
 .team-b .player-row{flex-direction:row-reverse}
 .player-games-row{display:flex}
 .team-b .player-games-row{justify-content:flex-end}
 .avatar{
-  width:26px;height:26px;border-radius:50%;flex-shrink:0;
+  width:26px;height:26px;border-radius:50%;flex-shrink:0;margin-top:1px;
   display:flex;align-items:center;justify-content:center;
   font-family:var(--font-mono);font-weight:700;font-size:.68rem;color:#fff;
 }
 .player-name-txt{
-  font-weight:700;font-size:.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-  /* Flex items default to a min-width equal to their content's full intrinsic
-     width, which overrides white-space:nowrap + text-overflow:ellipsis and
-     lets a long name push the swap/sub buttons out of the row (or off-card)
-     instead of truncating. flex:1 1 auto + min-width:0 lets the name actually
-     shrink to fit the space left after the avatar and action buttons. */
+  font-weight:700;font-size:.95rem;line-height:1.18;padding-top:2px;
+  /* Names used to hard-truncate with an ellipsis after ~10-12 characters
+     ("HAROLD VILLA..."), which made the on-court card unreadable. Instead,
+     let the name wrap onto up to two lines and only clamp beyond that, so
+     the full name is visible in the normal case and just about every real
+     name fits without ever needing the preview button. */
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
+  overflow:hidden;word-break:break-word;overflow-wrap:anywhere;white-space:normal;
   flex:1 1 auto;min-width:0;
 }
-.win-chip{font-size:.68rem;flex-shrink:0;opacity:.85}
+.win-chip{font-size:.68rem;flex-shrink:0;margin-top:2px;opacity:.85}
+
+/* ---- Preview full name ---- */
+/* A small button next to every player name that pops up the complete,
+   normal-case name (not the uppercased/clamped card version) so a long or
+   ambiguous name is never a guess, even on the rare card where two lines
+   still isn't enough room. */
+.player-preview-btn{
+  display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
+  width:20px;height:20px;padding:0;margin-top:2px;border-radius:50%;
+  border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:rgba(255,255,255,.8);
+  cursor:pointer;transition:background .15s,border-color .15s,color .15s;
+}
+.player-preview-btn svg{width:11px;height:11px}
+.player-preview-btn:hover,.player-preview-btn:focus-visible{background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.45);color:#fff}
+.court-card:not(.playing) .player-preview-btn{
+  border:1px solid var(--line);background:var(--court);color:var(--slate);
+}
+.court-card:not(.playing) .player-preview-btn:hover,
+.court-card:not(.playing) .player-preview-btn:focus-visible{background:var(--turf-pale);border-color:var(--turf);color:var(--turf-deep)}
+
+.name-preview-pop{
+  position:fixed;z-index:9999;left:0;top:0;transform:translate(-50%,-100%);
+  background:#0E2748;color:#fff;font-family:var(--font-display);font-weight:700;font-size:.9rem;
+  line-height:1.3;padding:.5rem .75rem;border-radius:10px;box-shadow:var(--shadow-md);
+  max-width:min(78vw,300px);text-align:center;word-break:break-word;
+  opacity:0;pointer-events:none;transition:opacity .12s ease,transform .12s ease;
+}
+.name-preview-pop::after{
+  content:'';position:absolute;left:50%;top:100%;transform:translateX(-50%);
+  border:6px solid transparent;border-top-color:#0E2748;
+}
+.name-preview-pop.show{opacity:1;transform:translate(-50%,calc(-100% - 10px));}
 
 /* ---- Swap partner (mid-match) ---- */
 .player-swap-btn{
