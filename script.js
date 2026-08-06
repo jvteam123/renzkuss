@@ -1227,7 +1227,7 @@ function playerRowHtml(name, swap, sub){
     ? `<button type="button" class="player-sub-btn" data-act="sub-player" data-idx="${sub.idx}" aria-label="Substitute ${esc(name)}" title="Sub in a replacement for ${esc(name)}"><svg viewBox="0 0 24 24"><use href="#i-sub"/></svg></button>`
     : '';
   return `<span class="player-col">
-    <span class="player-row">${avatarHtml(name)}<span class="player-name-txt">${esc(courtCardName(name))}</span>${winChip}${swapBtn}${subBtn}</span>
+    <span class="player-row">${avatarHtml(name)}<span class="player-name-txt" title="${esc(name)}">${esc(courtCardName(name))}</span>${winChip}${swapBtn}${subBtn}</span>
     <span class="player-games-row">${gamesChip}</span>
   </span>`;
 }
