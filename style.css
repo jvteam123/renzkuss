@@ -1393,23 +1393,38 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn{
 }
 .viewer-upnext-notify[hidden]{display:none}
 .viewer-upnext-notify-inner{
-  display:flex;align-items:center;flex-wrap:wrap;gap:.5rem 1rem;
+  display:flex;align-items:flex-start;flex-wrap:wrap;gap:.5rem 1rem;
   background:linear-gradient(135deg,var(--turf) 0%,var(--turf-deep) 100%);
   color:#fff;border-radius:var(--radius);padding:.85rem 1.1rem;
   box-shadow:var(--shadow-md);
   animation:viewer-upnext-in .32s cubic-bezier(.2,.8,.3,1);
 }
 .viewer-upnext-badge{
-  display:inline-flex;align-items:center;gap:.4rem;flex-shrink:0;
+  display:inline-flex;align-items:center;gap:.4rem;flex-shrink:0;margin-top:.15rem;
   font-family:var(--font-mono);font-size:.68rem;font-weight:700;letter-spacing:.07em;
   text-transform:uppercase;background:rgba(255,255,255,.2);color:#fff;
   padding:.35rem .7rem;border-radius:99px;
 }
 .viewer-upnext-badge svg{width:13px;height:13px;flex-shrink:0}
+/* Up to 2 upcoming matchups, stacked — the immediate next match reads large
+   and bold, the one after it smaller and slightly dimmed so the hierarchy
+   is obvious at a glance. */
 .viewer-upnext-body{
   flex:1 1 auto;min-width:180px;
-  display:flex;align-items:center;flex-wrap:wrap;gap:.35rem .6rem;
+  display:flex;flex-direction:column;gap:.4rem;
+}
+.viewer-upnext-item{
+  display:flex;align-items:center;flex-wrap:wrap;gap:.3rem .6rem;
   font-size:1.02rem;font-weight:800;letter-spacing:-.01em;
+}
+.viewer-upnext-item + .viewer-upnext-item{
+  font-size:.86rem;font-weight:700;opacity:.82;
+  padding-top:.3rem;border-top:1px solid rgba(255,255,255,.18);
+}
+.viewer-upnext-tag{
+  font-family:var(--font-mono);font-size:.58rem;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:rgba(255,255,255,.85);
+  background:rgba(255,255,255,.16);border-radius:5px;padding:.12rem .4rem;flex-shrink:0;
 }
 .viewer-upnext-body .ondeck-team{color:#fff}
 .viewer-upnext-body .ondeck-vs{
@@ -1424,7 +1439,8 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn{
 @media (max-width:520px){
   .viewer-upnext-notify{padding:0 .8rem}
   .viewer-upnext-notify-inner{padding:.7rem .85rem}
-  .viewer-upnext-body{font-size:.9rem}
+  .viewer-upnext-item{font-size:.9rem}
+  .viewer-upnext-item + .viewer-upnext-item{font-size:.78rem}
 }
 
 /* Read-only mode: hide everything a spectator shouldn't touch, without
@@ -1440,7 +1456,8 @@ body.viewer-mode .court-cta,
 body.viewer-mode .player-swap-btn,
 body.viewer-mode .player-sub-btn,
 body.viewer-mode .undo-result-btn,
-body.viewer-mode .sbl-btn{ display:none !important; }
+body.viewer-mode .sbl-btn,
+body.viewer-mode .history{ display:none !important; } /* redundant with .viewer-upnext-notify above */
 body.viewer-mode .court-name{ pointer-events:none; }
 body.viewer-mode .app-shell{ grid-template-columns:1fr; }
 body.viewer-mode .courts-main{ display:block !important; }
