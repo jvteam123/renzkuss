@@ -440,13 +440,25 @@ function applyFixedDuoToSelection(base, pool, gameSize){
     const names = result.map(e => e.name);
     const hasA = names.includes(duo.a), hasB = names.includes(duo.b);
     if (hasA === hasB) return; // both already together, or neither in this match — nothing to adjust
+    const presentName = hasA ? duo.a : duo.b;
     const missingName = hasA ? duo.b : duo.a;
     const resultIds = new Set(result.map(e => e.id));
     // The one and only player this can reach for: whoever is next in line
     // right after the current window, still waiting, not yet claimed.
     const nextInLine = pool.find(e => !resultIds.has(e.id));
     if (!nextInLine || nextInLine.name !== missingName) return; // partner isn't the very next waiting player — leave the queue alone
-    result[result.length - 1] = nextInLine; // swap them into the match's last slot
+    // Swap the incoming partner into the LAST slot that isn't the duo member
+    // already in the match. `result` is in FIFO order, so the true last slot
+    // can sometimes BE the present duo member themselves (they just happen to
+    // be the most-recently-queued of the four) — overwriting that slot would
+    // eject the very player we're trying to keep in, bouncing them back to
+    // the front of the queue instead of pairing them with their partner.
+    let displaceIdx = -1;
+    for (let i = result.length - 1; i >= 0; i--){
+      if (result[i].name !== presentName){ displaceIdx = i; break; }
+    }
+    if (displaceIdx === -1) return; // shouldn't happen, but never displace the duo member itself
+    result[displaceIdx] = nextInLine; // swap them into the match's last available (non-duo) slot
   });
   // Restore stack (FIFO) order so display and team-splitting stay consistent.
   result.sort((a, b) => (idxOf.get(a.id) ?? 0) - (idxOf.get(b.id) ?? 0));
