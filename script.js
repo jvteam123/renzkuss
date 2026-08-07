@@ -1746,7 +1746,16 @@ function renderSubPicker(court){
   if (subTarget && subTarget.block){
     // Anyone still waiting in the main stack is fair game — block members
     // aren't tied to a specific court's level, so no level filtering here.
-    candidates = state.stack.slice();
+    // But a stack player already claimed by an open court's own preview
+    // (about to be called up next) is off the table: pulling them into the
+    // block here would silently steal them out from under that preview,
+    // leaving that court's "up next" lineup pointing at someone who's no
+    // longer really available until the next render happens to catch it —
+    // exactly the "player was already up next" conflict this guards against.
+    const openQueueNow = computeOpenCourtQueue(state.session.gameSize);
+    const claimed = new Set();
+    openQueueNow.forEach(slot => { if (slot.taken) slot.taken.forEach(e => claimed.add(e.id)); });
+    candidates = state.stack.filter(e => !claimed.has(e.id));
   } else if (subTarget && subTarget.preview){
     // Anyone already slotted into any open court's own preview (including
     // this one) is off the table — pulling them in here would double-book
