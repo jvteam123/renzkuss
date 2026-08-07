@@ -462,6 +462,37 @@ function applyFixedDuoToSelection(base, pool, gameSize){
 function removeEntriesFromStack(entries){
   const ids = new Set(entries.map(e => e.id));
   state.stack = state.stack.filter(e => !ids.has(e.id));
+  state.winnersBlock = state.winnersBlock.filter(e => !ids.has(e.id));
+  state.losersBlock = state.losersBlock.filter(e => !ids.has(e.id));
+}
+
+/* ---- "Off court and free" lookups, shared by all the substitute pickers ----
+   A sub candidate can be waiting in the main stack OR parked in either
+   accumulating block (winners/losers) — anyone not currently on a court is
+   fair game. These helpers search/remove across all three so the picker
+   never comes up empty just because the free players happen to be sitting
+   in a block instead of the stack. */
+function findWaitingEntryById(id){
+  let idx = state.stack.findIndex(e => e.id === id);
+  if (idx !== -1) return { src: 'stack', idx, entry: state.stack[idx] };
+  idx = state.winnersBlock.findIndex(e => e.id === id);
+  if (idx !== -1) return { src: 'winnersBlock', idx, entry: state.winnersBlock[idx] };
+  idx = state.losersBlock.findIndex(e => e.id === id);
+  if (idx !== -1) return { src: 'losersBlock', idx, entry: state.losersBlock[idx] };
+  return null;
+}
+function removeWaitingEntryById(id){
+  const found = findWaitingEntryById(id);
+  if (!found) return null;
+  state[found.src].splice(found.idx, 1);
+  return found.entry;
+}
+function getAllWaitingEntries(){
+  return [
+    ...state.stack.map(e => ({ ...e, __src: 'stack' })),
+    ...state.winnersBlock.map(e => ({ ...e, __src: 'winnersBlock' })),
+    ...state.losersBlock.map(e => ({ ...e, __src: 'losersBlock' }))
+  ];
 }
 
 /* ---- Avoid Repeating Teammates: best-effort team-pairing ----
@@ -1335,7 +1366,11 @@ function computeOpenCourtQueue(gameSize){
           // entries) — without this, both writes below would place the same
           // person in two seats of one lineup.
           if (usedIncomingIds.has(incomingId)) return;
-          const incomingEntry = previewStack.find(e => e.id === incomingId);
+          // The pick may be a stack player still in the natural draw pool,
+          // or someone parked in an accumulating block — check both.
+          const incomingEntry = previewStack.find(e => e.id === incomingId)
+            || state.winnersBlock.find(e => e.id === incomingId)
+            || state.losersBlock.find(e => e.id === incomingId);
           if (!incomingEntry || !levelsMatch(getPlayerLevel(incomingEntry.name), courtLevel)) return;
           taken = taken.slice();
           taken[outIdx] = incomingEntry;
@@ -1755,51 +1790,70 @@ function openBlockSubPicker(blockKey, entryId){
 function renderSubPicker(court){
   let candidates;
   if (subTarget && subTarget.block){
-    // Anyone still waiting in the main stack is fair game — block members
-    // aren't tied to a specific court's level, so no level filtering here.
-    // But a stack player already claimed by an open court's own preview
-    // (about to be called up next) is off the table: pulling them into the
-    // block here would silently steal them out from under that preview,
+    // Anyone still off a court is fair game here — main stack or the other
+    // block — block members aren't tied to a specific court's level, so no
+    // level filtering. But a player already claimed by an open court's own
+    // preview (about to be called up next) is off the table: pulling them
+    // in here would silently steal them out from under that preview,
     // leaving that court's "up next" lineup pointing at someone who's no
     // longer really available until the next render happens to catch it —
     // exactly the "player was already up next" conflict this guards against.
     const openQueueNow = computeOpenCourtQueue(state.session.gameSize);
     const claimed = new Set();
     openQueueNow.forEach(slot => { if (slot.taken) slot.taken.forEach(e => claimed.add(e.id)); });
-    candidates = state.stack.filter(e => !claimed.has(e.id));
+    candidates = getAllWaitingEntries().filter(e => e.id !== subTarget.entryId && !claimed.has(e.id));
   } else if (subTarget && subTarget.preview){
     // Anyone already slotted into any open court's own preview (including
     // this one) is off the table — pulling them in here would double-book
-    // them. Only players still further back in the stack, and matching this
-    // court's skill level, show up as valid replacements.
+    // them. Everyone else off a court — main stack or either accumulating
+    // block — matching this court's skill level, shows up as a valid
+    // replacement.
     const openQueueNow = computeOpenCourtQueue(state.session.gameSize);
     const claimed = new Set();
     openQueueNow.forEach(slot => { if (slot.taken) slot.taken.forEach(e => claimed.add(e.id)); });
     const courtLevel = court.level || 'Open';
-    candidates = state.stack.filter(e => !claimed.has(e.id) && levelsMatch(getPlayerLevel(e.name), courtLevel));
+    candidates = getAllWaitingEntries().filter(e => !claimed.has(e.id) && levelsMatch(getPlayerLevel(e.name), courtLevel));
   } else {
-    candidates = state.stack.slice();
+    // Mid-match sub on a live court: anyone off a court right now — stack
+    // or either block — can step in.
+    candidates = getAllWaitingEntries();
   }
   subEmptyNote.hidden = candidates.length > 0;
-  subList.innerHTML = candidates.map(entry => `
+  subList.innerHTML = candidates.map(entry => {
+    const srcTag = entry.__src === 'winnersBlock' ? '<span class="tag-pill queued">Winners block</span>'
+      : entry.__src === 'losersBlock' ? '<span class="tag-pill queued">Losers block</span>' : '';
+    return `
     <div class="sub-row" data-id="${entry.id}">
       <span class="arrival-name">${esc(entry.name)}</span>
       <span class="level-badge ${levelClass(getPlayerLevel(entry.name))}">${esc(levelLabel(getPlayerLevel(entry.name)))}</span>
+      ${srcTag}
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 function performSubstitution(entryId){
   if (!subTarget) return;
-  const incoming = state.stack.find(e => e.id === entryId);
-  if (!incoming){ subOverlay.hidden = true; subTarget = null; return; }
+  const foundIncoming = findWaitingEntryById(entryId);
+  if (!foundIncoming){ subOverlay.hidden = true; subTarget = null; return; }
+  const incoming = foundIncoming.entry;
   if (subTarget.block){
+    if (incoming.id === subTarget.entryId){ subOverlay.hidden = true; subTarget = null; return; }
+    // Pull the incoming player out of wherever they actually are (main
+    // stack or the other block) before touching the target block, and
+    // re-find the outgoing player's index afterward — removing from the
+    // same block array first would otherwise shift indices out from under
+    // a stale outIdx.
+    removeWaitingEntryById(incoming.id);
     const block = state[subTarget.block];
     const outIdx = block.findIndex(e => e.id === subTarget.entryId);
-    if (outIdx === -1){ subOverlay.hidden = true; subTarget = null; return; }
+    if (outIdx === -1){
+      // Outgoing player no longer in the block (edge case) — don't strand
+      // the incoming player mid-air, just put them back in the stack.
+      state.stack.push(incoming);
+      subOverlay.hidden = true; subTarget = null; renderAll(); persist();
+      return;
+    }
     const outgoing = block[outIdx];
-    const stackIdx = state.stack.findIndex(e => e.id === entryId);
-    if (stackIdx === -1){ subOverlay.hidden = true; subTarget = null; return; }
-    state.stack.splice(stackIdx, 1);
     block[outIdx] = incoming; // takes the same spot/position in the block
     state.stack.push({ id: nextId('p'), name: outgoing.name, joinedAt: Date.now(), tag: 'queued' });
     toast(`${incoming.name} subbed in for ${outgoing.name}`);
@@ -1827,10 +1881,9 @@ function performSubstitution(entryId){
     if (court.previewOrder) court.previewOrder[idx] = incoming.name;
     toast(`${incoming.name} will sub in for ${outgoingName}`);
   } else {
-    const stackIdx = state.stack.findIndex(e => e.id === entryId);
-    if (stackIdx === -1 || !court.players[idx]) { subOverlay.hidden = true; subTarget = null; return; }
+    if (!court.players[idx]) { subOverlay.hidden = true; subTarget = null; return; }
     const outgoingName = court.players[idx];
-    state.stack.splice(stackIdx, 1);
+    removeWaitingEntryById(incoming.id); // pulls from stack or whichever block they were parked in
     court.players[idx] = incoming.name;
     state.stack.push({ id: nextId('p'), name: outgoingName, joinedAt: Date.now(), tag: 'queued' });
     toast(`${incoming.name} subbed in for ${outgoingName}`);
