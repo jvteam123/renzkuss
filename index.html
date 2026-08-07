@@ -367,7 +367,11 @@
           <span class="track"></span>
         </label>
       </div>
-      <p class="add-hint" style="padding:0;margin-top:.4rem">If an open court has enough players and nobody taps Start Game within 2 minutes, it starts automatically. Turn off to always start courts manually.</p>
+      <p class="add-hint" style="padding:0;margin-top:.4rem">If an open court has enough players and nobody taps Start Game within the time below, it starts automatically. Turn off to always start courts manually.</p>
+      <div class="target-sub" id="autoStartSub" hidden>
+        <label for="autoStartMinutesInput">Auto-start after (minutes)</label>
+        <input type="number" id="autoStartMinutesInput" min="1" max="60" step="1" value="1">
+      </div>
     </div>
     <hr class="divider">
     <div class="field">
@@ -399,9 +403,12 @@
     <hr class="divider">
     <div class="danger-zone">
       <h4>Session controls</h4>
+      <button class="btn ghost" id="restoreDefaultsBtn" style="width:100%;margin-bottom:.5rem"><svg viewBox="0 0 24 24" style="width:13px;height:13px;vertical-align:-2px;margin-right:.35rem"><use href="#i-restart"/></svg>Restore default settings</button>
       <button class="btn warn" id="endSessionBtn" style="width:100%;margin-bottom:.5rem"><svg viewBox="0 0 24 24" style="width:13px;height:13px;vertical-align:-2px;margin-right:.35rem"><use href="#i-lock"/></svg>End session (keep all records)</button>
       <button class="btn ghost" id="newSessionBtn" style="width:100%;margin-bottom:.5rem"><svg viewBox="0 0 24 24" style="width:13px;height:13px;vertical-align:-2px;margin-right:.35rem"><use href="#i-restart"/></svg>Start new session (keep player names)</button>
-      <button class="btn danger" id="resetBtn" style="width:100%"><svg viewBox="0 0 24 24" style="width:13px;height:13px;vertical-align:-2px;margin-right:.35rem"><use href="#i-trash"/></svg>Erase everything (players too)</button>
+      <button class="btn danger" id="resetBtn" style="width:100%;margin-bottom:.5rem"><svg viewBox="0 0 24 24" style="width:13px;height:13px;vertical-align:-2px;margin-right:.35rem"><use href="#i-trash"/></svg>Erase everything (players too)</button>
+      <button class="btn danger" id="clearAppDataBtn" style="width:100%"><svg viewBox="0 0 24 24" style="width:13px;height:13px;vertical-align:-2px;margin-right:.35rem"><use href="#i-trash"/></svg>Clear app data (factory reset)</button>
+      <p class="add-hint" style="padding:0;margin-top:.5rem">Clear app data wipes everything this app has stored on this device — session data, saved theme, and any host/login info — then reloads the page from scratch.</p>
     </div>
     <div class="modal-actions">
       <button class="btn primary" id="settingsDone">Done</button>
