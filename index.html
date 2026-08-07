@@ -113,6 +113,11 @@
       </div>
     </div>
 
+    <div class="stack-list" id="stackList" aria-live="polite"></div>
+
+    <!-- Accumulating blocks aren't actually next up — they're winners/losers
+         still waiting for their block to fill before they rejoin the real
+         queue — so this sits below the main player list, not above it. -->
     <div class="blocks-panel" id="blocksPanel" hidden>
       <div class="blocks-panel-title">⏳ Accumulating blocks</div>
       <div class="block-group">
@@ -132,13 +137,19 @@
         <div class="block-list" id="losersBlockList"></div>
       </div>
     </div>
-
-    <div class="stack-list" id="stackList" aria-live="polite"></div>
   </aside>
 
   <main class="courts-main">
     <h2>Courts</h2>
     <div class="courts-grid" id="courtsGrid"></div>
+    <details class="history" open>
+      <summary><svg viewBox="0 0 24 24"><use href="#i-chev"/></svg> Up next</summary>
+      <div class="history-list" id="historyList"></div>
+    </details>
+
+    <!-- Same reasoning as the host-side blocks panel: these players aren't
+         really "up next" until their block fills, so it renders after the
+         actual Up next list, not before it. -->
     <div class="blocks-panel viewer-blocks-panel" id="viewerBlocksPanel" hidden>
       <div class="blocks-panel-title">⏳ Accumulating blocks</div>
       <div class="block-group">
@@ -156,10 +167,6 @@
         <div class="block-list" id="viewerLosersBlockList"></div>
       </div>
     </div>
-    <details class="history" open>
-      <summary><svg viewBox="0 0 24 24"><use href="#i-chev"/></svg> Up next</summary>
-      <div class="history-list" id="historyList"></div>
-    </details>
   </main>
 </div>
 
