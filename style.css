@@ -452,12 +452,12 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
 .stack-group-count{font-family:var(--font-mono);font-size:.68rem;font-weight:600;color:var(--slate)}
 
 .blocks-panel{
-  margin:0 1.1rem .8rem;padding:.7rem .75rem;
+  margin:.8rem 1.1rem .8rem;padding:.7rem .75rem;
   background:var(--court);border:1.5px dashed var(--line);border-radius:var(--radius);
   display:flex;flex-direction:column;gap:.65rem;
 }
 .blocks-panel[hidden]{display:none}
-.viewer-blocks-panel{margin:0 0 1.2rem;background:var(--surface)}
+.viewer-blocks-panel{margin:1.2rem 0 0;background:var(--surface)}
 .viewer-blocks-panel .block-flush-btn,
 .viewer-blocks-panel .block-level-flush-btn{display:none}
 .blocks-panel-title{
