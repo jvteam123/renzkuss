@@ -494,6 +494,19 @@ function getAllWaitingEntries(){
     ...state.losersBlock.map(e => ({ ...e, __src: 'losersBlock' }))
   ];
 }
+// Places a (freshly requeued) entry back into whichever waiting pool a sub
+// pick came from — the main stack, or one of the accumulating blocks — at
+// roughly the slot it was pulled from. This is what makes a substitution a
+// true swap: pulling someone out of the winners block to fill a spot puts
+// the outgoing player INTO the winners block in their place, instead of
+// always dumping them at the back of the main stack and quietly shrinking
+// whichever block they were borrowed from.
+function insertIntoWaitingSource(srcKey, srcIdx, entry){
+  if (srcKey === 'stack'){ state.stack.push(entry); return; }
+  const arr = state[srcKey];
+  const insertAt = Math.min(srcIdx, arr.length);
+  arr.splice(insertAt, 0, entry);
+}
 
 /* ---- Avoid Repeating Teammates: best-effort team-pairing ----
    Only meaningful for doubles (2-per-team). Given the players already chosen
@@ -1836,26 +1849,30 @@ function performSubstitution(entryId){
   const foundIncoming = findWaitingEntryById(entryId);
   if (!foundIncoming){ subOverlay.hidden = true; subTarget = null; return; }
   const incoming = foundIncoming.entry;
+  const incomingSrcKey = foundIncoming.src, incomingSrcIdx = foundIncoming.idx;
   if (subTarget.block){
     if (incoming.id === subTarget.entryId){ subOverlay.hidden = true; subTarget = null; return; }
     // Pull the incoming player out of wherever they actually are (main
-    // stack or the other block) before touching the target block, and
-    // re-find the outgoing player's index afterward — removing from the
-    // same block array first would otherwise shift indices out from under
-    // a stale outIdx.
+    // stack or a block) before touching the target block, and re-find the
+    // outgoing player's index afterward — removing from the same block
+    // array first would otherwise shift indices out from under a stale
+    // outIdx.
     removeWaitingEntryById(incoming.id);
     const block = state[subTarget.block];
     const outIdx = block.findIndex(e => e.id === subTarget.entryId);
     if (outIdx === -1){
       // Outgoing player no longer in the block (edge case) — don't strand
-      // the incoming player mid-air, just put them back in the stack.
-      state.stack.push(incoming);
+      // the incoming player mid-air, just put them back where they came from.
+      insertIntoWaitingSource(incomingSrcKey, incomingSrcIdx, incoming);
       subOverlay.hidden = true; subTarget = null; renderAll(); persist();
       return;
     }
     const outgoing = block[outIdx];
     block[outIdx] = incoming; // takes the same spot/position in the block
-    state.stack.push({ id: nextId('p'), name: outgoing.name, joinedAt: Date.now(), tag: 'queued' });
+    // The outgoing player swaps into wherever the incoming player was
+    // pulled from — if that was another block, the block's headcount
+    // doesn't quietly shrink; if it was the main stack, they simply requeue.
+    insertIntoWaitingSource(incomingSrcKey, incomingSrcIdx, { id: nextId('p'), name: outgoing.name, joinedAt: Date.now(), tag: 'queued' });
     toast(`${incoming.name} subbed in for ${outgoing.name}`);
     subOverlay.hidden = true;
     subTarget = null;
@@ -1885,7 +1902,10 @@ function performSubstitution(entryId){
     const outgoingName = court.players[idx];
     removeWaitingEntryById(incoming.id); // pulls from stack or whichever block they were parked in
     court.players[idx] = incoming.name;
-    state.stack.push({ id: nextId('p'), name: outgoingName, joinedAt: Date.now(), tag: 'queued' });
+    // Same swap principle: the player coming off the live court takes the
+    // spot the incoming sub vacated, rather than always joining the back
+    // of the main stack.
+    insertIntoWaitingSource(incomingSrcKey, incomingSrcIdx, { id: nextId('p'), name: outgoingName, joinedAt: Date.now(), tag: 'queued' });
     toast(`${incoming.name} subbed in for ${outgoingName}`);
   }
   subOverlay.hidden = true;
