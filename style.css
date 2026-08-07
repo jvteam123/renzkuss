@@ -955,6 +955,18 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
 .match-style-desc{font-size:.83rem;color:var(--ink);line-height:1.4;padding-left:1.75rem}
 .match-style-note{font-size:.83rem;font-weight:700;color:var(--turf-deep);line-height:1.4;padding-left:1.75rem}
 .match-style-card:not(.active) .match-style-note{color:var(--slate)}
+
+/* ---------- Skill Levels toggle (Settings) ----------
+   Off by default: every level badge/select in the app is hidden via this
+   single body-class switch, rather than each render function branching on
+   the setting individually. Internally everyone still carries 'Open' (or
+   whatever was set before the feature was turned off) — this only ever
+   controls what's shown, never the underlying data or matching logic. */
+body:not(.levels-on) .level-badge,
+body:not(.levels-on) #addLevelSelect,
+body:not(.levels-on) .court-level-select{
+  display:none !important;
+}
 .target-sub label{margin-bottom:.35rem}
 .target-sub input[type=number]{max-width:100px}
 .fixed-duo-add-row{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap}
