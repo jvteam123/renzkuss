@@ -766,10 +766,25 @@ function checkBlockFlush(){
     // that level's courts waiting for players who will never arrive, merge
     // whatever's blocked for this level back into the queue as soon as
     // doing so would let a match start.
+    //
+    // Players currently out on a court count toward this level's pool too —
+    // they'll cycle back into a block (or the stack) once their game ends,
+    // so ignoring them made the check think a level was "too small" just
+    // because everyone happened to be mid-match at that moment, forcing a
+    // premature winners+losers merge instead of waiting for the next court
+    // to finish and complete the group properly.
     const hasBlocked = countOfLevel(state.winnersBlock, level) > 0 || countOfLevel(state.losersBlock, level) > 0;
     const stackLevelCount = countOfLevel(state.stack, level);
-    const totalLevelCount = stackLevelCount + countOfLevel(state.winnersBlock, level) + countOfLevel(state.losersBlock, level);
-    if (hasBlocked && stackLevelCount < gameSize && totalLevelCount >= gameSize){
+    const playingLevelCount = state.courts.reduce((sum, c) => {
+      if (c.status !== 'playing' || !Array.isArray(c.players)) return sum;
+      return sum + c.players.filter(n => n && getPlayerLevel(n) === level).length;
+    }, 0);
+    const totalLevelCount = stackLevelCount + countOfLevel(state.winnersBlock, level) + countOfLevel(state.losersBlock, level) + playingLevelCount;
+    // Only force-flush if this level's whole pool (including people still
+    // mid-game) could never fill BOTH blocks to gameSize — i.e. fewer than
+    // 2×gameSize players total exist for this level. Otherwise, wait: more
+    // winners/losers of this level are still on their way back from courts.
+    if (hasBlocked && stackLevelCount < gameSize && totalLevelCount < gameSize * 2){
       flushBlockLevelToQueue('winnersBlock', level);
       flushBlockLevelToQueue('losersBlock', level);
     }
