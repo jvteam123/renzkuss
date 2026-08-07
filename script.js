@@ -1734,6 +1734,41 @@ function speakScoreOrMilestone(sc, scoringTeamScore){
   else speakScoreCall(sc);
 }
 
+/* ---- Voice "Call Players" announcer ----
+   Same Web Speech pipeline as the score announcer above (same "Sound on
+   call-up" toggle, same speakScoreUtterance gate/cancel behavior) but for
+   summoning a court's next lineup instead of calling out a score. The
+   lineup is read out, then repeated once more — "Court 2, Alice and Bob
+   versus Carol and Dave" twice in a row — so it carries across a noisy
+   gym even if someone missed it the first time. */
+function callPlayersText(court, names){
+  const gameSize = state.session.gameSize;
+  const matchupText = (gameSize === 2)
+    ? `${names[0]} versus ${names[1]}`
+    : (() => { const [a, b] = splitTeams(names); return `${a.join(' and ')} versus ${b.join(' and ')}`; })();
+  const call = `${court.name}. ${matchupText}. Please come to the court.`;
+  return `${call} ... ${call}`;
+}
+function speakCallPlayers(court, names){
+  if (!names || names.length === 0) return;
+  speakScoreUtterance(callPlayersText(court, names));
+}
+// Reads a court's up-next lineup out loud (twice) — used by the "Call
+// Players" button that sits beside "Start Game" on an open, ready court.
+// Pulls straight from court.previewOrder, which renderCourts() keeps in
+// sync with whoever's actually about to be called up, so this always
+// announces exactly what the card is currently showing.
+function announceCallPlayers(court, btnEl){
+  const names = court.previewOrder;
+  if (!names || names.length === 0){ toast('Not enough players in the stack yet'); return; }
+  if (!state.session.soundOn){ toast('Turn on "Sound on call-up" in Settings to use Call Players'); return; }
+  speakCallPlayers(court, names);
+  if (btnEl){
+    btnEl.classList.add('speaking');
+    setTimeout(() => { btnEl.classList.remove('speaking'); }, 3500);
+  }
+}
+
 function adjustCourtScore(court, team, delta){
   const sc = court.score;
   if (!sc || detectCourtWinner(sc)) return;
@@ -2225,7 +2260,10 @@ function renderCourts(){
         ${lastResultHtml}
         ${matchupHtml}
         ${swapHint}
-        <button type="button" class="court-cta call" data-act="call" ${(enough && !ended) ? '' : 'disabled'}>${ended ? '🔒 Session ended' : '▶ Start Game'}</button>
+        <div class="court-cta-row">
+          <button type="button" class="court-cta call-players" data-act="call-players" ${(enough && !ended) ? '' : 'disabled'} aria-label="Announce next players for ${esc(court.name)}" title="Speak the next lineup out loud, twice">📣 Call Players</button>
+          <button type="button" class="court-cta call" data-act="call" ${(enough && !ended) ? '' : 'disabled'}>${ended ? '🔒 Session ended' : '▶ Start Game'}</button>
+        </div>
         ${autoStartHtml}
       `;
     } else {
@@ -2325,6 +2363,10 @@ courtsGrid.addEventListener('click', (e) => {
   if (btn.dataset.act === 'call'){
     if (isSessionEnded()){ toast('Session has ended — resume it to start new matches'); return; }
     callNext(court);
+  }
+  if (btn.dataset.act === 'call-players'){
+    if (isSessionEnded()){ toast('Session has ended'); return; }
+    announceCallPlayers(court, btn);
   }
   if (btn.dataset.act === 'end') openEndgame(court);
   if (btn.dataset.act === 'undo-result') undoLastResult(court.id);
