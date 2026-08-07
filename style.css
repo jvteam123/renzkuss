@@ -923,6 +923,31 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
 .court-name-rows{display:flex;flex-direction:column;gap:.4rem;margin-top:.6rem;max-height:180px;overflow-y:auto}
 .toggle-row{display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding:.3rem 0}
 .target-sub{margin-top:.7rem;padding:.75rem .8rem;background:var(--court);border-radius:var(--radius-sm);border:1.5px solid var(--line)}
+.match-style-group{display:flex;flex-direction:column;gap:.6rem}
+.match-style-card{
+  display:flex;flex-direction:column;gap:.3rem;text-align:left;width:100%;
+  background:var(--court);border:1.5px solid var(--line);border-radius:var(--radius-sm);
+  padding:.75rem .85rem;cursor:pointer;font-family:var(--font-body);
+  transition:border-color .15s ease,background .15s ease;
+}
+.match-style-card:hover{border-color:var(--turf-deep)}
+.match-style-card.active{border-color:var(--turf);background:var(--turf-pale)}
+.match-style-head{display:flex;align-items:center;gap:.5rem}
+.match-style-check{
+  width:19px;height:19px;flex:0 0 auto;border-radius:50%;border:1.5px solid var(--line);
+  display:flex;align-items:center;justify-content:center;color:#fff;background:transparent;
+}
+.match-style-check svg{width:13px;height:13px;visibility:hidden}
+.match-style-card.active .match-style-check{background:var(--turf);border-color:var(--turf)}
+.match-style-card.active .match-style-check svg{visibility:visible}
+.match-style-title{font-weight:800;font-size:.95rem;color:var(--ink)}
+.match-style-tag{
+  font-size:.68rem;font-weight:700;letter-spacing:.02em;text-transform:uppercase;
+  background:var(--turf-pale);color:var(--turf-deep);padding:.15rem .5rem;border-radius:999px;
+}
+.match-style-desc{font-size:.83rem;color:var(--ink);line-height:1.4;padding-left:1.75rem}
+.match-style-note{font-size:.83rem;font-weight:700;color:var(--turf-deep);line-height:1.4;padding-left:1.75rem}
+.match-style-card:not(.active) .match-style-note{color:var(--slate)}
 .target-sub label{margin-bottom:.35rem}
 .target-sub input[type=number]{max-width:100px}
 .fixed-duo-add-row{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap}
