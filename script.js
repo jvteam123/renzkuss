@@ -1583,6 +1583,46 @@ function swapCourtPartner(court, idx){
   // works between two previews, two live matches, or a mix of both.
   const nameA = fromArr[otherIdx];
   const nameB = toArr[idx];
+
+  const fromIsOpen = fromCourt.status === 'open';
+  const toIsOpen = court.status === 'open';
+  if (fromIsOpen !== toIsOpen){
+    // Mixed swap: one side is a *committed* playing-court player (already
+    // removed from state.stack), the other is only a *preview* pick that's
+    // still sitting in the stack (nothing claims it until "Start Game").
+    // Just swapping the two names in place would leave the preview player
+    // written onto a live court while their stack entry is untouched — so
+    // they'd still be up for grabs the next time a court calls its next
+    // group, and could end up listed as playing on two courts at once.
+    // Route the swap through the stack instead: actually remove the
+    // incoming preview player's stack entry, and actually return the
+    // outgoing live player to the stack, same as a normal substitution.
+    const openCourt = fromIsOpen ? fromCourt : court;
+    const openName = fromIsOpen ? nameA : nameB;
+    const liveCourt = fromIsOpen ? court : fromCourt;
+    const liveIdx = fromIsOpen ? idx : otherIdx;
+    const liveName = fromIsOpen ? nameB : nameA;
+
+    const openQueueNow = computeOpenCourtQueue(state.session.gameSize);
+    const slot = openQueueNow.get(openCourt.id);
+    const stackEntry = slot && slot.taken ? slot.taken.find(e => e.name === openName) : null;
+    if (!stackEntry){ swapSelection = null; renderCourts(); return; }
+
+    removeEntriesFromStack([stackEntry]);
+    liveCourt.players[liveIdx] = openName;
+    state.stack.push({ id: nextId('p'), name: liveName, joinedAt: Date.now(), tag: 'queued' });
+    // The open court's own preview no longer reflects the current stack —
+    // let it recompute naturally on the next render instead of leaving a
+    // stale manual entry that points at a player who's now playing elsewhere.
+    openCourt.previewOrder = null;
+    openCourt.previewSubMap = null;
+
+    swapSelection = null;
+    toast(`Swapped ${nameA} (${fromCourt.name}) \u2194 ${nameB} (${court.name})`);
+    renderAll(); persist();
+    return;
+  }
+
   fromArr[otherIdx] = nameB;
   toArr[idx] = nameA;
   swapSelection = null;
