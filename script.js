@@ -464,6 +464,60 @@ function applyFixedDuoToSelection(base, pool, gameSize){
   result.sort((a, b) => (idxOf.get(a.id) ?? 0) - (idxOf.get(b.id) ?? 0));
   return result;
 }
+/* Fixed Duos, continued: the "next in line" reach above only catches a
+   partner who hasn't been claimed by ANY group yet. It can't help when both
+   groups have already formed separately and each grabbed one half of the
+   duo — e.g. Marcus lands in the very next match while Logan, his fixed
+   duo partner, is buried three matches deeper and already locked into that
+   match too. When that happens, unite them with a straight swap: the
+   EARLIER group's duo member moves down to join their partner in the LATER
+   group, trading places with whoever currently fills the last non-duo seat
+   there. That displaced player simply takes over the mover's now-empty seat
+   in the earlier group — nobody outside the trade skips ahead of anyone
+   they weren't already sharing a group with, unlike reaching deep into the
+   still-unclaimed queue (which the "next in line" rule deliberately avoids).
+   `levelForGroup`, if given, is called with a group's index and must return
+   its required skill level — the swap is skipped if either player wouldn't
+   fit the level they're moving into (used for the per-court preview, where
+   each court can be locked to a level; omit it for a single flat queue). */
+function reconcileFixedDuosAcrossGroups(groups, pool, levelForGroup){
+  if (!state.session.avoidRepeatTeammates || groups.length < 2) return groups;
+  const duos = state.session.fixedDuos || [];
+  if (duos.length === 0) return groups;
+  const idxOf = new Map();
+  pool.forEach((e, i) => idxOf.set(e.id, i));
+  const result = groups.map(g => g.slice());
+  duos.forEach(duo => {
+    let groupA = -1, groupB = -1;
+    result.forEach((g, gi) => {
+      if (g.some(e => e.name === duo.a)) groupA = gi;
+      if (g.some(e => e.name === duo.b)) groupB = gi;
+    });
+    if (groupA === -1 || groupB === -1 || groupA === groupB) return; // together already, or one/both not in a formed group
+    const earlier = Math.min(groupA, groupB), later = Math.max(groupA, groupB);
+    const moverName = earlier === groupA ? duo.a : duo.b;
+    const staysName = earlier === groupA ? duo.b : duo.a;
+    const earlierGroup = result[earlier], laterGroup = result[later];
+    const moverIdx = earlierGroup.findIndex(e => e.name === moverName);
+    if (moverIdx === -1) return;
+    let displaceIdx = -1;
+    for (let i = laterGroup.length - 1; i >= 0; i--){
+      if (laterGroup[i].name !== staysName){ displaceIdx = i; break; }
+    }
+    if (displaceIdx === -1) return;
+    const mover = earlierGroup[moverIdx];
+    const displaced = laterGroup[displaceIdx];
+    if (levelForGroup){
+      const moverLevel = getPlayerLevel(mover.name), displacedLevel = getPlayerLevel(displaced.name);
+      if (!levelsMatch(moverLevel, levelForGroup(later)) || !levelsMatch(displacedLevel, levelForGroup(earlier))) return;
+    }
+    earlierGroup[moverIdx] = displaced;
+    laterGroup[displaceIdx] = mover;
+    earlierGroup.sort((a, b) => (idxOf.get(a.id) ?? 0) - (idxOf.get(b.id) ?? 0));
+    laterGroup.sort((a, b) => (idxOf.get(a.id) ?? 0) - (idxOf.get(b.id) ?? 0));
+  });
+  return result;
+}
 function removeEntriesFromStack(entries){
   const ids = new Set(entries.map(e => e.id));
   state.stack = state.stack.filter(e => !ids.has(e.id));
@@ -1411,6 +1465,29 @@ function computeOpenCourtQueue(gameSize){
       queue.set(court.id, { taken: null, remaining });
     }
   });
+  // A fixed duo can still end up split between two DIFFERENT courts here —
+  // each already fully formed its own foursome before either one saw the
+  // other half of the pair. Reconcile across all the open courts' lineups
+  // so the duo actually ends up sharing a court together (see
+  // reconcileFixedDuosAcrossGroups for how the swap is chosen).
+  const openCourtIds = [];
+  const groups = [];
+  state.courts.forEach(court => {
+    if (court.status !== 'open') return;
+    const entry = queue.get(court.id);
+    if (entry && entry.taken){ openCourtIds.push(court.id); groups.push(entry.taken); }
+  });
+  if (groups.length > 1){
+    const levelForGroup = (gi) => {
+      const court = state.courts.find(c => c.id === openCourtIds[gi]);
+      return court ? (court.level || 'Open') : 'Open';
+    };
+    const reconciled = reconcileFixedDuosAcrossGroups(groups, state.stack, levelForGroup);
+    reconciled.forEach((taken, gi) => {
+      const entry = queue.get(openCourtIds[gi]);
+      queue.set(openCourtIds[gi], { ...entry, taken });
+    });
+  }
   return queue;
 }
 
@@ -2425,13 +2502,25 @@ function renderUpNext(){
     return;
   }
 
-  const rows = [];
+  // Build all the upcoming groups first, in order — a fixed duo split
+  // across two of THESE groups (each already fully formed) can't be caught
+  // by selectMatchEntries alone, since it only reaches players not yet
+  // claimed by any group. Reconciling afterward, across the whole set,
+  // is what lets Marcus (say, in group 1) actually end up with Logan
+  // (already locked into group 3) instead of the two staying split.
+  const groups = [];
   let previewStack = onDeck.slice();
-  let groupNum = 1;
-  while (previewStack.length >= gameSize && groupNum <= 3){
+  while (previewStack.length >= gameSize && groups.length < 3){
     const chosen = selectMatchEntries(gameSize, previewStack);
     const chosenIds = new Set(chosen.map(e => e.id));
     previewStack = previewStack.filter(e => !chosenIds.has(e.id));
+    groups.push(chosen);
+  }
+  const reconciled = reconcileFixedDuosAcrossGroups(groups, onDeck);
+
+  const rows = [];
+  reconciled.forEach((chosen, i) => {
+    const groupNum = i + 1;
     const names = orderForTeammatePairing(chosen.map(p => p.name));
     let matchup;
     if (gameSize === 2){
@@ -2441,8 +2530,7 @@ function renderUpNext(){
       matchup = `<span class="ondeck-team">${a.map(esc).join(' &amp; ')}</span><span class="ondeck-vs">vs</span><span class="ondeck-team">${b.map(esc).join(' &amp; ')}</span>`;
     }
     rows.push(`<div class="ondeck-row"><span class="ondeck-num">On deck ${groupNum}</span><span class="ondeck-matchup">${matchup}</span></div>`);
-    groupNum++;
-  }
+  });
   if (previewStack.length > 0){
     rows.push(`<div class="ondeck-more">+${previewStack.length} more waiting</div>`);
   }
