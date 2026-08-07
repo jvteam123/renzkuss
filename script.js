@@ -142,6 +142,7 @@ function freshState(){
     history: [],          // {id, courtName, teamA, teamB, winner, startTime, endTime}
     playerStats: {},      // name -> {wins, games}
     teammateHistory: {},   // "nameA||nameB" (sorted) -> number of times paired as teammates this session
+    opponentHistory: {},   // "nameA||nameB" (sorted) -> number of times faced each other as opponents this session
     playerLevels: {},      // name -> skill level ('Open'|'Beginner'|'Advanced Beginner'|'Intermediate'|'Advanced')
     roster: []             // known player names, kept across "new session" resets for quick re-adding
   };
@@ -416,19 +417,36 @@ function selectMatchEntries(gameSize, sourceStack){
   return applyFixedDuoToSelection(base, stack, gameSize);
 }
 /* Fixed Duos affect how a chosen foursome gets split into teams (see
-   computeTeamPairing's findFixedDuo) — if both members of a fixed duo
-   happen to already be in the match, they're kept on the same team.
+   bestTeamSplit's findFixedDuo) — if both members of a fixed duo happen to
+   already be in the match, they're kept on the same team. That alone isn't
+   enough, though: a Fixed Duo is one team, not two independent players, and
+   that has to be enforced at SELECTION time too, or the duo can simply
+   never end up in the same match to begin with.
 
-   They can also reach ONE step past the selection window, but no further:
-   if a duo has one member already in the match and the other member is
-   literally the very next player waiting in line right after the window
-   (not someone buried deeper in the queue), swap that next-in-line player
-   into the match's last slot so the duo actually ends up playing together.
-   Whoever they displace simply becomes next-in-line themselves — nobody
-   loses their queue position, they're just swapped with the one player
-   immediately behind them. If the missing partner is any further back than
-   that, nothing happens — the swap is only ever "the very next in line",
-   never a deep pull from far away in the queue. */
+   So first, if a duo has exactly one member already selected, this reaches
+   into the ENTIRE pool passed in (not just the next player in line) for
+   the missing partner. `pool` here is always the full remaining candidate
+   list for this match/court/level — the same one selectMatchEntries drew
+   `base` from — so as long as the partner hasn't already been claimed by a
+   court/group formed earlier in this same pass, they WILL be found and
+   pulled in, no matter how far back in FIFO order they happen to sit. This
+   is what keeps a duo together for an entire session (24 players, many
+   rotations, multiple courts) instead of only for the first few games —
+   the old "only the very next player in line" reach could, and eventually
+   would, let a duo drift apart once their partner fell more than one spot
+   behind. (When the partner has already been locked into a DIFFERENT
+   match/court formed earlier this same pass, that's a cross-group split —
+   see reconcileFixedDuosAcrossGroups, which handles that case instead.)
+
+   The player displaced by the incoming partner is simply the one of the
+   four already-selected players who has waited the LEAST long (last in
+   FIFO order) — they keep their exact queue position and are simply first
+   in line for the very next match, so nobody actually loses a turn.
+
+   Second, once the duo is confirmed together, this also looks at who ELSE
+   ended up in the match (their opponents) and, within a small bounded
+   lookahead, prefers opponents the duo (and the other flex player) haven't
+   already faced/teamed with repeatedly — see optimizeFlexOpponents. */
 function applyFixedDuoToSelection(base, pool, gameSize){
   if (gameSize !== 4 || !state.session.avoidRepeatTeammates) return base;
   const duos = state.session.fixedDuos || [];
@@ -443,10 +461,11 @@ function applyFixedDuoToSelection(base, pool, gameSize){
     const presentName = hasA ? duo.a : duo.b;
     const missingName = hasA ? duo.b : duo.a;
     const resultIds = new Set(result.map(e => e.id));
-    // The one and only player this can reach for: whoever is next in line
-    // right after the current window, still waiting, not yet claimed.
-    const nextInLine = pool.find(e => !resultIds.has(e.id));
-    if (!nextInLine || nextInLine.name !== missingName) return; // partner isn't the very next waiting player — leave the queue alone
+    // Reach anywhere in the eligible pool for the missing partner — not
+    // just the very next waiting player. This is the fix for fixed duos
+    // eventually drifting apart over a long session.
+    const missingEntry = pool.find(e => e.name === missingName && !resultIds.has(e.id));
+    if (!missingEntry) return; // partner isn't available in this pool at all right now — nothing to do here
     // Swap the incoming partner into the LAST slot that isn't the duo member
     // already in the match. `result` is in FIFO order, so the true last slot
     // can sometimes BE the present duo member themselves (they just happen to
@@ -458,11 +477,66 @@ function applyFixedDuoToSelection(base, pool, gameSize){
       if (result[i].name !== presentName){ displaceIdx = i; break; }
     }
     if (displaceIdx === -1) return; // shouldn't happen, but never displace the duo member itself
-    result[displaceIdx] = nextInLine; // swap them into the match's last available (non-duo) slot
+    result[displaceIdx] = missingEntry; // swap them into the match's last available (non-duo) slot
   });
   // Restore stack (FIFO) order so display and team-splitting stay consistent.
   result.sort((a, b) => (idxOf.get(a.id) ?? 0) - (idxOf.get(b.id) ?? 0));
+
+  // With the duo now confirmed together (if one is present), see if a
+  // better set of opponents is available nearby in the queue.
+  const activeDuo = findFixedDuo(result.map(e => e.name));
+  if (activeDuo){
+    result = optimizeFlexOpponents(result, pool, activeDuo);
+    result.sort((a, b) => (idxOf.get(a.id) ?? 0) - (idxOf.get(b.id) ?? 0));
+  }
   return result;
+}
+
+// How far past the players already selected this is willing to look for a
+// fresher opponent. Small on purpose — this is a courtesy improvement over
+// straight FIFO, not a re-sort of the whole queue, so it never meaningfully
+// delays anyone else's turn.
+const FLEX_OPPONENT_WINDOW = 3;
+/* Once a Fixed Duo is locked into a match, the other two seats decide who
+   the duo actually faces. Left to pure FIFO, the same "next in line" pair
+   can keep landing in those seats match after match (especially with the
+   winners/losers block, which flushes in strict arrival order) —
+   recreating the exact same match-up repeatedly, which is bug #4/#5 in the
+   fix request. This looks a few players further down the SAME pool for a
+   replacement for each non-duo seat, and only swaps them in if doing so
+   provably lowers the total repeat cost (teammate + opponent history) of
+   the match that would result — see bestTeamSplit. Players who are
+   themselves half of a (different) fixed duo are never pulled in this way,
+   since doing so would just create a new "duo split across matches"
+   problem for this function to have to fix on a later pass. */
+function optimizeFlexOpponents(result, pool, duo){
+  const flexIdxs = [];
+  result.forEach((e, i) => { if (e.name !== duo.a && e.name !== duo.b) flexIdxs.push(i); });
+  if (flexIdxs.length === 0) return result;
+  let working = result.slice();
+  let workingIds = new Set(working.map(e => e.id));
+  const costOf = (arr) => bestTeamSplit(arr.map(e => e.name)).cost;
+  flexIdxs.forEach(flexIdx => {
+    const candidates = pool.filter(e => !workingIds.has(e.id) && !isInFixedDuo(e.name)).slice(0, FLEX_OPPONENT_WINDOW);
+    if (candidates.length === 0) return;
+    let bestCost = costOf(working);
+    let bestCandidate = null;
+    candidates.forEach(cand => {
+      const trial = working.slice();
+      trial[flexIdx] = cand;
+      const cost = costOf(trial);
+      if (cost < bestCost){
+        bestCost = cost;
+        bestCandidate = cand;
+      }
+    });
+    if (bestCandidate){
+      workingIds.delete(working[flexIdx].id);
+      working[flexIdx] = bestCandidate;
+      workingIds.add(bestCandidate.id);
+    }
+  });
+  return working;
 }
 /* Fixed Duos, continued: the "next in line" reach above only catches a
    partner who hasn't been claimed by ANY group yet. It can't help when both
@@ -587,6 +661,35 @@ function recordTeammates(teamNames){
     }
   }
 }
+/* ---- Opponent history: mirrors teammateHistory above, but tracks how many
+   times two players have ended up on OPPOSING teams instead of the same
+   one. Recorded once per finished game (see the endgame confirm handler),
+   using the two final team rosters — every player on team A gets an
+   opponent-history bump against every player on team B, and vice versa.
+   This is what lets matchmaking measure "these two/these two teams have
+   already played each other N times" instead of only ever looking at
+   teammate repeats. Fixed Duos are just two players like any other here —
+   the duo's combined opponent exposure is simply the sum of each member's
+   individual opponent counts against the other side, which is exactly what
+   groupOpponentCost below computes. */
+function opponentCount(n1, n2){ return (state.opponentHistory && state.opponentHistory[pairKey(n1, n2)]) || 0; }
+function recordOpponents(teamA, teamB){
+  if (!state.opponentHistory) state.opponentHistory = {};
+  teamA.forEach(a => {
+    teamB.forEach(b => {
+      const k = pairKey(a, b);
+      state.opponentHistory[k] = (state.opponentHistory[k] || 0) + 1;
+    });
+  });
+}
+// Total prior meetings between two 2-player teams, counting every
+// cross-team pair once — the standard way to score "how repetitive would
+// teamA vs teamB be" for a doubles match-up.
+function groupOpponentCost(teamA, teamB){
+  let cost = 0;
+  teamA.forEach(a => teamB.forEach(b => { cost += opponentCount(a, b); }));
+  return cost;
+}
 /* Fixed Duos: pairs of players who should always end up on the same team
    whenever both are in a match, overriding the repeat-pairing cost logic
    below. Only meaningful (and only editable in Settings) while "Avoid
@@ -607,26 +710,47 @@ function isInFixedDuo(name){
   const duos = state.session.fixedDuos || [];
   return duos.some(d => d.a === name || d.b === name);
 }
-function computeTeamPairing(names){
-  if (!state.session.avoidRepeatTeammates || names.length !== 4) return { order: names.slice(), forcedDuo: false };
+/* Works out the best 2v2 split of exactly four names, and how "costly"
+   (repetitive) that split is. Cost combines two things: repeated TEAMMATES
+   (pairing the same two people together again) and repeated OPPONENTS
+   (pitting the same two pairs against each other again) — without the
+   opponent term, a split that minimizes teammate repeats could still
+   recreate a match-up these same four players (or their fixed duos) have
+   already played several times. A Fixed Duo present in `names` removes the
+   teammate choice entirely (they're always on the same team, regardless of
+   cost) but the opponent cost of who they're facing still applies and is
+   used elsewhere (see optimizeFlexOpponents) to pick better opponents
+   *before* this function ever gets called for a duo match. */
+function bestTeamSplit(names){
   const duo = findFixedDuo(names);
   if (duo){
     const others = names.filter(n => n !== duo.a && n !== duo.b);
-    return { order: [duo.a, duo.b, others[0], others[1]], forcedDuo: true };
+    const teamA = [duo.a, duo.b], teamB = [others[0], others[1]];
+    const cost = teammateCount(teamA[0], teamA[1]) + teammateCount(teamB[0], teamB[1]) + groupOpponentCost(teamA, teamB);
+    return { order: [duo.a, duo.b, others[0], others[1]], teamA, teamB, cost, forcedDuo: true };
   }
   const [p0, p1, p2, p3] = names;
   const options = [
-    { order: [p0,p1,p2,p3], cost: teammateCount(p0,p1) + teammateCount(p2,p3) },
-    { order: [p0,p2,p1,p3], cost: teammateCount(p0,p2) + teammateCount(p1,p3) },
-    { order: [p0,p3,p1,p2], cost: teammateCount(p0,p3) + teammateCount(p1,p2) }
-  ];
+    { order: [p0,p1,p2,p3], teamA: [p0,p1], teamB: [p2,p3] },
+    { order: [p0,p2,p1,p3], teamA: [p0,p2], teamB: [p1,p3] },
+    { order: [p0,p3,p1,p2], teamA: [p0,p3], teamB: [p1,p2] }
+  ].map(o => ({
+    ...o,
+    cost: teammateCount(o.teamA[0], o.teamA[1]) + teammateCount(o.teamB[0], o.teamB[1]) + groupOpponentCost(o.teamA, o.teamB)
+  }));
   const minCost = Math.min(...options.map(o => o.cost));
   // Deterministic tie-break (first minimal-cost option) rather than Math.random():
-  // this function is called once to render the "next up" preview and again when
-  // "Call next" is actually clicked, so it must return the same answer both times
-  // for the same state — a random pick here would let the preview disagree with
-  // the match that's actually formed.
-  return { order: options.find(o => o.cost === minCost).order, forcedDuo: false };
+  // this is called once to render the "next up" preview and again when
+  // "Call next" is actually clicked, so it must return the same answer both
+  // times for the same state — a random pick here would let the preview
+  // disagree with the match that's actually formed.
+  const winner = options.find(o => o.cost === minCost);
+  return { ...winner, forcedDuo: false };
+}
+function computeTeamPairing(names){
+  if (!state.session.avoidRepeatTeammates || names.length !== 4) return { order: names.slice(), forcedDuo: false };
+  const split = bestTeamSplit(names);
+  return { order: split.order, forcedDuo: split.forcedDuo };
 }
 function orderForTeammatePairing(names){
   return computeTeamPairing(names).order;
@@ -653,8 +777,8 @@ function buildSwapInfo(naturalNames, chosenNames, forcedDuo){
   return {
     naturalTeamA: natA, naturalTeamB: natB,
     chosenTeamA: chA, chosenTeamB: chB,
-    naturalCost: teammateCount(natA[0], natA[1]) + teammateCount(natB[0], natB[1]),
-    chosenCost: teammateCount(chA[0], chA[1]) + teammateCount(chB[0], chB[1]),
+    naturalCost: teammateCount(natA[0], natA[1]) + teammateCount(natB[0], natB[1]) + groupOpponentCost(natA, natB),
+    chosenCost: teammateCount(chA[0], chA[1]) + teammateCount(chB[0], chB[1]) + groupOpponentCost(chA, chB),
     forcedDuo: !!forcedDuo
   };
 }
@@ -1097,6 +1221,16 @@ function renamePlayerEverywhere(oldName, newName){
       rebuilt[newKey] = (rebuilt[newKey] || 0) + state.teammateHistory[key];
     });
     state.teammateHistory = rebuilt;
+  }
+  if (state.opponentHistory){
+    const rebuiltOpp = {};
+    Object.keys(state.opponentHistory).forEach(key => {
+      const parts = key.split('||');
+      const renamed = parts.map(p => p.toLowerCase() === oldLower ? newName : p);
+      const newKey = pairKey(renamed[0], renamed[1]);
+      rebuiltOpp[newKey] = (rebuiltOpp[newKey] || 0) + state.opponentHistory[key];
+    });
+    state.opponentHistory = rebuiltOpp;
   }
 }
 if (renamePlayerForm){
@@ -1916,6 +2050,12 @@ function renderSubPicker(court){
     // or either block — can step in.
     candidates = getAllWaitingEntries();
   }
+  // A player who's half of an active Fixed Duo must never be offered as a
+  // substitute — subbing them in alone would split them from their partner,
+  // exactly what Fixed Duos exist to prevent. This is a hard exclusion from
+  // the actual candidate list (not just a visual hide) and applies to every
+  // picker above: normal court subs, preview subs, and block subs alike.
+  candidates = candidates.filter(e => !isInFixedDuo(e.name));
   subEmptyNote.hidden = candidates.length > 0;
   subList.innerHTML = candidates.map(entry => {
     const srcTag = entry.__src === 'winnersBlock' ? '<span class="tag-pill queued">Winners block</span>'
@@ -2434,6 +2574,7 @@ $('#endgameConfirm').addEventListener('click', async () => {
   });
   recordTeammates(endgameTeams[0]);
   recordTeammates(endgameTeams[1]);
+  recordOpponents(endgameTeams[0], endgameTeams[1]);
 
   state.history.unshift({
     id: nextId('h'), courtName: court.name,
@@ -3166,6 +3307,7 @@ $('#importFile').addEventListener('change', async (e) => {
     if (!Array.isArray(parsed.roster)) parsed.roster = [];
     if (!parsed.playerStats || typeof parsed.playerStats !== 'object') parsed.playerStats = {};
     if (!parsed.teammateHistory || typeof parsed.teammateHistory !== 'object') parsed.teammateHistory = {};
+    if (!parsed.opponentHistory || typeof parsed.opponentHistory !== 'object') parsed.opponentHistory = {};
     parsed.courts.forEach(c => { if (!('lastResult' in c)) c.lastResult = null; if (!('swapInfo' in c)) c.swapInfo = null; if (!('previewOrder' in c)) c.previewOrder = null; if (!('previewSubMap' in c)) c.previewSubMap = null; });
     parsed.stack.forEach(p => { if (!p.tag) p.tag = 'new'; });
     if (!parsed.session.status) parsed.session.status = 'active';
@@ -3202,6 +3344,7 @@ function startFreshSessionKeepingRoster(){
   state.history = [];
   state.playerStats = {};
   state.teammateHistory = {};
+  state.opponentHistory = {};
   state.session.status = 'active';
   state.courts.forEach(c => { c.status = 'open'; c.players = []; c.startTime = null; c.lastResult = null; c.swapInfo = null; c.previewOrder = null; c.previewSubMap = null; c.openedAt = Date.now(); });
   persist();
@@ -4825,6 +4968,7 @@ function renderAll(){
     if (!Array.isArray(state.arrivals)) state.arrivals = [];
     if (!state.playerStats || typeof state.playerStats !== 'object') state.playerStats = {};
     if (!state.teammateHistory || typeof state.teammateHistory !== 'object') state.teammateHistory = {};
+    if (!state.opponentHistory || typeof state.opponentHistory !== 'object') state.opponentHistory = {};
     if (!Array.isArray(state.roster)){
       // Backfill roster for older saves from every name we can find, so no one is lost.
       const names = new Set();
