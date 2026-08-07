@@ -415,45 +415,38 @@ function selectMatchEntries(gameSize, sourceStack){
   }
   return applyFixedDuoToSelection(base, stack, gameSize);
 }
-/* Fixed Duos affect not just how a chosen foursome gets split into teams
-   (see computeTeamPairing) but which foursome gets chosen in the first
-   place: if one half of a fixed duo is about to be called up but their
-   partner is still waiting further back in the stack, pull the partner into
-   this match too (bumping whoever has the least claim to the spot — a
-   non-duo player, picked by lowest queue priority) so the duo actually ends
-   up playing together instead of in two separate matches. Only meaningful
-   for doubles, and only while "Avoid Repeating Teammates" is on, matching
-   where Fixed Duos are surfaced in Settings. */
+/* Fixed Duos affect how a chosen foursome gets split into teams (see
+   computeTeamPairing's findFixedDuo) — if both members of a fixed duo
+   happen to already be in the match, they're kept on the same team.
+
+   They can also reach ONE step past the selection window, but no further:
+   if a duo has one member already in the match and the other member is
+   literally the very next player waiting in line right after the window
+   (not someone buried deeper in the queue), swap that next-in-line player
+   into the match's last slot so the duo actually ends up playing together.
+   Whoever they displace simply becomes next-in-line themselves — nobody
+   loses their queue position, they're just swapped with the one player
+   immediately behind them. If the missing partner is any further back than
+   that, nothing happens — the swap is only ever "the very next in line",
+   never a deep pull from far away in the queue. */
 function applyFixedDuoToSelection(base, pool, gameSize){
   if (gameSize !== 4 || !state.session.avoidRepeatTeammates) return base;
   const duos = state.session.fixedDuos || [];
-  if (duos.length === 0) return base;
+  if (duos.length === 0 || base.length === 0 || base.length > pool.length) return base;
   const idxOf = new Map();
   pool.forEach((e, i) => idxOf.set(e.id, i));
-  const duoNames = new Set(duos.flatMap(d => [d.a, d.b]));
   let result = base.slice();
   duos.forEach(duo => {
     const names = result.map(e => e.name);
     const hasA = names.includes(duo.a), hasB = names.includes(duo.b);
-    if (hasA === hasB) return; // both already together, or neither queued for this match — nothing to adjust
-    const keepName = hasA ? duo.a : duo.b;
+    if (hasA === hasB) return; // both already together, or neither in this match — nothing to adjust
     const missingName = hasA ? duo.b : duo.a;
     const resultIds = new Set(result.map(e => e.id));
-    const partnerEntry = pool.find(e => e.name === missingName && !resultIds.has(e.id));
-    if (!partnerEntry) return; // partner isn't checked in / isn't in this court's slice of the stack at all
-    // Pick who to bump: prefer a player not part of any fixed duo themselves,
-    // and among candidates, the one with the least seniority (furthest back
-    // in this stack slice) so the swap disturbs FIFO order as little as possible.
-    let bumpIdx = -1, bumpScore = -1;
-    result.forEach((e, i) => {
-      if (e.name === keepName) return; // never bump the duo member we're keeping
-      const inAnyDuo = duoNames.has(e.name);
-      const stackIdx = idxOf.has(e.id) ? idxOf.get(e.id) : 0;
-      const score = (inAnyDuo ? 0 : 1e6) + stackIdx;
-      if (score > bumpScore){ bumpScore = score; bumpIdx = i; }
-    });
-    if (bumpIdx === -1) return; // no one safe to bump — leave the match as-is
-    result.splice(bumpIdx, 1, partnerEntry);
+    // The one and only player this can reach for: whoever is next in line
+    // right after the current window, still waiting, not yet claimed.
+    const nextInLine = pool.find(e => !resultIds.has(e.id));
+    if (!nextInLine || nextInLine.name !== missingName) return; // partner isn't the very next waiting player — leave the queue alone
+    result[result.length - 1] = nextInLine; // swap them into the match's last slot
   });
   // Restore stack (FIFO) order so display and team-splitting stay consistent.
   result.sort((a, b) => (idxOf.get(a.id) ?? 0) - (idxOf.get(b.id) ?? 0));
