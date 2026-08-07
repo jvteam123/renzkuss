@@ -479,9 +479,12 @@ function applyFixedDuoToSelection(base, pool, gameSize){
    `levelForGroup`, if given, is called with a group's index and must return
    its required skill level — the swap is skipped if either player wouldn't
    fit the level they're moving into (used for the per-court preview, where
-   each court can be locked to a level; omit it for a single flat queue). */
-function reconcileFixedDuosAcrossGroups(groups, pool, levelForGroup){
-  if (!state.session.avoidRepeatTeammates || groups.length < 2) return groups;
+   each court can be locked to a level; omit it for a single flat queue).
+   Fixed Duos are a doubles-only concept (a duo IS a team), so this is a
+   no-op outside gameSize 4 — same restriction applyFixedDuoToSelection
+   already enforces for the same reason. */
+function reconcileFixedDuosAcrossGroups(groups, pool, gameSize, levelForGroup){
+  if (gameSize !== 4 || !state.session.avoidRepeatTeammates || groups.length < 2) return groups;
   const duos = state.session.fixedDuos || [];
   if (duos.length === 0) return groups;
   const idxOf = new Map();
@@ -1482,7 +1485,7 @@ function computeOpenCourtQueue(gameSize){
       const court = state.courts.find(c => c.id === openCourtIds[gi]);
       return court ? (court.level || 'Open') : 'Open';
     };
-    const reconciled = reconcileFixedDuosAcrossGroups(groups, state.stack, levelForGroup);
+    const reconciled = reconcileFixedDuosAcrossGroups(groups, state.stack, gameSize, levelForGroup);
     reconciled.forEach((taken, gi) => {
       const entry = queue.get(openCourtIds[gi]);
       queue.set(openCourtIds[gi], { ...entry, taken });
@@ -2516,7 +2519,7 @@ function renderUpNext(){
     previewStack = previewStack.filter(e => !chosenIds.has(e.id));
     groups.push(chosen);
   }
-  const reconciled = reconcileFixedDuosAcrossGroups(groups, onDeck);
+  const reconciled = reconcileFixedDuosAcrossGroups(groups, onDeck, gameSize);
 
   const rows = [];
   reconciled.forEach((chosen, i) => {
