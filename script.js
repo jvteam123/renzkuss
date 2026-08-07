@@ -81,8 +81,17 @@ function levelClass(level){
   return 'lvl-' + String(level || 'Open').toLowerCase().replace(/\s+/g, '-');
 }
 function levelsMatch(playerLevel, courtLevel){
+  // "Balanced" matching style prioritizes fair teams/turns over strict skill
+  // separation, so it ignores each court's assigned level entirely — any
+  // waiting player can fill any open court. Skill Separated and Winners/
+  // Losers both keep the original strict, exact-level match.
+  if (getMatchingStyle() === 'balanced') return true;
   const pl = playerLevel || 'Open', cl = courtLevel || 'Open';
   return pl === cl;
+}
+function getMatchingStyle(){
+  const s = state.session && state.session.matchingStyle;
+  return (s === 'balanced' || s === 'skillSeparated' || s === 'winnersLosers') ? s : 'winnersLosers';
 }
 function getPlayerLevel(name){
   return (state.playerLevels && state.playerLevels[name]) || 'Open';
@@ -113,7 +122,7 @@ function defaultCourts(n){
 
 function freshState(){
   return {
-    session: { name: 'Renzku Smart Stack', gameSize: 4, soundOn: true, status: 'active', targetGamesEnabled: false, targetGamesPerPlayer: 7, avoidRepeatTeammates: false, fixedDuos: [], scoringEnabled: true, winningScore: 11, autoStartEnabled: true }, // status: 'active' | 'ended'
+    session: { name: 'Renzku Smart Stack', gameSize: 4, soundOn: true, status: 'active', targetGamesEnabled: false, targetGamesPerPlayer: 7, avoidRepeatTeammates: false, fixedDuos: [], scoringEnabled: true, winningScore: 11, autoStartEnabled: true, matchingStyle: 'winnersLosers' }, // status: 'active' | 'ended'; matchingStyle: 'balanced' | 'skillSeparated' | 'winnersLosers'
     courts: defaultCourts(4),
     arrivals: [],        // {id, name, addedAt} — added but not yet checked in; not part of the live queue
     stack: [],           // {id, name, joinedAt, tag: 'new'|'queued'}
@@ -2216,13 +2225,15 @@ $('#endgameConfirm').addEventListener('click', async () => {
   Object.entries(endgameChoices).forEach(([name, choice]) => {
     if (choice === 'requeue'){
       const entry = { id: nextId('p'), name, joinedAt: Date.now(), tag: 'queued' };
-      if (winnerNames){
-        // A winner was recorded — sort into the winners/losers block so the
-        // queue later pairs winners vs winners and losers vs losers.
+      if (winnerNames && getMatchingStyle() === 'winnersLosers'){
+        // A winner was recorded and the Winners/Losers matching style is
+        // active — sort into the winners/losers block so the queue later
+        // pairs winners vs winners and losers vs losers.
         if (winnerNames.includes(name)) state.winnersBlock.push(entry);
         else state.losersBlock.push(entry);
       } else {
-        // No winner recorded (skipped/tie) — nothing to sort by, go straight to the queue.
+        // Balanced / Skill Separated styles (or no winner recorded) — go
+        // straight back into the queue, in order.
         state.stack.push(entry);
       }
     }
@@ -2647,6 +2658,7 @@ const scoringToggle = $('#scoringToggle');
 const scoringSub = $('#scoringSub');
 const winningScoreInput = $('#winningScoreInput');
 const autoStartToggle = $('#autoStartToggle');
+const matchStyleGroup = $('#matchStyleGroup');
 
 function openSettings(){
   settingsSessionName.value = state.session.name;
@@ -2661,6 +2673,7 @@ function openSettings(){
   scoringSub.hidden = !state.session.scoringEnabled;
   winningScoreInput.value = state.session.winningScore;
   autoStartToggle.checked = state.session.autoStartEnabled;
+  renderMatchStyleGroup();
   renderFixedDuoNameOptions();
   renderFixedDuoList();
   [...gameSizeSeg.children].forEach(b => b.classList.toggle('active', Number(b.dataset.size) === state.session.gameSize));
@@ -2669,6 +2682,27 @@ function openSettings(){
   renderRosterManageList('');
   updateEndSessionBtn();
   settingsOverlay.hidden = false;
+}
+
+/* ---- Matching style (Balanced / Skill Separated / Winners & Losers) ---- */
+function renderMatchStyleGroup(){
+  if (!matchStyleGroup) return;
+  const current = getMatchingStyle();
+  [...matchStyleGroup.children].forEach(card => {
+    card.classList.toggle('active', card.dataset.style === current);
+  });
+}
+if (matchStyleGroup){
+  matchStyleGroup.addEventListener('click', (e) => {
+    const card = e.target.closest('.match-style-card');
+    if (!card) return;
+    const style = card.dataset.style;
+    if (!style || style === getMatchingStyle()) return;
+    state.session.matchingStyle = style;
+    renderMatchStyleGroup();
+    toast('Matching style set to ' + card.querySelector('.match-style-title').textContent);
+    persist(); renderAll();
+  });
 }
 
 /* ---- Fixed Duos (only relevant while Avoid Repeating Teammates is on) ---- */
@@ -4566,6 +4600,7 @@ function renderAll(){
     if (typeof state.session.scoringEnabled !== 'boolean') state.session.scoringEnabled = false;
     if (!state.session.winningScore || state.session.winningScore < 1) state.session.winningScore = 11;
     if (typeof state.session.autoStartEnabled !== 'boolean') state.session.autoStartEnabled = true;
+    if (state.session.matchingStyle !== 'balanced' && state.session.matchingStyle !== 'skillSeparated' && state.session.matchingStyle !== 'winnersLosers') state.session.matchingStyle = 'winnersLosers';
     state.courts.forEach(c => { if (!('score' in c)) c.score = null; });
     if (!state.playerLevels || typeof state.playerLevels !== 'object') state.playerLevels = {};
     state.courts.forEach(c => { if (!c.level || !PLAYER_LEVELS.includes(c.level)) c.level = 'Open'; });
