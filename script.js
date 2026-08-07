@@ -643,13 +643,19 @@ function renderStack(){
    an Advanced winner never end up bundled into the same "group" even though
    they share one underlying block array (level is looked up per entry via
    getPlayerLevel, same as everywhere else). */
-function blockItemsHtml(entries){
-  return entries.map((entry, idx) => `
+function blockItemsHtml(entries, readOnly){
+  return entries.map((entry, idx) => {
+    const levelBadge = readOnly
+      ? `<span class="level-badge ${levelClass(getPlayerLevel(entry.name))}">${esc(levelLabel(getPlayerLevel(entry.name)))}</span>`
+      : `<button type="button" class="level-badge ${levelClass(getPlayerLevel(entry.name))}" data-act="cycle-level" data-name="${esc(entry.name)}" title="Change skill level">${esc(levelLabel(getPlayerLevel(entry.name)))}</button>`;
+    return `
     <div class="block-item" data-id="${entry.id}">
       <span class="block-item-pos">${idx+1}</span>
       <span class="block-item-name">${esc(entry.name)}</span>
+      ${levelBadge}
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 function blockListHtml(block, gameSize, blockKey, readOnly){
   if (block.length === 0) return '<div class="block-empty">Empty — waiting for a result.</div>';
@@ -658,7 +664,7 @@ function blockListHtml(block, gameSize, blockKey, readOnly){
   // and "Queue now" button, so skip the per-level sub-header here — showing
   // both would just be two identical controls stacked on top of each other.
   if (levels.length <= 1){
-    return blockItemsHtml(block);
+    return blockItemsHtml(block, readOnly);
   }
   return levels.map(level => {
     const entries = block.filter(e => getPlayerLevel(e.name) === level);
@@ -670,7 +676,7 @@ function blockListHtml(block, gameSize, blockKey, readOnly){
           <span class="block-level-count">${entries.length}/${gameSize}</span>
           ${flushBtn}
         </div>
-        ${blockItemsHtml(entries)}
+        ${blockItemsHtml(entries, readOnly)}
       </div>
     `;
   }).join('');
@@ -1254,7 +1260,15 @@ function teamColHtml(names, side, gameSize, swapCtx, subBaseIdx){
    court never calls a different group of players than what it just showed. */
 function computeOpenCourtQueue(gameSize){
   const queue = new Map(); // courtId -> { taken: entries|null, remaining: number available at this point }
-  let previewStack = state.stack.slice();
+  // Belt-and-suspenders: state.stack should never contain someone who's
+  // already actually playing on a live court, but if anything upstream ever
+  // leaves it in that state, don't let a preview pick them up and hand them
+  // a second lineup spot on top of the one they're already in.
+  const alreadyPlaying = new Set();
+  state.courts.forEach(c => {
+    if (c.status === 'playing' && Array.isArray(c.players)) c.players.forEach(n => { if (n) alreadyPlaying.add(n); });
+  });
+  let previewStack = state.stack.filter(e => !alreadyPlaying.has(e.name));
   state.courts.forEach(court => {
     if (court.status !== 'open') return;
     const courtLevel = court.level || 'Open';
@@ -1269,16 +1283,32 @@ function computeOpenCourtQueue(gameSize){
       // or no longer in the stack at all — is silently skipped rather than
       // erroring; the natural pick just stands instead.
       if (court.previewSubMap){
+        const usedIncomingIds = new Set();
         Object.keys(court.previewSubMap).forEach(outgoingId => {
           const incomingId = court.previewSubMap[outgoingId];
           const outIdx = taken.findIndex(e => e.id === outgoingId);
           if (outIdx === -1) return;
+          // Guard against the same replacement player being wired up for two
+          // different slots on this court (stale/duplicated previewSubMap
+          // entries) — without this, both writes below would place the same
+          // person in two seats of one lineup.
+          if (usedIncomingIds.has(incomingId)) return;
           const incomingEntry = previewStack.find(e => e.id === incomingId);
           if (!incomingEntry || !levelsMatch(getPlayerLevel(incomingEntry.name), courtLevel)) return;
           taken = taken.slice();
           taken[outIdx] = incomingEntry;
+          usedIncomingIds.add(incomingId);
         });
       }
+      // Final safety check: dedupe by id (keep first occurrence) so a bug
+      // anywhere above this line can never surface as the same player
+      // occupying two seats on the same court.
+      const seenIds = new Set();
+      taken = taken.filter(e => {
+        if (seenIds.has(e.id)) return false;
+        seenIds.add(e.id);
+        return true;
+      });
       const takenIds = new Set(taken.map(e => e.id));
       previewStack = previewStack.filter(e => !takenIds.has(e.id));
       queue.set(court.id, { taken, remaining });
