@@ -93,6 +93,17 @@ function getMatchingStyle(){
   const s = state.session && state.session.matchingStyle;
   return (s === 'balanced' || s === 'skillSeparated' || s === 'winnersLosers') ? s : 'winnersLosers';
 }
+function skillLevelsEnabled(){
+  return !!(state.session && state.session.skillLevelsEnabled);
+}
+// Toggles a body class that hides every skill-level control and badge
+// (add-player level picker, per-court level select, level badges in the
+// stack/blocks/courts/sub-picker) when the feature is switched off in
+// Settings. Purely a display concern — everyone still carries an internal
+// 'Open' level either way, so matching logic never has to branch on this.
+function applyLevelsVisibility(){
+  document.body.classList.toggle('levels-on', skillLevelsEnabled());
+}
 function getPlayerLevel(name){
   return (state.playerLevels && state.playerLevels[name]) || 'Open';
 }
@@ -122,7 +133,7 @@ function defaultCourts(n){
 
 function freshState(){
   return {
-    session: { name: 'Renzku Smart Stack', gameSize: 4, soundOn: true, status: 'active', targetGamesEnabled: false, targetGamesPerPlayer: 7, avoidRepeatTeammates: false, fixedDuos: [], scoringEnabled: true, winningScore: 11, autoStartEnabled: true, matchingStyle: 'winnersLosers' }, // status: 'active' | 'ended'; matchingStyle: 'balanced' | 'skillSeparated' | 'winnersLosers'
+    session: { name: 'Renzku Smart Stack', gameSize: 4, soundOn: true, status: 'active', targetGamesEnabled: false, targetGamesPerPlayer: 7, avoidRepeatTeammates: false, fixedDuos: [], scoringEnabled: true, winningScore: 11, autoStartEnabled: true, matchingStyle: 'winnersLosers', skillLevelsEnabled: false }, // status: 'active' | 'ended'; matchingStyle: 'balanced' | 'skillSeparated' | 'winnersLosers'; skillLevelsEnabled: off by default — everyone plays Open Play until turned on
     courts: defaultCourts(4),
     arrivals: [],        // {id, name, addedAt} — added but not yet checked in; not part of the live queue
     stack: [],           // {id, name, joinedAt, tag: 'new'|'queued'}
@@ -2712,6 +2723,7 @@ const scoringToggle = $('#scoringToggle');
 const scoringSub = $('#scoringSub');
 const winningScoreInput = $('#winningScoreInput');
 const autoStartToggle = $('#autoStartToggle');
+const skillLevelsToggle = $('#skillLevelsToggle');
 const matchStyleGroup = $('#matchStyleGroup');
 
 function openSettings(){
@@ -2727,6 +2739,7 @@ function openSettings(){
   scoringSub.hidden = !state.session.scoringEnabled;
   winningScoreInput.value = state.session.winningScore;
   autoStartToggle.checked = state.session.autoStartEnabled;
+  if (skillLevelsToggle) skillLevelsToggle.checked = state.session.skillLevelsEnabled;
   renderMatchStyleGroup();
   renderFixedDuoNameOptions();
   renderFixedDuoList();
@@ -2819,7 +2832,7 @@ function renderCourtNameRows(){
   courtNameRows.innerHTML = state.courts.map((c,i) => `
     <div class="court-name-row">
       <input type="text" value="${esc(c.name)}" data-idx="${i}" maxlength="24">
-      <select class="${levelClass(c.level)}" data-level-idx="${i}" aria-label="${esc(c.name)} skill level">${levelSelectOptionsHtml(c.level || 'Open')}</select>
+      <select class="court-level-select ${levelClass(c.level)}" data-level-idx="${i}" aria-label="${esc(c.name)} skill level">${levelSelectOptionsHtml(c.level || 'Open')}</select>
     </div>
   `).join('');
 }
@@ -2938,6 +2951,14 @@ autoStartToggle.addEventListener('change', () => {
   }
   persist(); renderAll();
 });
+
+if (skillLevelsToggle){
+  skillLevelsToggle.addEventListener('change', () => {
+    state.session.skillLevelsEnabled = skillLevelsToggle.checked;
+    toast(skillLevelsToggle.checked ? 'Skill levels turned on' : 'Skill levels turned off');
+    persist(); renderAll();
+  });
+}
 
 settingsSessionName.addEventListener('change', () => {
   state.session.name = settingsSessionName.value.trim() || 'Renzku Smart Stack';
@@ -4601,6 +4622,7 @@ window.addEventListener('online', () => {
 
 /* ================= Render orchestration ================= */
 function renderAll(){
+  applyLevelsVisibility();
   applySessionLockUI();
   renderBlocks();
   renderStack();
@@ -4655,6 +4677,7 @@ function renderAll(){
     if (!state.session.winningScore || state.session.winningScore < 1) state.session.winningScore = 11;
     if (typeof state.session.autoStartEnabled !== 'boolean') state.session.autoStartEnabled = true;
     if (state.session.matchingStyle !== 'balanced' && state.session.matchingStyle !== 'skillSeparated' && state.session.matchingStyle !== 'winnersLosers') state.session.matchingStyle = 'winnersLosers';
+    if (typeof state.session.skillLevelsEnabled !== 'boolean') state.session.skillLevelsEnabled = false;
     state.courts.forEach(c => { if (!('score' in c)) c.score = null; });
     if (!state.playerLevels || typeof state.playerLevels !== 'object') state.playerLevels = {};
     state.courts.forEach(c => { if (!c.level || !PLAYER_LEVELS.includes(c.level)) c.level = 'Open'; });
