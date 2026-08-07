@@ -133,7 +133,7 @@ function defaultCourts(n){
 
 function freshState(){
   return {
-    session: { name: 'Renzku Smart Stack', gameSize: 4, soundOn: true, status: 'active', targetGamesEnabled: false, targetGamesPerPlayer: 7, avoidRepeatTeammates: false, fixedDuos: [], scoringEnabled: true, winningScore: 11, autoStartEnabled: true, matchingStyle: 'winnersLosers', skillLevelsEnabled: false }, // status: 'active' | 'ended'; matchingStyle: 'balanced' | 'skillSeparated' | 'winnersLosers'; skillLevelsEnabled: off by default — everyone plays Open Play until turned on
+    session: { name: 'Renzku Smart Stack', gameSize: 4, soundOn: true, status: 'active', targetGamesEnabled: false, targetGamesPerPlayer: 7, avoidRepeatTeammates: false, fixedDuos: [], scoringEnabled: true, winningScore: 11, autoStartEnabled: true, autoStartMinutes: 1, matchingStyle: 'winnersLosers', skillLevelsEnabled: false }, // status: 'active' | 'ended'; matchingStyle: 'balanced' | 'skillSeparated' | 'winnersLosers'; skillLevelsEnabled: off by default — everyone plays Open Play until turned on; autoStartMinutes: how long an open, ready court waits before auto-starting (default 1 minute)
     courts: defaultCourts(2),
     arrivals: [],        // {id, name, addedAt} — added but not yet checked in; not part of the live queue
     stack: [],           // {id, name, joinedAt, tag: 'new'|'queued'}
@@ -1881,8 +1881,13 @@ function pendingSwapInfo(){
    than in a separate in-memory map, so it's saved with the rest of the
    state and survives a page reload/reconnect — otherwise a refresh right
    after a game ended would wipe the clock and hand the host a brand new
-   2 minutes instead of picking up where the real elapsed time left off. ---- */
-const AUTO_START_MS = 2 * 60 * 1000; // how long an open court waits before auto-starting once ready
+   window instead of picking up where the real elapsed time left off. ---- */
+// How long an open, ready court waits before auto-starting — configurable
+// in Settings (Settings > Auto-start Ready Courts), defaults to 1 minute.
+function getAutoStartMs(){
+  const mins = Number(state.session.autoStartMinutes);
+  return (Number.isFinite(mins) && mins > 0 ? mins : 1) * 60 * 1000;
+}
 
 function swapCourtPartner(court, idx){
   const arr0 = court.status === 'open' ? court.previewOrder : court.players;
@@ -2180,7 +2185,7 @@ function renderCourts(){
       let autoStartHtml = '';
       if (court.openedAt == null) court.openedAt = Date.now(); // e.g. an older saved session predating this field
       if (enough && !ended && !viewerMode && state.session.autoStartEnabled){
-        const remainingMs = AUTO_START_MS - (Date.now() - court.openedAt);
+        const remainingMs = getAutoStartMs() - (Date.now() - court.openedAt);
         autoStartHtml = `<div class="auto-start-hint" data-role="autostart" data-court="${court.id}">Auto-starts in ${fmtClock(Math.max(0, remainingMs))} if nobody taps Start</div>`;
       }
       if (enough){
@@ -2821,7 +2826,7 @@ setInterval(() => {
   state.courts.forEach(court => {
     if (court.status !== 'open') return;
     if (court.openedAt == null) court.openedAt = Date.now();
-    const remainingMs = AUTO_START_MS - (Date.now() - court.openedAt);
+    const remainingMs = getAutoStartMs() - (Date.now() - court.openedAt);
     const slot = openQueue.get(court.id);
     const enough = !!(slot && slot.taken);
     if (remainingMs <= 0){
@@ -3033,6 +3038,8 @@ const scoringToggle = $('#scoringToggle');
 const scoringSub = $('#scoringSub');
 const winningScoreInput = $('#winningScoreInput');
 const autoStartToggle = $('#autoStartToggle');
+const autoStartSub = $('#autoStartSub');
+const autoStartMinutesInput = $('#autoStartMinutesInput');
 const skillLevelsToggle = $('#skillLevelsToggle');
 const matchStyleGroup = $('#matchStyleGroup');
 
@@ -3049,6 +3056,8 @@ function openSettings(){
   scoringSub.hidden = !state.session.scoringEnabled;
   winningScoreInput.value = state.session.winningScore;
   autoStartToggle.checked = state.session.autoStartEnabled;
+  autoStartSub.hidden = !state.session.autoStartEnabled;
+  autoStartMinutesInput.value = state.session.autoStartMinutes || 1;
   if (skillLevelsToggle) skillLevelsToggle.checked = state.session.skillLevelsEnabled;
   renderMatchStyleGroup();
   renderFixedDuoNameOptions();
@@ -3254,11 +3263,25 @@ winningScoreInput.addEventListener('change', () => {
 
 autoStartToggle.addEventListener('change', () => {
   state.session.autoStartEnabled = autoStartToggle.checked;
+  autoStartSub.hidden = !autoStartToggle.checked;
   if (autoStartToggle.checked){
     // Give every open court a fresh full window starting now, rather than
     // picking up wherever an old (pre-toggle-off) clock left off.
     state.courts.forEach(c => { if (c.status === 'open') c.openedAt = Date.now(); });
   }
+  persist(); renderAll();
+});
+
+autoStartMinutesInput.addEventListener('change', () => {
+  let n = Math.round(Number(autoStartMinutesInput.value));
+  if (!Number.isFinite(n) || n < 1) n = 1;
+  if (n > 60) n = 60;
+  autoStartMinutesInput.value = n;
+  state.session.autoStartMinutes = n;
+  // Same reasoning as flipping the toggle on: give every open court a
+  // fresh full window under the new duration instead of leaving it
+  // mid-countdown against the old one.
+  state.courts.forEach(c => { if (c.status === 'open') c.openedAt = Date.now(); });
   persist(); renderAll();
 });
 
@@ -3318,6 +3341,7 @@ $('#importFile').addEventListener('change', async (e) => {
     if (typeof parsed.session.scoringEnabled !== 'boolean') parsed.session.scoringEnabled = false;
     if (!parsed.session.winningScore || parsed.session.winningScore < 1) parsed.session.winningScore = 11;
     if (typeof parsed.session.autoStartEnabled !== 'boolean') parsed.session.autoStartEnabled = true;
+    if (!Number.isFinite(parsed.session.autoStartMinutes) || parsed.session.autoStartMinutes < 1) parsed.session.autoStartMinutes = 1;
     parsed.courts.forEach(c => { if (!('score' in c)) c.score = null; });
     if (!parsed.playerLevels || typeof parsed.playerLevels !== 'object') parsed.playerLevels = {};
     parsed.courts.forEach(c => { if (!c.level || !PLAYER_LEVELS.includes(c.level)) c.level = 'Open'; });
@@ -3358,6 +3382,37 @@ $('#newSessionBtn').addEventListener('click', async () => {
   startFreshSessionKeepingRoster();
   settingsOverlay.hidden = true;
   toast('New session started — player list kept');
+});
+
+$('#restoreDefaultsBtn').addEventListener('click', async () => {
+  if (!(await showConfirm('This resets all settings — auto-start timing, matching style, target games, scoring, sound, skill levels, and fixed duos — back to their defaults. Your current stack, courts, history, and player list are not touched.', {title: 'Restore default settings?', confirmLabel: 'Restore Defaults', danger: true}))) return;
+  const defaults = freshState().session;
+  // Keep the session's identity/lifecycle fields — name (host-chosen) and
+  // status (active/ended) — everything else in `session` is a "setting"
+  // and goes back to its factory default.
+  state.session = { ...defaults, name: state.session.name, status: state.session.status };
+  persist();
+  openSettings();
+  renderAll();
+  toast('Settings restored to defaults');
+});
+
+$('#clearAppDataBtn').addEventListener('click', async () => {
+  if (!(await showConfirm('This wipes everything this app has stored on this device — the current session, saved theme, and any host/login info — then reloads the page from scratch. This cannot be undone.', {title: 'Clear app data?', confirmLabel: 'Clear app data', danger: true}))) return;
+  try{ localStorage.clear(); }catch(e){}
+  try{
+    if (idb && typeof idb.close === 'function') idb.close();
+  }catch(e){}
+  try{
+    await new Promise((resolve) => {
+      if (!('indexedDB' in window)){ resolve(); return; }
+      const req = indexedDB.deleteDatabase(DB_NAME);
+      req.onsuccess = () => resolve();
+      req.onerror = () => resolve();
+      req.onblocked = () => resolve();
+    });
+  }catch(e){}
+  window.location.reload();
 });
 
 $('#resetBtn').addEventListener('click', async () => {
@@ -4989,6 +5044,7 @@ function renderAll(){
     if (typeof state.session.scoringEnabled !== 'boolean') state.session.scoringEnabled = false;
     if (!state.session.winningScore || state.session.winningScore < 1) state.session.winningScore = 11;
     if (typeof state.session.autoStartEnabled !== 'boolean') state.session.autoStartEnabled = true;
+    if (!Number.isFinite(state.session.autoStartMinutes) || state.session.autoStartMinutes < 1) state.session.autoStartMinutes = 1;
     if (state.session.matchingStyle !== 'balanced' && state.session.matchingStyle !== 'skillSeparated' && state.session.matchingStyle !== 'winnersLosers') state.session.matchingStyle = 'winnersLosers';
     if (typeof state.session.skillLevelsEnabled !== 'boolean') state.session.skillLevelsEnabled = false;
     state.courts.forEach(c => { if (!('score' in c)) c.score = null; });
