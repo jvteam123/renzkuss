@@ -652,16 +652,18 @@ function renderStack(){
    an Advanced winner never end up bundled into the same "group" even though
    they share one underlying block array (level is looked up per entry via
    getPlayerLevel, same as everywhere else). */
-function blockItemsHtml(entries, readOnly){
+function blockItemsHtml(entries, readOnly, blockKey){
   return entries.map((entry, idx) => {
     const levelBadge = readOnly
       ? `<span class="level-badge ${levelClass(getPlayerLevel(entry.name))}">${esc(levelLabel(getPlayerLevel(entry.name)))}</span>`
       : `<button type="button" class="level-badge ${levelClass(getPlayerLevel(entry.name))}" data-act="cycle-level" data-name="${esc(entry.name)}" title="Change skill level">${esc(levelLabel(getPlayerLevel(entry.name)))}</button>`;
+    const subBtn = readOnly ? '' : `<button type="button" class="block-item-sub-btn" data-block-sub="${blockKey}" data-entry-id="${entry.id}" aria-label="Substitute ${esc(entry.name)}" title="Sub in a replacement for ${esc(entry.name)}"><svg viewBox="0 0 24 24"><use href="#i-sub"/></svg></button>`;
     return `
     <div class="block-item" data-id="${entry.id}">
       <span class="block-item-pos">${idx+1}</span>
       <span class="block-item-name">${esc(entry.name)}</span>
       ${levelBadge}
+      ${subBtn}
     </div>
   `;
   }).join('');
@@ -673,7 +675,7 @@ function blockListHtml(block, gameSize, blockKey, readOnly){
   // and "Queue now" button, so skip the per-level sub-header here — showing
   // both would just be two identical controls stacked on top of each other.
   if (levels.length <= 1){
-    return blockItemsHtml(block, readOnly);
+    return blockItemsHtml(block, readOnly, blockKey);
   }
   return levels.map(level => {
     const entries = block.filter(e => getPlayerLevel(e.name) === level);
@@ -685,7 +687,7 @@ function blockListHtml(block, gameSize, blockKey, readOnly){
           <span class="block-level-count">${entries.length}/${gameSize}</span>
           ${flushBtn}
         </div>
-        ${blockItemsHtml(entries, readOnly)}
+        ${blockItemsHtml(entries, readOnly, blockKey)}
       </div>
     `;
   }).join('');
@@ -802,6 +804,11 @@ function checkBlockFlush(){
 
 blocksPanel.addEventListener('click', (e) => {
   if (isSessionEnded()) return;
+  const subBtn = e.target.closest('button[data-block-sub]');
+  if (subBtn){
+    openBlockSubPicker(subBtn.dataset.blockSub, subBtn.dataset.entryId);
+    return;
+  }
   const levelBtn = e.target.closest('button[data-level-flush]');
   if (levelBtn){
     flushBlockLevelToQueue(levelBtn.dataset.blockFlush, levelBtn.dataset.levelFlush);
@@ -1716,9 +1723,31 @@ function openSubPicker(court, idx){
   renderSubPicker(court);
   subOverlay.hidden = false;
 }
+// Same idea, but for a player currently parked in the winners or losers
+// accumulating block (waiting for their level's group to fill up) instead
+// of on a live/preview court. Swapping there pulls in any waiting stack
+// player and sends the block player back to the end of the main queue —
+// handy when someone in the block has to leave or wants to swap out before
+// their next game gets called.
+function openBlockSubPicker(blockKey, entryId){
+  if (isSessionEnded()){ toast('Session has ended'); return; }
+  const block = state[blockKey];
+  const entry = block && block.find(e => e.id === entryId);
+  if (!entry) return;
+  subTarget = { block: blockKey, entryId };
+  const blockLabel = blockKey === 'winnersBlock' ? 'winners block' : 'losers block';
+  subTitle.textContent = 'Sub in for ' + entry.name;
+  subSubtitle.textContent = entry.name + ' goes to the back of the queue once you pick a replacement — the incoming player takes their spot in the ' + blockLabel + '.';
+  renderSubPicker(null);
+  subOverlay.hidden = false;
+}
 function renderSubPicker(court){
   let candidates;
-  if (subTarget && subTarget.preview){
+  if (subTarget && subTarget.block){
+    // Anyone still waiting in the main stack is fair game — block members
+    // aren't tied to a specific court's level, so no level filtering here.
+    candidates = state.stack.slice();
+  } else if (subTarget && subTarget.preview){
     // Anyone already slotted into any open court's own preview (including
     // this one) is off the table — pulling them in here would double-book
     // them. Only players still further back in the stack, and matching this
@@ -1741,11 +1770,27 @@ function renderSubPicker(court){
 }
 function performSubstitution(entryId){
   if (!subTarget) return;
+  const incoming = state.stack.find(e => e.id === entryId);
+  if (!incoming){ subOverlay.hidden = true; subTarget = null; return; }
+  if (subTarget.block){
+    const block = state[subTarget.block];
+    const outIdx = block.findIndex(e => e.id === subTarget.entryId);
+    if (outIdx === -1){ subOverlay.hidden = true; subTarget = null; return; }
+    const outgoing = block[outIdx];
+    const stackIdx = state.stack.findIndex(e => e.id === entryId);
+    if (stackIdx === -1){ subOverlay.hidden = true; subTarget = null; return; }
+    state.stack.splice(stackIdx, 1);
+    block[outIdx] = incoming; // takes the same spot/position in the block
+    state.stack.push({ id: nextId('p'), name: outgoing.name, joinedAt: Date.now(), tag: 'queued' });
+    toast(`${incoming.name} subbed in for ${outgoing.name}`);
+    subOverlay.hidden = true;
+    subTarget = null;
+    renderAll(); persist();
+    return;
+  }
   const court = state.courts.find(c => c.id === subTarget.courtId);
   const idx = subTarget.idx;
   if (!court){ subOverlay.hidden = true; subTarget = null; return; }
-  const incoming = state.stack.find(e => e.id === entryId);
-  if (!incoming){ subOverlay.hidden = true; subTarget = null; return; }
   if (subTarget.preview){
     const outgoingName = court.previewOrder && court.previewOrder[idx];
     if (!outgoingName){ subOverlay.hidden = true; subTarget = null; return; }
