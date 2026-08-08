@@ -138,7 +138,7 @@ function defaultCourts(n){
 
 function freshState(){
   return {
-    session: { name: 'Renzku Smart Stack', gameSize: 4, soundOn: true, status: 'active', targetGamesEnabled: false, targetGamesPerPlayer: 7, avoidRepeatTeammates: false, fixedDuos: [], scoringEnabled: true, winningScore: 11, autoStartEnabled: true, autoStartMinutes: 1, matchingStyle: 'winnersLosers', skillLevelsEnabled: false }, // status: 'active' | 'ended'; matchingStyle: 'balanced' | 'skillSeparated' | 'winnersLosers'; skillLevelsEnabled: off by default — everyone plays Open Play until turned on; autoStartMinutes: how long an open, ready court waits before auto-starting (default 1 minute)
+    session: { name: 'PaddleStack', gameSize: 4, soundOn: true, status: 'active', targetGamesEnabled: false, targetGamesPerPlayer: 7, avoidRepeatTeammates: false, fixedDuos: [], scoringEnabled: true, winningScore: 11, autoStartEnabled: true, autoStartMinutes: 1, matchingStyle: 'winnersLosers', skillLevelsEnabled: false }, // status: 'active' | 'ended'; matchingStyle: 'balanced' | 'skillSeparated' | 'winnersLosers'; skillLevelsEnabled: off by default — everyone plays Open Play until turned on; autoStartMinutes: how long an open, ready court waits before auto-starting (default 1 minute)
     courts: defaultCourts(2),
     arrivals: [],        // {id, name, addedAt} — added but not yet checked in; not part of the live queue
     stack: [],           // {id, name, joinedAt, tag: 'new'|'queued'}
@@ -3390,7 +3390,7 @@ if (skillLevelsToggle){
 }
 
 settingsSessionName.addEventListener('change', () => {
-  state.session.name = settingsSessionName.value.trim() || 'Renzku Smart Stack';
+  state.session.name = settingsSessionName.value.trim() || 'PaddleStack';
   persist();
 });
 
