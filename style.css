@@ -1468,7 +1468,13 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn{
 .viewer-upnext-notify[hidden]{display:none}
 .viewer-upnext-notify-inner{
   display:flex;align-items:flex-start;flex-wrap:wrap;gap:.5rem 1rem;
-  background:linear-gradient(135deg,var(--turf) 0%,var(--turf-deep) 100%);
+  /* Fixed brand blue (not the --turf/--turf-deep pair, which get deliberately
+     LIGHTENED in dark mode for on-page text/accent contrast elsewhere) — using
+     the lightened pair here turned this into a glaring pale-blue banner against
+     a dark background. --brand-turf stays a deep navy in both themes, same as
+     the topbar, so this card reads the same (and stays comfortable to look at)
+     whether the spectator's device is in light or dark mode. */
+  background:linear-gradient(135deg,var(--brand-turf) 0%,var(--brand-turf-deep) 100%);
   color:#fff;border-radius:var(--radius);padding:.85rem 1.1rem;
   box-shadow:var(--shadow-md);
   animation:viewer-upnext-in .32s cubic-bezier(.2,.8,.3,1);
