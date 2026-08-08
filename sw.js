@@ -1,4 +1,4 @@
-/* Renzku Smart Stack — service worker
+/* PaddleStack — service worker
    Two jobs:
    1. Offline app shell: precache the core files on install and serve them
       from cache so the app still loads — and an in-progress match can keep
