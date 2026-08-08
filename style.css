@@ -95,7 +95,6 @@ html[data-theme="dark"] .lvl-intermediate{background:rgba(255,140,0,.16);color:#
 html[data-theme="dark"] .paddle .tag-pill.queued{background:rgba(255,200,100,.14);color:#E0BC7E}
 html[data-theme="dark"] .rank-row.top1{border-color:rgba(252,209,22,.4)}
 html[data-theme="dark"] .mvp-badge{background:rgba(252,209,22,.14);color:#FFD35C;border-color:rgba(252,209,22,.35)}
-html[data-theme="dark"] .toast-progress{background:rgba(255,255,255,.14)}
 html[data-theme="dark"] ::selection{background:rgba(91,141,239,.35)}
 
 *{box-sizing:border-box}
@@ -774,6 +773,8 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
 }
 .serve-set-btn:hover{background:rgba(206,17,38,.3)}
 .sbl-stepper{display:flex;align-items:center;gap:.55rem}
+.sbl-stepper-readonly{justify-content:center}
+.sbl-stepper-readonly .sbl-num{font-size:2rem}
 .sbl-num{font-family:var(--font-mono);font-size:1.5rem;font-weight:700;min-width:1.6ch;text-align:center;color:#fff}
 .score-btn{
   width:28px;height:28px;border-radius:50%;border:1px solid rgba(255,255,255,.28);
@@ -1231,39 +1232,23 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn{
 
 /* ---------- Toasts ---------- */
 .toast-wrap{position:fixed;bottom:1.2rem;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column-reverse;gap:.5rem;align-items:center;width:100%;pointer-events:none}
+/* Toasts are now just a small silent progress bar — no icon, no message
+   text — a brief "something happened" pulse instead of a popup to read. */
 .toast{
   position:relative;overflow:hidden;
-  display:flex;align-items:center;gap:.55rem;
-  background:var(--brand-ink);color:#fff;padding:.62rem 1.1rem .62rem .85rem;border-radius:99px;
-  font-size:.82rem;font-weight:600;line-height:1.3;
-  box-shadow:var(--shadow-md);opacity:0;transform:translateY(10px) scale(.97);
+  width:64px;height:4px;border-radius:99px;
+  background:rgba(120,120,120,.22);
+  box-shadow:var(--shadow-md);opacity:0;transform:translateY(6px) scale(.97);
   transition:opacity .22s,transform .22s;
-  max-width:90vw;border:1px solid rgba(255,255,255,.08);
 }
+html[data-theme="dark"] .toast{background:rgba(255,255,255,.14)}
 .toast.show{opacity:1;transform:translateY(0) scale(1)}
-.toast-icon{
-  flex-shrink:0;width:19px;height:19px;border-radius:50%;
-  display:flex;align-items:center;justify-content:center;
-  background:rgba(255,255,255,.14);color:#fff;
-}
-.toast-icon svg{width:11px;height:11px}
-.toast-msg{flex:1;min-width:0}
-.toast::before{
-  content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--gold);
-}
-.toast.toast-success::before{background:#3FC97A}
-.toast.toast-success .toast-icon{background:rgba(63,201,122,.22);color:#8CF0B3}
-.toast.toast-error::before{background:var(--clay)}
-.toast.toast-error .toast-icon{background:rgba(206,17,38,.22);color:#FF9DA9}
-.toast.toast-warning::before{background:var(--gold)}
-.toast.toast-warning .toast-icon{background:rgba(252,209,22,.2);color:var(--gold)}
-.toast.toast-info::before{background:var(--turf)}
-.toast.toast-info .toast-icon{background:rgba(0,56,168,.24);color:#9DBBF2}
 .toast-progress{
-  position:absolute;left:4px;right:0;bottom:0;height:2px;
-  background:rgba(255,255,255,.22);transform-origin:left;
-  animation:toast-shrink 2.2s linear forwards;
+  position:absolute;left:0;right:0;top:0;bottom:0;
+  background:var(--brand-ink);transform-origin:left;
+  animation:toast-shrink .9s linear forwards;
 }
+html[data-theme="dark"] .toast-progress{background:#fff}
 @keyframes toast-shrink{from{transform:scaleX(1)}to{transform:scaleX(0)}}
 @media (prefers-reduced-motion:reduce){.toast-progress{animation:none;display:none}}
 
