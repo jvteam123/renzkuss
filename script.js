@@ -1086,6 +1086,11 @@ stackList.addEventListener('click', async (e) => {
     if (!(await showConfirm('Remove ' + entry.name + ' from the stack?', {title: 'Remove player?', confirmLabel: 'Remove', danger: true}))) return;
     const [removed] = state.stack.splice(idx, 1);
     toast(removed.name + ' removed from stack');
+    // Removing someone can be exactly what tips a level below the "these
+    // blocks will never both fill up on their own" threshold — re-check
+    // right away so a winners/losers block doesn't sit stuck waiting on
+    // players who were just removed and are never coming back.
+    checkBlockFlush();
   } else if (act === 'up'){
     const lvl = getPlayerLevel(state.stack[idx].name);
     let j = idx - 1;
@@ -2654,7 +2659,6 @@ $('#endgameConfirm').addEventListener('click', async () => {
       }
     }
   });
-  checkBlockFlush();
 
   court.lastResult = { winnerNames: winnerNames ? winnerNames.slice() : null, scoreLine };
   court.status = 'open';
@@ -2665,6 +2669,17 @@ $('#endgameConfirm').addEventListener('click', async () => {
   court.previewOrder = null;
   court.previewSubMap = null;
   court.openedAt = Date.now(); // start the 2-minute auto-start window fresh from right now
+  // Only check whether a block should force-flush (not enough players left
+  // to ever fill both blocks) AFTER this court's own players are cleared
+  // above. checkBlockFlush() counts anyone still mid-game as "on the way
+  // back" so it doesn't merge prematurely — but this court's 4 just-finished
+  // players are ALSO the ones that were just pushed into the winners/losers
+  // blocks a moment ago. Checking before the reset above would count them
+  // TWICE (once in the block, once as "still playing" on this court),
+  // inflating the total and silently blocking the exact merge this is meant
+  // to trigger — which is why a match could get stuck waiting instead of
+  // auto-continuing right after the very game that left it short-handed.
+  checkBlockFlush();
   endgameOverlay.hidden = true;
   toast(court.name + ' cleared');
   renderAll(); persist();
