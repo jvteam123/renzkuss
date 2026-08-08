@@ -43,12 +43,17 @@ async function idbSet(key, value){
   });
 }
 
-async function persist(){
+// `immediate`: skip the usual 500ms debounce and push to any live viewers
+// right away. Used for deliberate, one-off queue edits (reordering the
+// stack, substitutions, removing a player) where there's no rapid-fire
+// burst to coalesce and a spectator noticing the delay is worse than the
+// extra network request — see queueHostPush below.
+async function persist(immediate){
   const ok = await idbSet('state', state);
   if (!ok){
     try{ localStorage.setItem('paddleStackQueueState', JSON.stringify(state)); }catch(e){}
   }
-  if (typeof queueHostPush === 'function') queueHostPush();
+  if (typeof queueHostPush === 'function') queueHostPush(immediate);
 }
 
 async function loadPersisted(){
@@ -1092,7 +1097,7 @@ stackList.addEventListener('click', async (e) => {
     while (j < state.stack.length && getPlayerLevel(state.stack[j].name) !== lvl) j++;
     if (j < state.stack.length) [state.stack[j], state.stack[idx]] = [state.stack[idx], state.stack[j]];
   }
-  renderAll(); persist();
+  renderAll(); persist(true);
 });
 
 /* ================= Add players ================= */
@@ -2828,6 +2833,11 @@ function openMatchHistory(){
   matchHistoryOverlay.hidden = false;
 }
 $('#matchHistoryBtn').addEventListener('click', openMatchHistory);
+// Same modal, same renderer — spectators get the exact same read-only match
+// history the host sees, just reached via a button in the viewer banner
+// instead of the (hidden-for-viewers) top toolbar icon.
+const viewerMatchHistoryBtn = $('#viewerMatchHistoryBtn');
+if (viewerMatchHistoryBtn) viewerMatchHistoryBtn.addEventListener('click', openMatchHistory);
 $('#themeToggleBtn').addEventListener('click', () => {
   const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
   applyTheme(next);
@@ -3616,6 +3626,8 @@ let hostCreditBusy = false;       // true while a purchase request is uploading/
 let hostPendingCreditRequest = undefined; // undefined = not yet fetched, null = none pending, else the row
 let hostPushTimer = null;
 let hostPushPending = false;
+let hostPushInFlight = false; // true while a PATCH to hosted_sessions is actually in the air —
+                               // see the in-flight guard inside pushStateNow
 let viewerPollTimer = null;
 let hostReconnecting = false;       // true once a push/keepalive to Supabase has failed while
                                      // still (as far as we know) live — drives the "Reconnecting…"
@@ -4332,6 +4344,15 @@ function stopHostReconnectRetry(){
 
 async function pushStateNow(){
   if (!hostSession) return;
+  // Guard against two PATCHes ever being in flight to the same row at once.
+  // Without this, a slow earlier request finishing AFTER a later one could
+  // silently overwrite a viewer's fresh state with an older snapshot — the
+  // live view would then look "stuck" on whatever that stale request sent,
+  // no matter how many further edits the host makes, until something else
+  // happens to trigger another push. Only one request is ever in the air;
+  // anything that changes while it's in flight just waits for it to finish.
+  if (hostPushInFlight) return;
+  hostPushInFlight = true;
   try{
     await sbFetch(`/rest/v1/hosted_sessions?id=eq.${hostSession.id}`, {
       method: 'PATCH',
@@ -4340,16 +4361,29 @@ async function pushStateNow(){
     }, true);
     hostPushPending = false;
     setHostReconnecting(false);
+    hostPushInFlight = false;
+    // Something changed (queueHostPush was called again) while this request
+    // was still in flight — send that latest state right away instead of
+    // waiting out the next debounce tick or the 4s reconnect-retry loop.
+    if (hostPushPending && hostSession) pushStateNow();
   }catch(e){
+    hostPushInFlight = false;
     // Leave hostPushPending true — the fast retry loop (or the next state
     // change, whichever comes first) will resend this same latest state.
     setHostReconnecting(true);
   }
 }
 
-function queueHostPush(){
+// `immediate`: bypass the debounce entirely and push right now (still
+// respecting the in-flight guard in pushStateNow above) — see persist().
+function queueHostPush(immediate){
   if (!hostSession || viewerMode) return;
   hostPushPending = true;
+  if (immediate){
+    if (hostPushTimer){ clearTimeout(hostPushTimer); hostPushTimer = null; }
+    pushStateNow();
+    return;
+  }
   if (hostPushTimer) return;
   // Debounced so a burst of rapid taps (e.g. mashing the score buttons)
   // collapses into one push instead of one per tap, while still keeping
