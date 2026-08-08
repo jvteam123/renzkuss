@@ -222,21 +222,23 @@ function inferToastType(msg){
   return 'info';
 }
 
+// Toasts used to pop up a full message bubble (icon + text) for every minor
+// action, which reads as noisy over a long session. Now it's just a brief,
+// silent progress bar — a "something happened" pulse with no text to read,
+// no color-coded icon, nothing demanding attention. `msg`/`type` are still
+// accepted (and every existing call site still passes them) so nothing else
+// needs to change, but they're no longer displayed.
 function toast(msg, type){
   const kind = type || inferToastType(msg);
   const el = document.createElement('div');
   el.className = 'toast toast-' + kind;
-  el.innerHTML =
-    '<span class="toast-icon">' + (TOAST_ICONS[kind] || TOAST_ICONS.info) + '</span>' +
-    '<span class="toast-msg"></span>' +
-    '<span class="toast-progress"></span>';
-  el.querySelector('.toast-msg').textContent = msg;
+  el.innerHTML = '<span class="toast-progress"></span>';
   toastWrap.appendChild(el);
   requestAnimationFrame(() => el.classList.add('show'));
   setTimeout(() => {
     el.classList.remove('show');
     setTimeout(() => el.remove(), 250);
-  }, 2200);
+  }, 900);
 }
 
 /* ================= Confirm dialog (replaces native confirm()) ================= */
@@ -1851,6 +1853,33 @@ function scoreboardHtml(court){
   const winnerSide = detectCourtWinner(sc);
   const servingA = sc.serving === 'A', servingB = sc.serving === 'B';
   const serveLabel = sc.firstServe ? '1st Serve' : ('Serve ' + sc.serverNum);
+
+  // Spectators get a read-only scoreboard: numbers and serve indicator only,
+  // no scoring/serve controls to tap (those never did anything anyway, since
+  // the click handler bails out early for viewerMode — this just makes the
+  // UI match that reality instead of showing dead buttons).
+  if (viewerMode){
+    return `
+      <div class="scoreboard-live scoreboard-readonly ${winnerSide ? 'has-winner' : ''}">
+        <div class="sbl-row">
+          <div class="sbl-team">
+            <span class="sbl-label">${winnerSide === 'a' ? '🏆 ' : ''}Team A</span>
+            <div class="sbl-servewrap">${servingA ? `<span class="serve-indicator">• ${serveLabel}</span>` : ''}</div>
+            <div class="sbl-stepper sbl-stepper-readonly">
+              <span class="sbl-num">${safeN(sc.a)}</span>
+            </div>
+          </div>
+          <div class="sbl-team">
+            <span class="sbl-label">${winnerSide === 'b' ? '🏆 ' : ''}Team B</span>
+            <div class="sbl-servewrap">${servingB ? `<span class="serve-indicator">• ${serveLabel}</span>` : ''}</div>
+            <div class="sbl-stepper sbl-stepper-readonly">
+              <span class="sbl-num">${safeN(sc.b)}</span>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  }
+
   const target = getWinTarget();
   const canPickFirstServer = sc.firstServe && safeN(sc.a) === 0 && safeN(sc.b) === 0;
   const serveStatusHtml = (isServing, team) => {
