@@ -1,5 +1,5 @@
 /* ============================================================================
-   Renzku Admin — /admin
+   PaddleStack Admin — /admin
 
    A separate, static, admin-only page that talks to the same Supabase
    project as the main app. It never trusts itself to gate access: every
