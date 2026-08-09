@@ -5115,83 +5115,25 @@ function enterViewerMode(code){
   setMsg('Connecting…');
   viewerSetMsgFn = setMsg; // let the global 'offline' listener update this banner instantly
 
-  /* ---- Opt-in browser notifications: "match ended" + "next up changed" ----
-     Spectators tap the bell once to grant permission; after that we notify
-     them in the background so they don't have to keep the tab in view.
-
-     Reality check on "background": a service worker lets the notification
-     display reliably while this tab is open but not focused (and, on
-     Android Chrome, often for a while after the screen locks). It does NOT
-     mean notifications keep arriving if the browser is fully closed or the
-     OS kills the tab — that needs real server-push (VAPID keys + a
-     Supabase Edge Function sending Web Push on every state change), which
-     is a backend addition, not something this static front end can do on
-     its own. This is the best-effort version; ask if you want the full
-     server-push version built out. */
-  const notifyBtn = $('#viewerNotifyBtn');
-  const notifyStatusBtn = $('#viewerNotifyStatus');
-  const NOTIFY_STORAGE_KEY = 'renzkuViewerNotify';
-  let notifyEnabled = false;
-
+  /* ---- Notifications: player calls only ----
+     Spectators used to also get pinged for "match started", "substitution",
+     "game ended", and "next up changed" — but with everyone on the floor
+     watching the same live match, that turned into a constant stream of
+     buzzing for events that don't concern most of them. The only
+     notification a spectator device ever receives now is a direct
+     "it's your turn" call, and only if they've registered as that specific
+     player (see the Visiting Spectator View identity flow below). There's
+     no separate opt-in bell anymore — picking your name IS the opt-in. */
   const notifySound = new Audio('./notify.wav');
   notifySound.volume = 0.6;
   notifySound.preload = 'auto';
-  try{
-    notifyEnabled = ('Notification' in window) &&
-      localStorage.getItem(NOTIFY_STORAGE_KEY) === '1' &&
-      Notification.permission === 'granted';
-  }catch(e){}
 
   let swRegistration = null;
   if ('serviceWorker' in navigator){
     navigator.serviceWorker.register('sw.js').then(reg => { swRegistration = reg; }).catch(() => {});
   }
 
-  function updateNotifyBtn(){
-    if (!notifyBtn || !notifyStatusBtn) return;
-    if (!('Notification' in window)){ notifyBtn.hidden = true; notifyStatusBtn.hidden = true; return; }
-    // Once it's actually on, the labeled button is gone for good — just a
-    // small tappable bell remains, which is also how you turn it back off.
-    notifyBtn.hidden = notifyEnabled;
-    notifyStatusBtn.hidden = !notifyEnabled;
-  }
-  updateNotifyBtn();
-
-  if (notifyBtn){
-    notifyBtn.addEventListener('click', async () => {
-      if (!('Notification' in window)){ toast('Notifications aren\u2019t supported in this browser'); return; }
-      if (Notification.permission === 'granted'){
-        notifyEnabled = true;
-      } else if (Notification.permission === 'denied'){
-        toast('Notifications are blocked for this site in your browser settings');
-      } else {
-        const perm = await Notification.requestPermission();
-        notifyEnabled = perm === 'granted';
-        if (!notifyEnabled) toast('Notifications weren\u2019t enabled');
-      }
-      try{ localStorage.setItem(NOTIFY_STORAGE_KEY, notifyEnabled ? '1' : '0'); }catch(e){}
-      updateNotifyBtn();
-      if (notifyEnabled) toast('Notifications on \u2014 we\u2019ll alert you when a game ends');
-    });
-  }
-
-  if (notifyStatusBtn){
-    notifyStatusBtn.addEventListener('click', async () => {
-      const turnOff = await showConfirm('Turn off match notifications on this device?', {
-        title: 'Notifications', confirmLabel: 'Turn off', cancelLabel: 'Keep on'
-      });
-      if (!turnOff) return;
-      notifyEnabled = false;
-      try{ localStorage.setItem(NOTIFY_STORAGE_KEY, '0'); }catch(e){}
-      updateNotifyBtn();
-      toast('Notifications turned off');
-    });
-  }
-
-  // Low-level "actually show it" step, shared by the generic match-update
-  // notifications (gated on the bell toggle below) and the player-specific
-  // "it's your turn" calls (gated on Notification permission only — see
-  // notifyPlayerCall further down).
+  // Low-level "actually show it" step used by player-call notifications.
   function fireNotification(title, body, opts){
     opts = opts || {};
     try{ notifySound.currentTime = 0; notifySound.play().catch(() => {}); }catch(e){}
@@ -5210,11 +5152,6 @@ function enterViewerMode(code){
         new Notification(title, nOpts);
       }
     }catch(e){ console.error('Notification error:', e); }
-  }
-
-  function notify(title, body){
-    if (!notifyEnabled || !('Notification' in window) || Notification.permission !== 'granted') return;
-    fireNotification(title, body);
   }
 
   /* ---- Visiting Spectator View: player identity ("Who's watching?") ----
@@ -5333,13 +5270,10 @@ function enterViewerMode(code){
     closePlayerSelect();
     // Registering as a player is the clear, in-context moment to ask for
     // notification permission — right when it becomes meaningful, not
-    // before. Also flips the generic "Notify me" bell on for free, since
-    // wanting to be called by name implies wanting match updates too.
+    // before. This is the only notification opt-in on the spectator side —
+    // there's no separate generic bell to also flip on.
     const granted = await ensureNotifyPermission();
     if (granted){
-      notifyEnabled = true;
-      try{ localStorage.setItem(NOTIFY_STORAGE_KEY, '1'); }catch(e){}
-      updateNotifyBtn();
       fireNotification(`You're set as ${name}`, "We'll notify this phone when it's your turn.");
     }
     startPresenceHeartbeat();
@@ -5400,18 +5334,14 @@ function enterViewerMode(code){
   }
 
   // Fires the actual "it's your turn" phone notification for a matched
-  // player call. Independent of the generic "Notify me" bell — selecting a
-  // player name up front is itself the opt-in for these.
+  // player call. This is the only notification a spectator device ever
+  // receives — picking a player name is itself the opt-in for it.
   function notifyPlayerCall(call){
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
     fireNotification(call.title, call.body, { tag: 'renzku-call-' + call.id, requireInteraction: true, vibrate: [200, 100, 200] });
   }
 
   let lastStatus = null;      // previous session status, to catch the live -> ended transition
-  let lastOnDeck = null;      // text of the first "on deck" matchup, to catch it changing
-  let lastHistoryId = undefined; // most recent recorded match id, to catch a game finishing
-  let lastCourtStarts = {};   // courtId -> startTime, to catch a new game beginning
-  let lastCourtRoster = {};   // courtId -> player names on court, to catch a mid-game substitution
   let firstPoll = true;       // belt-and-suspenders: never notify on the poll that just
                                // establishes the baseline snapshot, no matter what it contains.
   let invalidPolls = 0;       // consecutive "code not found" results — stop repolling a dead code
@@ -5444,7 +5374,6 @@ function enterViewerMode(code){
       }
       invalidPolls = 0;
       if (row.status !== 'live'){
-        if (!firstPoll && lastStatus === 'live') notify('Match ended', 'The host has stopped sharing this match.');
         lastStatus = row.status;
         firstPoll = false;
         setMsg('The host has stopped sharing this match.');
@@ -5461,7 +5390,10 @@ function enterViewerMode(code){
       // viewerIdentity.role is 'guest', never 'player'). Only calls issued
       // after this device registered as that player are eligible — avoids
       // replaying a backlog of "it's your turn" pings from before this
-      // phone was even watching.
+      // phone was even watching. This is the only notification a
+      // spectator device ever receives — no generic match-started /
+      // game-ended / next-up pings, so it doesn't turn into a stream of
+      // buzzing for events that don't concern most people watching.
       if (Array.isArray(state.playerCalls)){
         state.playerCalls.forEach(call => {
           if (!call || seenCallIds.has(call.id)) return;
@@ -5474,53 +5406,6 @@ function enterViewerMode(code){
         });
       }
 
-      // A new game just started on some court — or, if the start time didn't
-      // move but who's playing did, someone was subbed in mid-game.
-      if (Array.isArray(state.courts)){
-        state.courts.forEach(c => {
-          const prevStart = lastCourtStarts[c.id];
-          const prevRoster = lastCourtRoster[c.id];
-          const roster = (c.players || []).slice();
-          if (!firstPoll && c.startTime && prevStart !== undefined && c.startTime !== prevStart){
-            const matchup = roster.join(', ');
-            notify((c.name || 'Court') + ' \u2014 match started', matchup || 'A new match just began.');
-          } else if (!firstPoll && prevStart !== undefined && c.startTime === prevStart && prevRoster){
-            const incoming = roster.filter(n => !prevRoster.includes(n));
-            const outgoing = prevRoster.filter(n => !roster.includes(n));
-            if (incoming.length && outgoing.length){
-              notify((c.name || 'Court') + ' \u2014 substitution', `${incoming.join(' & ')} in for ${outgoing.join(' & ')}`);
-            }
-          }
-          lastCourtStarts[c.id] = c.startTime || null;
-          lastCourtRoster[c.id] = roster;
-        });
-      }
-
-      // A game just finished on some court — the host's history array gets
-      // a new entry pushed to the front each time a winner is recorded.
-      const latestGame = Array.isArray(state.history) && state.history.length ? state.history[0] : null;
-      const latestGameId = latestGame ? latestGame.id : null;
-      if (!firstPoll && lastHistoryId !== undefined && latestGameId !== null && latestGameId !== lastHistoryId){
-        const winnerText = latestGame.winnerNames && latestGame.winnerNames.length ? latestGame.winnerNames.join(' & ') : null;
-        const scoreText = (latestGame.scoreA !== null && latestGame.scoreB !== null) ? ` ${latestGame.scoreA}-${latestGame.scoreB}` : '';
-        const title = (latestGame.courtName || 'Court') + ' \u2014 game ended';
-        const body = winnerText ? `${winnerText} won${scoreText}` : `Game finished${scoreText}`;
-        notify(title, body);
-      }
-      lastHistoryId = latestGameId;
-
-      const firstOnDeck = historyList && historyList.querySelector('.ondeck-row .ondeck-matchup');
-      // Build the text from each child span (team / "vs" / team) rather than
-      // raw textContent — the spans are laid out with CSS flex gap, not
-      // actual space characters, so a naive textContent read glues them
-      // together with no space (e.g. "jun2vsrenzku").
-      const onDeckText = firstOnDeck
-        ? Array.from(firstOnDeck.children).map(el => el.textContent.trim()).filter(Boolean).join(' ')
-        : null;
-      if (!firstPoll && onDeckText && lastOnDeck !== null && onDeckText !== lastOnDeck){
-        notify('Next up', onDeckText.replace(/\s+/g, ' '));
-      }
-      if (onDeckText) lastOnDeck = onDeckText;
       lastStatus = row.status;
       firstPoll = false;
     }catch(e){
