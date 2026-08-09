@@ -5219,6 +5219,36 @@ function enterViewerMode(code){
     navigator.serviceWorker.register('sw.js').then(reg => { swRegistration = reg; }).catch(() => {});
   }
 
+  /* ---- "Install app" (Add to Home Screen) ----
+     Installing gives the match an actual standalone app window instead of a
+     browser tab, which the OS is far less likely to reclaim/reload mid-game
+     — the main thing that can interrupt a match beyond losing internet
+     (already handled: queue state lives in IndexedDB and everything but the
+     optional live-share features works with no network at all). Chrome/
+     Edge/Android fire 'beforeinstallprompt' when the manifest+SW make the
+     site eligible; we stash that event and reveal a button instead of
+     letting the browser show its own mini-infobar. */
+  let deferredInstallPrompt = null;
+  const installAppBtn = $('#installAppBtn');
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    if (installAppBtn) installAppBtn.hidden = false;
+  });
+  if (installAppBtn){
+    installAppBtn.addEventListener('click', async () => {
+      if (!deferredInstallPrompt) return;
+      installAppBtn.hidden = true;
+      deferredInstallPrompt.prompt();
+      await deferredInstallPrompt.userChoice.catch(() => {});
+      deferredInstallPrompt = null;
+    });
+  }
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    if (installAppBtn) installAppBtn.hidden = true;
+  });
+
   // Low-level "actually show it" step used by player-call notifications.
   function fireNotification(title, body, opts){
     opts = opts || {};
