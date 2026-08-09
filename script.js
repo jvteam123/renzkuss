@@ -5465,15 +5465,31 @@ function enterViewerMode(code){
   // NEVER the host's own local IndexedDB/queue state (that's a completely
   // separate thing this device may or may not also have) — only ever a
   // previously-saved *viewer* snapshot for this exact invite code.
+  //
+  // IMPORTANT: this render is wrapped in its own try/catch. If a stale or
+  // oddly-shaped cached snapshot ever makes renderAll() throw, that must
+  // NOT be allowed to abort the rest of enterViewerMode() — without this
+  // guard, an uncaught exception here would silently skip every line
+  // after it, including the poll() call at the very bottom, leaving the
+  // banner permanently stuck on "Connecting to live match…" with no
+  // visible error and no way to recover short of clearing storage. A bad
+  // cached snapshot should, at worst, cost you the instant-repaint — it
+  // must never be able to prevent the live poll loop from starting.
   let hasRenderableSnapshot = false;
   const cachedSnap = loadViewerSnapshotFor(code);
   if (cachedSnap && cachedSnap.state){
-    console.log('[Viewer] rendering snapshot', cachedSnap.cached_at);
-    state = cachedSnap.state;
-    hasRenderableSnapshot = true;
-    const nameEl0 = $('.session-name');
-    if (nameEl0) nameEl0.textContent = (cachedSnap.session_name || 'Live match') + ' \u00b7 Live';
-    renderAll();
+    try{
+      console.log('[Viewer] rendering snapshot', cachedSnap.cached_at);
+      state = cachedSnap.state;
+      hasRenderableSnapshot = true;
+      const nameEl0 = $('.session-name');
+      if (nameEl0) nameEl0.textContent = (cachedSnap.session_name || 'Live match') + ' \u00b7 Live';
+      renderAll();
+    }catch(e){
+      console.error('[Viewer] failed to render cached snapshot \u2014 discarding it and continuing to poll', e);
+      hasRenderableSnapshot = false;
+      showConnCard('Connecting to live match\u2026', 'This usually only takes a second.', false);
+    }
   } else {
     showConnCard('Connecting to live match\u2026', 'This usually only takes a second.', false);
   }
