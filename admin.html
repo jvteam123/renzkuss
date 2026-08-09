@@ -186,6 +186,32 @@
 
 </main>
 
+<!-- Confirm modal (replaces native browser confirm() popups — same
+     pattern/markup as the main app's #confirmOverlay in index.html) -->
+<div class="overlay confirm-overlay" id="confirmOverlay" hidden>
+  <div class="modal confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
+    <h3 id="confirmTitle">Please confirm</h3>
+    <p id="confirmMessage" class="confirm-message"></p>
+    <div class="modal-actions">
+      <button type="button" class="btn primary" id="confirmOkBtn">Confirm</button>
+      <button type="button" class="btn ghost" id="confirmCancelBtn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Prompt modal (replaces native browser prompt() popups) -->
+<div class="overlay confirm-overlay" id="promptOverlay" hidden>
+  <div class="modal confirm-modal" role="dialog" aria-modal="true" aria-labelledby="promptTitle">
+    <h3 id="promptTitle">Add a note</h3>
+    <p id="promptMessage" class="confirm-message"></p>
+    <textarea id="promptInput" rows="3" style="width:100%;box-sizing:border-box;resize:vertical"></textarea>
+    <div class="modal-actions">
+      <button type="button" class="btn primary" id="promptOkBtn">Save</button>
+      <button type="button" class="btn ghost" id="promptCancelBtn">Skip</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast-wrap" id="toastWrap"></div>
 
 <script src="admin.js" defer></script>
