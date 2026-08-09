@@ -5904,6 +5904,45 @@ window.addEventListener('online', () => {
   if (viewerMode && viewerPollFn) viewerPollFn();
 });
 
+/* ---- Back/forward cache (bfcache) recovery ----
+   Mobile Chrome's "pull to refresh" gesture doesn't always trigger a real
+   navigation/reload — if the tab was frozen and can be restored cheaply,
+   the browser sometimes just unfreezes the exact DOM/JS state it had at
+   freeze time instead of re-running the page's scripts. For a page whose
+   whole job is "keep polling and repainting", that's fatal: the polling
+   loop that was running before the freeze may have been paused/throttled
+   indefinitely, and nothing here would ever have a chance to notice or
+   recover — the person is just looking at a stale screenshot of whatever
+   was on screen the moment it got frozen (which explains a spectator
+   staying stuck on "Connecting to live match…" no matter how long they
+   wait, or how many times they pull-to-refresh, if that gesture kept
+   landing on a restore instead of a reload).
+   The fix: if 'pageshow' ever reports event.persisted === true — meaning
+   this load did NOT re-run script.js from scratch, it's a bfcache restore
+   — force a real reload immediately so viewerMode/hostSession boot from a
+   clean slate exactly like a normal fresh page load would. This is a
+   no-op on every ordinary navigation (persisted is only ever true for a
+   bfcache restore). */
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted){
+    console.log('[Viewer] page restored from bfcache — forcing a real reload');
+    location.reload();
+  }
+});
+
+/* ---- Foreground recovery ----
+   Mobile browsers aggressively throttle/pause timers (setInterval among
+   them) for a backgrounded tab to save battery — so a 2s poll loop can
+   silently fall many seconds or minutes behind while the phone is asleep
+   or another app is in front. The moment the tab becomes visible again,
+   poll right away instead of waiting for the next (possibly very late)
+   scheduled tick — this is the same "don't sit out a stale interval"
+   reasoning as the 'online' handler above, just for a different cause of
+   staleness. */
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && viewerMode && viewerPollFn) viewerPollFn();
+});
+
 /* ================= Render orchestration ================= */
 function renderAll(){
   applyLevelsVisibility();
