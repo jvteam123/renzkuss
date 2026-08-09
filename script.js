@@ -5695,19 +5695,23 @@ function enterViewerMode(code){
   if (whosWatchingOverlay) whosWatchingOverlay.addEventListener('click', (e) => { if (e.target === whosWatchingOverlay && viewerIdentity) closeWhosWatching(); });
   if (playerSelectOverlay) playerSelectOverlay.addEventListener('click', (e) => { if (e.target === playerSelectOverlay && viewerIdentity) closePlayerSelect(); });
 
-  updateViewerIdentityUI();
-  if (!viewerIdentity){
-    openWhosWatching();
-  } else if (viewerIdentity.role === 'player'){
-    startPresenceHeartbeat();
-  }
-
   /* ---- Presence heartbeat ----
      Lets the host see this device as "connected" for the player it's
      registered as (so Call Players / Call Out Player can report real
      status instead of guessing). Best-effort: silently does nothing if
      the optional session_viewers table/RPCs aren't installed on the
-     Supabase project — see supabase-viewer-presence.sql. */
+     Supabase project — see supabase-viewer-presence.sql.
+     Declared here, ABOVE the viewerIdentity check below, because that
+     check calls startPresenceHeartbeat() synchronously for a returning
+     player (someone who already picked their name on a previous visit —
+     e.g. reloading after registering as "Karl"). A `let` variable is in
+     the temporal dead zone until its own declaration line runs; calling
+     a function that touches presenceHeartbeatTimer before that line was
+     an uncaught ReferenceError that aborted the rest of enterViewerMode()
+     — including the poll()/scheduleNextPoll() calls at the very bottom —
+     which is what left the banner stuck on "Connecting to live match…"
+     forever on reload while a first-ever visit (no saved identity yet)
+     never hit this path at all. */
   let presenceHeartbeatTimer = null;
   async function sendPresenceHeartbeat(){
     if (!SUPABASE_CONFIGURED || !viewerIdentity) return;
@@ -5731,6 +5735,13 @@ function enterViewerMode(code){
   }
   function stopPresenceHeartbeat(){
     if (presenceHeartbeatTimer){ clearInterval(presenceHeartbeatTimer); presenceHeartbeatTimer = null; }
+  }
+
+  updateViewerIdentityUI();
+  if (!viewerIdentity){
+    openWhosWatching();
+  } else if (viewerIdentity.role === 'player'){
+    startPresenceHeartbeat();
   }
 
   // Fires the actual "it's your turn" phone notification for a matched
