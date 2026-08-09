@@ -4797,8 +4797,7 @@ function renderHostPanel(){
         <button type="button" class="btn ghost sm" id="hostCopyLinkBtn">Copy link</button>
         <button type="button" class="btn ghost sm" id="hostCopyCodeBtn">Copy code</button>
       </div>
-      <button type="button" class="btn solid-turf" id="hostCallOutBtn" style="width:100%;margin-top:.7rem">📣 Call a player</button>
-      <button type="button" class="btn danger" id="hostStopBtn" style="width:100%;margin-top:.5rem" ${hostBusy ? 'disabled' : ''}>Stop hosting</button>
+      <button type="button" class="btn danger" id="hostStopBtn" style="width:100%;margin-top:.7rem" ${hostBusy ? 'disabled' : ''}>Stop hosting</button>
     </div>
   `;
   const qrBox = $('#hostQrBox');
@@ -5055,6 +5054,7 @@ async function copyText(text){
 }
 
 $('#hostOnlineBtn').addEventListener('click', openHostOverlay);
+$('#callOutTopBtn').addEventListener('click', openCallOutOverlay);
 $('#hostDone').addEventListener('click', () => { hostOverlay.hidden = true; });
 liveHostPill.addEventListener('click', openHostOverlay);
 
@@ -5086,7 +5086,11 @@ hostOverlay.addEventListener('click', (e) => {
   if (e.target.closest('#hostEndRemoteBtn')){ endRemoteSession(); return; }
   if (e.target.closest('#hostCopyLinkBtn')){ copyText(joinUrlFor(hostSession.invite_code)); return; }
   if (e.target.closest('#hostCopyCodeBtn')){ copyText(hostSession.invite_code); return; }
-  if (e.target.closest('#hostCallOutBtn')){ hostOverlay.hidden = true; openCallOutOverlay(); return; }
+  // "Call a player" now lives in the topbar (see callOutTopBtn below) since
+  // it's a general paging action, not something tied to the live-hosting
+  // flow — it used to sit inside this panel wedged between the QR/share
+  // controls and the "Stop hosting" button, which read as part of the
+  // hosting setup steps when it isn't.
 
   if (e.target.closest('#hostBuyCreditsToggleBtn')){ hostBuyOpen = true; renderHostPanel(); return; }
   if (e.target.closest('#hostBuyCreditsCancelBtn')){ resetBuyCreditsFlow(); renderHostPanel(); return; }
