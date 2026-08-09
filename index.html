@@ -143,6 +143,7 @@
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="callOutTitle">
     <h3 id="callOutTitle">📣 Call out a player</h3>
     <p class="winner-note" style="margin:-.3rem 0 .8rem">Sends a phone notification straight to whoever has selected this name on the spectator view.</p>
+    <p class="add-hint" id="callOutDisabledNote" style="padding:0;margin:-.4rem 0 .8rem;color:var(--clay-deep)" hidden>Phone notifications are turned off — enable "Notify players by phone" in Settings to call players this way.</p>
     <div class="field" id="callOutCourtField">
       <label for="callOutCourtSelect">Send them to (optional)</label>
       <select id="callOutCourtSelect"><option value="">No specific court</option></select>
@@ -370,12 +371,21 @@
       <p class="add-hint" style="padding:0;margin-top:.45rem">Set each court's name and skill level here — the level shown on the court card is display-only.</p>
     </div>
     <div class="field toggle-row">
-      <label style="margin:0">Sound on call-up</label>
+      <label style="margin:0">Call-up voice (speaker)</label>
       <label class="switch">
         <input type="checkbox" id="soundToggle" checked>
         <span class="track"></span>
       </label>
     </div>
+    <p class="add-hint" style="padding:0;margin-top:-.3rem">Speaks the next lineup out loud on this device when you tap "Call Players".</p>
+    <div class="field toggle-row">
+      <label style="margin:0">Notify players by phone</label>
+      <label class="switch">
+        <input type="checkbox" id="notifyCallsToggle" checked>
+        <span class="track"></span>
+      </label>
+    </div>
+    <p class="add-hint" style="padding:0;margin-top:-.3rem">Sends a phone notification to a player's device when you call them, whether or not the voice above is on. Only reaches players who've selected their name on the spectator view.</p>
     <hr class="divider">
     <div class="field">
       <div class="toggle-row">
