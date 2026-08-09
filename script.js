@@ -165,6 +165,24 @@ function nextId(prefix){ return prefix + (Date.now().toString(36)) + (uid++); }
 /* ================= DOM refs ================= */
 const $ = (sel) => document.querySelector(sel);
 
+/* ================= Keyboard-aware viewport (mobile modals) =================
+   On phones, opening the on-screen keyboard shrinks the *visual* viewport
+   without necessarily shrinking the *layout* viewport, so our fixed-position
+   .overlay (and the bottom-sheet modal docked to it) can end up sized for
+   the full screen while the keyboard covers the bottom of it — hiding
+   "Done"/submit buttons behind the keyboard. Mirroring visualViewport's
+   height into a CSS var lets .overlay track the actually-visible area. */
+(function setupViewportFix(){
+  const vv = window.visualViewport;
+  if (!vv){ return; }
+  const update = () => {
+    document.documentElement.style.setProperty('--app-vh', vv.height + 'px');
+  };
+  vv.addEventListener('resize', update);
+  vv.addEventListener('scroll', update);
+  update();
+})();
+
 /* ================= Theme (dark mode) =================
    Preference is stored separately from the queue/app state so it can be
    applied the instant script.js runs, without waiting on IndexedDB. */
@@ -4851,17 +4869,76 @@ const callOutSearch = $('#callOutSearch');
 const callOutList = $('#callOutList');
 const callOutEmpty = $('#callOutEmpty');
 const callOutCourtSelect = $('#callOutCourtSelect');
+const callOutCourtTrigger = $('#callOutCourtTrigger');
+const callOutCourtTriggerLabel = $('#callOutCourtTriggerLabel');
+const callOutCourtPanel = $('#callOutCourtPanel');
 const callOutStatusList = $('#callOutStatusList');
 let callOutRefreshTimer = null;
+let callOutCourtPanelOpen = false;
+let callOutCourtOptionsKey = null; // last-rendered court list, so background refreshes
+                                    // only touch the DOM (and the open panel) when it
+                                    // actually changed instead of every 2s regardless —
+                                    // that constant rebuild was what made the dropdown
+                                    // flicker/blink while a host had it open.
 
-function renderCallOutCourtOptions(){
-  if (!callOutCourtSelect) return;
-  const current = callOutCourtSelect.value;
-  const opts = ['<option value="">No specific court</option>']
-    .concat((state.courts || []).map(c => `<option value="${esc(c.name)}">${esc(c.name)}</option>`));
-  callOutCourtSelect.innerHTML = opts.join('');
-  if ([...callOutCourtSelect.options].some(o => o.value === current)) callOutCourtSelect.value = current;
+function courtOptionsList(){
+  return [{ value: '', label: 'No specific court' }]
+    .concat((state.courts || []).map(c => ({ value: c.name, label: c.name })));
 }
+
+function closeCallOutCourtPanel(){
+  callOutCourtPanelOpen = false;
+  if (callOutCourtPanel) callOutCourtPanel.hidden = true;
+  if (callOutCourtTrigger) callOutCourtTrigger.setAttribute('aria-expanded', 'false');
+}
+
+function renderCallOutCourtOptions(force){
+  if (!callOutCourtSelect) return;
+  const opts = courtOptionsList();
+  const key = opts.map(o => o.value).join('\u0001');
+  // Skip the rebuild entirely if the court list hasn't changed and the panel
+  // is currently open — nothing to update, and touching the open panel's
+  // markup is exactly what caused the flicker.
+  if (!force && key === callOutCourtOptionsKey && callOutCourtPanelOpen) return;
+  callOutCourtOptionsKey = key;
+
+  const current = callOutCourtSelect.value;
+  callOutCourtSelect.innerHTML = opts.map(o => `<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');
+  if (opts.some(o => o.value === current)) callOutCourtSelect.value = current;
+
+  if (callOutCourtPanel){
+    callOutCourtPanel.innerHTML = opts.map(o => `
+      <div class="custom-select-option${o.value === callOutCourtSelect.value ? ' selected' : ''}" role="option" data-value="${esc(o.value)}" aria-selected="${o.value === callOutCourtSelect.value}">${esc(o.label)}</div>
+    `).join('');
+  }
+  if (callOutCourtTriggerLabel){
+    const match = opts.find(o => o.value === callOutCourtSelect.value);
+    callOutCourtTriggerLabel.textContent = match ? match.label : 'No specific court';
+  }
+}
+
+if (callOutCourtTrigger){
+  callOutCourtTrigger.addEventListener('click', () => {
+    callOutCourtPanelOpen = !callOutCourtPanelOpen;
+    if (callOutCourtPanelOpen) renderCallOutCourtOptions(true);
+    if (callOutCourtPanel) callOutCourtPanel.hidden = !callOutCourtPanelOpen;
+    callOutCourtTrigger.setAttribute('aria-expanded', String(callOutCourtPanelOpen));
+  });
+}
+if (callOutCourtPanel){
+  callOutCourtPanel.addEventListener('click', (e) => {
+    const opt = e.target.closest('.custom-select-option');
+    if (!opt) return;
+    callOutCourtSelect.value = opt.dataset.value;
+    closeCallOutCourtPanel();
+    renderCallOutCourtOptions(true);
+  });
+}
+document.addEventListener('click', (e) => {
+  if (!callOutCourtPanelOpen) return;
+  if (e.target.closest('#callOutCourtCustom')) return;
+  closeCallOutCourtPanel();
+});
 
 function renderCallOutList(){
   if (!callOutList) return;
@@ -4884,17 +4961,22 @@ function openCallOutOverlay(){
   if (callOutStatusList) callOutStatusList.innerHTML = '';
   const disabledNote = $('#callOutDisabledNote');
   if (disabledNote) disabledNote.hidden = state.session.notifyCallsEnabled !== false;
-  renderCallOutCourtOptions();
+  closeCallOutCourtPanel();
+  callOutCourtOptionsKey = null;
+  renderCallOutCourtOptions(true);
   renderCallOutList();
   callOutOverlay.hidden = false;
   // The stack/roster/courts can keep changing while this modal sits open
-  // (players checking in, courts starting), so keep the picker fresh.
+  // (players checking in, courts starting), so keep the picker fresh — but
+  // renderCallOutCourtOptions() itself now no-ops while the dropdown is open
+  // and its options haven't changed, so this no longer flickers it shut.
   if (callOutRefreshTimer) clearInterval(callOutRefreshTimer);
   callOutRefreshTimer = setInterval(() => { renderCallOutCourtOptions(); renderCallOutList(); }, 2000);
 }
 function closeCallOutOverlay(){
   if (!callOutOverlay) return;
   callOutOverlay.hidden = true;
+  closeCallOutCourtPanel();
   if (callOutRefreshTimer){ clearInterval(callOutRefreshTimer); callOutRefreshTimer = null; }
 }
 
