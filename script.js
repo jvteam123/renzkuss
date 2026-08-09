@@ -174,6 +174,12 @@ const $ = (sel) => document.querySelector(sel);
    or the install prompt at all. Moving it here fixes that for everyone.) */
 let swRegistration = null;
 let swWaitingWorker = null; // a new version sitting ready, once the person opts in via the update banner
+// Set only by the "Refresh now" click below, and read by the
+// controllerchange listener further down — this is the single source of
+// truth for "did the person actually ask for this reload", so an
+// SW-initiated controller change (e.g. sw.js self-activating on its own)
+// can never trigger an unwanted reload loop.
+let userRequestedUpdate = false;
 const updateBanner = $('#updateBanner');
 const applyUpdateBtn = $('#applyUpdateBtn');
 function showUpdateBanner(worker){
@@ -184,6 +190,7 @@ if (applyUpdateBtn){
   applyUpdateBtn.addEventListener('click', () => {
     if (!swWaitingWorker) return;
     applyUpdateBtn.disabled = true;
+    userRequestedUpdate = true;
     swWaitingWorker.postMessage('SKIP_WAITING');
   });
 }
@@ -208,13 +215,24 @@ if ('serviceWorker' in navigator){
       });
     });
   }).catch(() => {});
-  // Fires once the new worker actually takes control (after SKIP_WAITING),
-  // which only happens after the person tapped "Refresh now" — safe to
-  // reload immediately since nothing was switched out from under them
-  // without their say-so.
+  // Fires any time a new worker takes control of this page — which is NOT
+  // guaranteed to only happen after the person tapped "Refresh now". If
+  // sw.js ever calls self.skipWaiting()/clients.claim() on its own during
+  // activation, controllerchange fires on a completely ordinary reload too.
+  // Blindly reloading here then causes a reload loop: every reload
+  // reactivates the worker, which fires controllerchange again, which
+  // reloads again — and since a brand-new script context resets
+  // reloadedForUpdate to false each time, the "only once" guard never
+  // actually stops it. That loop is what was keeping the viewer banner
+  // stuck on "Connecting to live match…": the forced reload kept cutting
+  // off enterViewerMode()'s first poll() before it could ever report
+  // success.
+  //
+  // Only reload when the person actually opted in via the update banner
+  // (userRequestedUpdate, set above in the "Refresh now" click handler).
   let reloadedForUpdate = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (reloadedForUpdate) return;
+    if (reloadedForUpdate || !userRequestedUpdate) return;
     reloadedForUpdate = true;
     location.reload();
   });
