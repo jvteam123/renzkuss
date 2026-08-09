@@ -4461,6 +4461,24 @@ async function startHosting(){
     }
     const row = await createHostedSessionWithRetry();
     if (!row){ hostErrorMsg = 'Could not start hosting — please try again.'; return; }
+    // This session just consumed one of today's "used" slots (or, if the
+    // free daily allowance was already exhausted, one purchased credit —
+    // spent server-side by the same trigger that enforces the limit).
+    // Update the local caches to match right away instead of leaving them
+    // reflecting the pre-session count/balance: without this, stopping and
+    // re-opening the host panel kept showing yesterday's — well, a minute
+    // ago's — numbers until the next "Go live" tap forced a fresh fetch,
+    // which could let the button look enabled when the account was
+    // actually already at its limit (see the stale-cache note on
+    // getHostAccountInfo above for why silently trusting a fetch here is
+    // risky — this just increments/invalidates what we already confirmed
+    // moments ago, it doesn't fetch anything new).
+    hostUsageToday = usage + 1;
+    if (usage >= limit) hostAccountInfo = null; // this one drew from the credit
+                                                  // balance — invalidate so the
+                                                  // next render re-fetches the
+                                                  // real (now lower) balance
+                                                  // instead of showing a stale one
     saveHostSession({ id: row.id, invite_code: row.invite_code });
     lastStoppedHost = null;
     toast('You\u2019re live \u2014 share the code or QR to invite viewers');
