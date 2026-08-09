@@ -192,6 +192,9 @@ button,a,.icon-btn,.panel-action-btn,.btn,select,[role="button"]{
 .icon-btn:hover{background:rgba(255,255,255,.18)}
 .icon-btn:active{transform:scale(.94)}
 .icon-btn svg{width:19px;height:19px}
+.icon-btn[hidden]{display:none} /* an author `display` declaration always wins over the browser's
+  built-in [hidden]{display:none} at equal specificity, so .icon-btn{display:flex} above was
+  keeping #installAppBtn visible even while hidden — same bug already fixed for the admin buttons. */
 
 /* ---------- App shell ---------- */
 .app-shell{
