@@ -149,7 +149,11 @@ function freshState(){
     teammateHistory: {},   // "nameA||nameB" (sorted) -> number of times paired as teammates this session
     opponentHistory: {},   // "nameA||nameB" (sorted) -> number of times faced each other as opponents this session
     playerLevels: {},      // name -> skill level ('Open'|'Beginner'|'Advanced Beginner'|'Intermediate'|'Advanced')
-    roster: []             // known player names, kept across "new session" resets for quick re-adding
+    roster: [],            // known player names, kept across "new session" resets for quick re-adding
+    playerCalls: []         // {id, name, court, title, body, ts} — recent "it's your turn" calls issued
+                             // by the host (Call Players / Call Out Player). Rides along inside the same
+                             // state blob pushed to hosted_sessions, so every spectator device picks it up
+                             // on its next poll and matches call.name against its own selected player name.
   };
 }
 
@@ -377,6 +381,26 @@ function initials(name){
   const parts = name.trim().split(/\s+/);
   const raw = ((parts[0]?.[0]||'') + (parts[1]?.[0]||'')).toUpperCase() || '?';
   return esc(raw);
+}
+
+/* ================= Player Calling / Notification shared helpers =================
+   Used both host-side (building the "call out a player" picker) and viewer-side
+   (building the "which player are you?" picker) — same union of every name
+   currently anywhere in `state`, so nobody present on the floor is missing from
+   either list, whether or not the host has formally added them to the roster. */
+function collectAllPlayerNames(){
+  const names = new Set();
+  const add = (n) => { const t = n && String(n).trim(); if (t) names.add(t); };
+  (state.roster || []).forEach(add);
+  (state.stack || []).forEach(p => add(p.name));
+  (state.arrivals || []).forEach(p => add(p.name));
+  (state.winnersBlock || []).forEach(p => add(p.name));
+  (state.losersBlock || []).forEach(p => add(p.name));
+  (state.courts || []).forEach(c => (c.players || []).forEach(add));
+  return [...names].sort((a, b) => a.localeCompare(b));
+}
+function namesMatch(a, b){
+  return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
 }
 function getStats(name){
   if (isUnsafeName(name)) return { wins: 0, games: 0, scoreSum: 0, scoreGames: 0 };
@@ -1779,6 +1803,106 @@ function announceCallPlayers(court, btnEl){
     btnEl.classList.add('speaking');
     setTimeout(() => { btnEl.classList.remove('speaking'); }, 3500);
   }
+  // Phone notifications ride alongside the voice announcement — but only
+  // mean anything once someone could actually be watching, i.e. this
+  // device is currently broadcasting live.
+  if (hostSession){
+    const calls = issuePlayerCall(names, { courtName: court.name });
+    reportCallStatus(calls);
+  }
+}
+
+/* ---- Player Calling / Notification: host side ----
+   "Call Players" (per-court, above) and "Call Out Player" (any player, any
+   time — see the Call Out Player modal further down) both funnel through
+   here. A call is just an entry appended to state.playerCalls, which rides
+   along inside the normal full-state push to hosted_sessions — no separate
+   network call needed to *deliver* it. Every spectator device already
+   polls that same state every 2s and fires a local notification the
+   moment it sees a new entry whose name matches the player it registered
+   as (see the notify-matching block inside enterViewerMode's poll()). */
+function issuePlayerCall(names, opts){
+  opts = opts || {};
+  if (!Array.isArray(state.playerCalls)) state.playerCalls = [];
+  const baseTs = Date.now();
+  const calls = names.map((name, i) => ({
+    id: nextId('call'),
+    name,
+    court: opts.courtName || null,
+    title: `${name}, it's your turn!`,
+    body: opts.courtName ? `Please proceed to ${opts.courtName}.` : 'The host is calling you to the courts.',
+    ts: baseTs + i // keep issue order stable even though Date.now() alone can collide
+  }));
+  state.playerCalls.push(...calls);
+  // Bound the log — spectators only ever need to see calls issued since
+  // they connected, so there's no reason to let this grow forever.
+  if (state.playerCalls.length > 40) state.playerCalls = state.playerCalls.slice(-40);
+  persist(true); // immediate push so viewers see the call within one poll cycle
+  return calls;
+}
+
+// How recently a spectator device's presence heartbeat has to have landed
+// for the host to consider that player's phone "connected" right now.
+const VIEWER_PRESENCE_WINDOW_MS = 90 * 1000;
+
+// Best-effort: this requires the optional session_viewers table + RPCs
+// (see supabase-viewer-presence.sql) to be installed on the Supabase
+// project. If they're not there yet, this just resolves to null and the
+// host sees "sent" status instead of a confirmed connected/not-connected
+// read — the calls themselves still go out either way.
+async function fetchViewerPresence(){
+  if (!SUPABASE_CONFIGURED || !hostSession) return null;
+  try{
+    const res = await sbFetch('/rest/v1/rpc/list_viewer_presence', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_code: hostSession.invite_code })
+    });
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => null);
+    return Array.isArray(data) ? data : null;
+  }catch(e){ return null; }
+}
+
+// Shows a small floating card (bottom-right) reporting per-player delivery
+// status for a just-issued batch of calls — "✓ Renzku notified" / "⚠ John
+// is not connected" — instead of just silently hoping it worked.
+function showCallStatusCard(results){
+  const wrap = $('#callStatusWrap');
+  if (!wrap) return;
+  const card = document.createElement('div');
+  card.className = 'call-status-card';
+  const lines = results.map(r => {
+    if (r.status === 'connected'){
+      return `<div class="call-status-line ok"><svg viewBox="0 0 24 24" style="width:13px;height:13px"><use href="#i-check"/></svg> ${esc(r.name)} notified</div>`;
+    }
+    if (r.status === 'not-connected'){
+      return `<div class="call-status-line warn"><svg viewBox="0 0 24 24" style="width:13px;height:13px"><use href="#i-info"/></svg> ${esc(r.name)} is not connected — they haven\u2019t selected their name on a device</div>`;
+    }
+    return `<div class="call-status-line unknown"><svg viewBox="0 0 24 24" style="width:13px;height:13px"><use href="#i-bell"/></svg> ${esc(r.name)} called — delivery status unavailable</div>`;
+  }).join('');
+  card.innerHTML = `<div class="csc-title"><svg viewBox="0 0 24 24"><use href="#i-bell"/></svg>Player calls</div>${lines}`;
+  wrap.appendChild(card);
+  requestAnimationFrame(() => card.classList.add('show'));
+  const life = 5200 + results.length * 400;
+  setTimeout(() => {
+    card.classList.remove('show');
+    setTimeout(() => card.remove(), 250);
+  }, life);
+}
+
+async function reportCallStatus(calls){
+  const names = calls.map(c => c.name);
+  const presence = await fetchViewerPresence();
+  const now = Date.now();
+  const results = names.map(name => {
+    if (!presence) return { name, status: 'unknown' };
+    const row = presence.find(r => r.role === 'player' && namesMatch(r.player_name, name) &&
+      (now - new Date(r.last_seen).getTime()) < VIEWER_PRESENCE_WINDOW_MS);
+    return { name, status: row ? 'connected' : 'not-connected' };
+  });
+  showCallStatusCard(results);
+  return results;
 }
 
 function adjustCourtScore(court, team, delta){
@@ -4635,7 +4759,8 @@ function renderHostPanel(){
         <button type="button" class="btn ghost sm" id="hostCopyLinkBtn">Copy link</button>
         <button type="button" class="btn ghost sm" id="hostCopyCodeBtn">Copy code</button>
       </div>
-      <button type="button" class="btn danger" id="hostStopBtn" style="width:100%;margin-top:.7rem" ${hostBusy ? 'disabled' : ''}>Stop hosting</button>
+      <button type="button" class="btn solid-turf" id="hostCallOutBtn" style="width:100%;margin-top:.7rem">📣 Call a player</button>
+      <button type="button" class="btn danger" id="hostStopBtn" style="width:100%;margin-top:.5rem" ${hostBusy ? 'disabled' : ''}>Stop hosting</button>
     </div>
   `;
   const qrBox = $('#hostQrBox');
@@ -4694,6 +4819,88 @@ function buyCreditsSectionHTML(){
 }
 function resetBuyCreditsFlow(){
   hostBuyOpen = false; hostSelectedPackage = null; hostReceiptFile = null; hostCreditBusy = false;
+}
+
+/* ---- "Call Out Player" modal (host) ----
+   Lets the host call any specific player by name at any time — not tied to
+   a court being ready — e.g. paging someone back from a break. Reuses the
+   same issuePlayerCall()/reportCallStatus() pipeline as the per-court
+   "Call Players" button above. */
+const callOutOverlay = $('#callOutOverlay');
+const callOutSearch = $('#callOutSearch');
+const callOutList = $('#callOutList');
+const callOutEmpty = $('#callOutEmpty');
+const callOutCourtSelect = $('#callOutCourtSelect');
+const callOutStatusList = $('#callOutStatusList');
+let callOutRefreshTimer = null;
+
+function renderCallOutCourtOptions(){
+  if (!callOutCourtSelect) return;
+  const current = callOutCourtSelect.value;
+  const opts = ['<option value="">No specific court</option>']
+    .concat((state.courts || []).map(c => `<option value="${esc(c.name)}">${esc(c.name)}</option>`));
+  callOutCourtSelect.innerHTML = opts.join('');
+  if ([...callOutCourtSelect.options].some(o => o.value === current)) callOutCourtSelect.value = current;
+}
+
+function renderCallOutList(){
+  if (!callOutList) return;
+  const q = (callOutSearch && callOutSearch.value || '').trim().toLowerCase();
+  const all = collectAllPlayerNames();
+  const filtered = q ? all.filter(n => n.toLowerCase().includes(q)) : all;
+  if (callOutEmpty) callOutEmpty.hidden = filtered.length > 0;
+  callOutList.innerHTML = filtered.map(name => `
+    <div class="player-select-row" data-name="${esc(name)}" style="cursor:default">
+      <span class="avatar" style="background:${avatarColor(name)}">${initials(name)}</span>
+      <span class="ps-name">${esc(name)}</span>
+      <button type="button" class="ps-call-btn" data-call-name="${esc(name)}"><svg viewBox="0 0 24 24"><use href="#i-bell"/></svg>Call</button>
+    </div>
+  `).join('');
+}
+
+function openCallOutOverlay(){
+  if (!callOutOverlay) return;
+  if (callOutSearch) callOutSearch.value = '';
+  if (callOutStatusList) callOutStatusList.innerHTML = '';
+  renderCallOutCourtOptions();
+  renderCallOutList();
+  callOutOverlay.hidden = false;
+  // The stack/roster/courts can keep changing while this modal sits open
+  // (players checking in, courts starting), so keep the picker fresh.
+  if (callOutRefreshTimer) clearInterval(callOutRefreshTimer);
+  callOutRefreshTimer = setInterval(() => { renderCallOutCourtOptions(); renderCallOutList(); }, 2000);
+}
+function closeCallOutOverlay(){
+  if (!callOutOverlay) return;
+  callOutOverlay.hidden = true;
+  if (callOutRefreshTimer){ clearInterval(callOutRefreshTimer); callOutRefreshTimer = null; }
+}
+
+function renderCallOutStatusInline(results){
+  if (!callOutStatusList) return;
+  callOutStatusList.innerHTML = results.map(r => {
+    if (r.status === 'connected') return `<div class="call-status-line ok"><svg viewBox="0 0 24 24" style="width:13px;height:13px"><use href="#i-check"/></svg> ${esc(r.name)} notified</div>`;
+    if (r.status === 'not-connected') return `<div class="call-status-line warn"><svg viewBox="0 0 24 24" style="width:13px;height:13px"><use href="#i-info"/></svg> ${esc(r.name)} is not connected</div>`;
+    return `<div class="call-status-line unknown"><svg viewBox="0 0 24 24" style="width:13px;height:13px"><use href="#i-bell"/></svg> ${esc(r.name)} called — status unavailable</div>`;
+  }).join('');
+}
+
+if (callOutSearch) callOutSearch.addEventListener('input', renderCallOutList);
+if (callOutOverlay){
+  callOutOverlay.addEventListener('click', async (e) => {
+    if (e.target === callOutOverlay){ closeCallOutOverlay(); return; }
+    if (e.target.closest('#callOutDoneBtn')){ closeCallOutOverlay(); return; }
+    const callBtn = e.target.closest('button[data-call-name]');
+    if (callBtn){
+      const name = callBtn.dataset.callName;
+      const courtName = callOutCourtSelect ? callOutCourtSelect.value : '';
+      callBtn.disabled = true;
+      const calls = issuePlayerCall([name], { courtName: courtName || null });
+      const results = await reportCallStatus(calls);
+      renderCallOutStatusInline(results);
+      callBtn.disabled = false;
+    }
+  });
 }
 
 function openHostOverlay(){
@@ -4771,6 +4978,7 @@ hostOverlay.addEventListener('click', (e) => {
   if (e.target.closest('#hostEndRemoteBtn')){ endRemoteSession(); return; }
   if (e.target.closest('#hostCopyLinkBtn')){ copyText(joinUrlFor(hostSession.invite_code)); return; }
   if (e.target.closest('#hostCopyCodeBtn')){ copyText(hostSession.invite_code); return; }
+  if (e.target.closest('#hostCallOutBtn')){ hostOverlay.hidden = true; openCallOutOverlay(); return; }
 
   if (e.target.closest('#hostBuyCreditsToggleBtn')){ hostBuyOpen = true; renderHostPanel(); return; }
   if (e.target.closest('#hostBuyCreditsCancelBtn')){ resetBuyCreditsFlow(); renderHostPanel(); return; }
@@ -4954,22 +5162,223 @@ function enterViewerMode(code){
     });
   }
 
-  function notify(title, body){
-    if (!notifyEnabled || !('Notification' in window) || Notification.permission !== 'granted') return;
+  // Low-level "actually show it" step, shared by the generic match-update
+  // notifications (gated on the bell toggle below) and the player-specific
+  // "it's your turn" calls (gated on Notification permission only — see
+  // notifyPlayerCall further down).
+  function fireNotification(title, body, opts){
+    opts = opts || {};
     try{ notifySound.currentTime = 0; notifySound.play().catch(() => {}); }catch(e){}
-    const opts = {
+    const nOpts = {
       body,
-      tag: 'renzku-viewer-' + title + '-' + Date.now(),
+      tag: opts.tag || ('renzku-viewer-' + title + '-' + Date.now()),
       icon: './icon-192.png',
-      badge: './badge-96.png'
+      badge: './badge-96.png',
+      requireInteraction: !!opts.requireInteraction,
+      vibrate: opts.vibrate || undefined
     };
     try{
       if (swRegistration && swRegistration.showNotification){
-        swRegistration.showNotification(title, opts);
+        swRegistration.showNotification(title, nOpts);
       } else {
-        new Notification(title, opts);
+        new Notification(title, nOpts);
       }
     }catch(e){ console.error('Notification error:', e); }
+  }
+
+  function notify(title, body){
+    if (!notifyEnabled || !('Notification' in window) || Notification.permission !== 'granted') return;
+    fireNotification(title, body);
+  }
+
+  /* ---- Visiting Spectator View: player identity ("Who's watching?") ----
+     A device watching this live match is either a Guest (no player-specific
+     notifications, ever) or a registered Player (picked their own name from
+     the roster). The choice is remembered per match code on this device
+     until they explicitly change it via "Change Player" — see
+     VIEWER_IDENTITY_KEY below. */
+  const VIEWER_IDENTITY_KEY = 'renzkuViewerIdentities'; // { [code]: {role, playerName} }
+  function loadViewerIdentity(){
+    try{
+      const all = JSON.parse(localStorage.getItem(VIEWER_IDENTITY_KEY) || '{}');
+      return (all && typeof all === 'object' && all[code]) || null;
+    }catch(e){ return null; }
+  }
+  function saveViewerIdentity(identity){
+    try{
+      const all = JSON.parse(localStorage.getItem(VIEWER_IDENTITY_KEY) || '{}');
+      all[code] = identity;
+      localStorage.setItem(VIEWER_IDENTITY_KEY, JSON.stringify(all));
+    }catch(e){}
+  }
+  let viewerIdentity = loadViewerIdentity();     // {role:'guest'|'player', playerName:string|null} | null
+  let identityActiveSince = Date.now();          // only calls issued after this count — no backlog spam
+                                                  // on (re)connect, see the call-matching block in poll()
+  const seenCallIds = new Set();
+
+  const whosWatchingOverlay = $('#whosWatchingOverlay');
+  const whosWatchingGuestBtn = $('#whosWatchingGuestBtn');
+  const whosWatchingPlayerBtn = $('#whosWatchingPlayerBtn');
+  const playerSelectOverlay = $('#playerSelectOverlay');
+  const playerSelectSearch = $('#playerSelectSearch');
+  const playerSelectList = $('#playerSelectList');
+  const playerSelectEmpty = $('#playerSelectEmpty');
+  const playerSelectGuestBtn = $('#playerSelectGuestBtn');
+  const playerSelectBackBtn = $('#playerSelectBackBtn');
+  const viewerIdentityBadge = $('#viewerIdentityBadge');
+  const viewerChangePlayerBtn = $('#viewerChangePlayerBtn');
+  let playerSelectRefreshTimer = null;
+
+  async function ensureNotifyPermission(){
+    if (!('Notification' in window)) return false;
+    if (Notification.permission === 'granted') return true;
+    if (Notification.permission === 'denied') return false;
+    try{ return (await Notification.requestPermission()) === 'granted'; }
+    catch(e){ return false; }
+  }
+
+  function updateViewerIdentityUI(){
+    if (!viewerIdentityBadge || !viewerChangePlayerBtn) return;
+    if (!viewerIdentity){ viewerIdentityBadge.hidden = true; viewerChangePlayerBtn.hidden = true; return; }
+    viewerIdentityBadge.hidden = false;
+    viewerChangePlayerBtn.hidden = false;
+    viewerIdentityBadge.innerHTML = (viewerIdentity.role === 'player')
+      ? `<svg viewBox="0 0 24 24" style="width:11px;height:11px"><use href="#i-bell"/></svg>Watching as <b>${esc(viewerIdentity.playerName)}</b>`
+      : `<svg viewBox="0 0 24 24" style="width:11px;height:11px"><use href="#i-user"/></svg>Watching as Guest`;
+  }
+
+  function openWhosWatching(){
+    if (whosWatchingOverlay) whosWatchingOverlay.hidden = false;
+  }
+  function closeWhosWatching(){
+    if (whosWatchingOverlay) whosWatchingOverlay.hidden = true;
+  }
+
+  function renderPlayerSelectList(){
+    if (!playerSelectList) return;
+    const q = (playerSelectSearch && playerSelectSearch.value || '').trim().toLowerCase();
+    const all = collectAllPlayerNames();
+    const filtered = q ? all.filter(n => n.toLowerCase().includes(q)) : all;
+    if (playerSelectEmpty) playerSelectEmpty.hidden = filtered.length > 0;
+    playerSelectList.innerHTML = filtered.map(name => {
+      const isCurrent = viewerIdentity && viewerIdentity.role === 'player' && namesMatch(viewerIdentity.playerName, name);
+      return `
+        <button type="button" class="player-select-row" data-name="${esc(name)}">
+          <span class="avatar" style="background:${avatarColor(name)}">${initials(name)}</span>
+          <span class="ps-name">${esc(name)}</span>
+          ${isCurrent ? '<span class="ps-current">You</span>' : ''}
+        </button>
+      `;
+    }).join('');
+  }
+
+  function openPlayerSelect(){
+    closeWhosWatching();
+    if (playerSelectSearch) playerSelectSearch.value = '';
+    renderPlayerSelectList();
+    if (playerSelectOverlay) playerSelectOverlay.hidden = false;
+    // The roster/stack/courts keep changing while this sits open, and the
+    // very first poll may not have landed yet the instant someone taps
+    // "Player" — keep the list live instead of freezing an empty snapshot.
+    if (playerSelectRefreshTimer) clearInterval(playerSelectRefreshTimer);
+    playerSelectRefreshTimer = setInterval(renderPlayerSelectList, 1000);
+  }
+  function closePlayerSelect(){
+    if (playerSelectOverlay) playerSelectOverlay.hidden = true;
+    if (playerSelectRefreshTimer){ clearInterval(playerSelectRefreshTimer); playerSelectRefreshTimer = null; }
+  }
+
+  async function chooseGuest(){
+    viewerIdentity = { role: 'guest', playerName: null };
+    identityActiveSince = Date.now();
+    saveViewerIdentity(viewerIdentity);
+    updateViewerIdentityUI();
+    stopPresenceHeartbeat();
+    closeWhosWatching();
+    closePlayerSelect();
+  }
+
+  async function choosePlayer(name){
+    viewerIdentity = { role: 'player', playerName: name };
+    identityActiveSince = Date.now();
+    saveViewerIdentity(viewerIdentity);
+    updateViewerIdentityUI();
+    closeWhosWatching();
+    closePlayerSelect();
+    // Registering as a player is the clear, in-context moment to ask for
+    // notification permission — right when it becomes meaningful, not
+    // before. Also flips the generic "Notify me" bell on for free, since
+    // wanting to be called by name implies wanting match updates too.
+    const granted = await ensureNotifyPermission();
+    if (granted){
+      notifyEnabled = true;
+      try{ localStorage.setItem(NOTIFY_STORAGE_KEY, '1'); }catch(e){}
+      updateNotifyBtn();
+      fireNotification(`You're set as ${name}`, "We'll notify this phone when it's your turn.");
+    }
+    startPresenceHeartbeat();
+  }
+
+  if (whosWatchingGuestBtn) whosWatchingGuestBtn.addEventListener('click', chooseGuest);
+  if (whosWatchingPlayerBtn) whosWatchingPlayerBtn.addEventListener('click', openPlayerSelect);
+  if (playerSelectSearch) playerSelectSearch.addEventListener('input', renderPlayerSelectList);
+  if (playerSelectGuestBtn) playerSelectGuestBtn.addEventListener('click', chooseGuest);
+  if (playerSelectBackBtn) playerSelectBackBtn.addEventListener('click', () => { closePlayerSelect(); if (!viewerIdentity) openWhosWatching(); });
+  if (playerSelectList){
+    playerSelectList.addEventListener('click', (e) => {
+      const row = e.target.closest('button[data-name]');
+      if (!row) return;
+      choosePlayer(row.dataset.name);
+    });
+  }
+  if (viewerChangePlayerBtn) viewerChangePlayerBtn.addEventListener('click', openWhosWatching);
+  if (whosWatchingOverlay) whosWatchingOverlay.addEventListener('click', (e) => { if (e.target === whosWatchingOverlay && viewerIdentity) closeWhosWatching(); });
+  if (playerSelectOverlay) playerSelectOverlay.addEventListener('click', (e) => { if (e.target === playerSelectOverlay && viewerIdentity) closePlayerSelect(); });
+
+  updateViewerIdentityUI();
+  if (!viewerIdentity){
+    openWhosWatching();
+  } else if (viewerIdentity.role === 'player'){
+    startPresenceHeartbeat();
+  }
+
+  /* ---- Presence heartbeat ----
+     Lets the host see this device as "connected" for the player it's
+     registered as (so Call Players / Call Out Player can report real
+     status instead of guessing). Best-effort: silently does nothing if
+     the optional session_viewers table/RPCs aren't installed on the
+     Supabase project — see supabase-viewer-presence.sql. */
+  let presenceHeartbeatTimer = null;
+  async function sendPresenceHeartbeat(){
+    if (!SUPABASE_CONFIGURED || !viewerIdentity) return;
+    try{
+      await sbFetch('/rest/v1/rpc/upsert_viewer_presence', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          p_code: code,
+          p_device_id: getDeviceId(),
+          p_role: viewerIdentity.role,
+          p_player_name: viewerIdentity.role === 'player' ? viewerIdentity.playerName : null
+        })
+      });
+    }catch(e){ /* best-effort only — a failed heartbeat just means the host sees "not connected" */ }
+  }
+  function startPresenceHeartbeat(){
+    stopPresenceHeartbeat();
+    sendPresenceHeartbeat();
+    presenceHeartbeatTimer = setInterval(sendPresenceHeartbeat, 20000);
+  }
+  function stopPresenceHeartbeat(){
+    if (presenceHeartbeatTimer){ clearInterval(presenceHeartbeatTimer); presenceHeartbeatTimer = null; }
+  }
+
+  // Fires the actual "it's your turn" phone notification for a matched
+  // player call. Independent of the generic "Notify me" bell — selecting a
+  // player name up front is itself the opt-in for these.
+  function notifyPlayerCall(call){
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    fireNotification(call.title, call.body, { tag: 'renzku-call-' + call.id, requireInteraction: true, vibrate: [200, 100, 200] });
   }
 
   let lastStatus = null;      // previous session status, to catch the live -> ended transition
@@ -5020,6 +5429,24 @@ function enterViewerMode(code){
       if (nameEl) nameEl.textContent = (row.session_name || 'Live match') + ' \u00b7 Live';
       setMsg('Updated ' + new Date(row.updated_at).toLocaleTimeString());
       renderAll();
+
+      // Player Calling: match any new entries in state.playerCalls against
+      // this device's registered player name. Guests never match (their
+      // viewerIdentity.role is 'guest', never 'player'). Only calls issued
+      // after this device registered as that player are eligible — avoids
+      // replaying a backlog of "it's your turn" pings from before this
+      // phone was even watching.
+      if (Array.isArray(state.playerCalls)){
+        state.playerCalls.forEach(call => {
+          if (!call || seenCallIds.has(call.id)) return;
+          seenCallIds.add(call.id);
+          if (firstPoll) return; // baseline snapshot — don't replay history on connect
+          if (call.ts < identityActiveSince) return;
+          if (!viewerIdentity || viewerIdentity.role !== 'player') return;
+          if (!namesMatch(call.name, viewerIdentity.playerName)) return;
+          notifyPlayerCall(call);
+        });
+      }
 
       // A new game just started on some court — or, if the start time didn't
       // move but who's playing did, someone was subbed in mid-game.
@@ -5170,6 +5597,7 @@ function renderAll(){
     state.courts.forEach(c => { if (!('score' in c)) c.score = null; });
     if (!state.playerLevels || typeof state.playerLevels !== 'object') state.playerLevels = {};
     state.courts.forEach(c => { if (!c.level || !PLAYER_LEVELS.includes(c.level)) c.level = 'Open'; });
+    if (!Array.isArray(state.playerCalls)) state.playerCalls = [];
   }
   renderRosterList();
   renderAll();
