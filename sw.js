@@ -12,7 +12,7 @@
       This does NOT add true push-from-server delivery — a viewer tab still
       has to be open and polling for that part to work. */
 
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const CACHE_NAME = 'renzku-shell-' + CACHE_VERSION;
 
 // Same-origin files needed to render and run the app with no network at
@@ -79,22 +79,28 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Everything else same-origin (CSS/JS/images/audio): serve from cache
-  // immediately if we have it, and refresh the cache in the background
-  // when online so the next offline visit stays up to date.
+  // Everything else same-origin (CSS/JS/images/audio): network-first, same
+  // as the HTML navigation above. This used to be cache-first (serve the
+  // cached copy immediately, refresh in the background) but that meant a
+  // freshly-fetched index.html could end up paired with a STALE cached
+  // script.js one refresh later — the two can drift out of sync (different
+  // DOM ids, different expectations) the moment either file changes, and
+  // the symptom is exactly "worked on first load, broke after refresh"
+  // (a service worker only starts controlling the page on the load *after*
+  // it installs, so the mismatch is invisible on that very first visit).
+  // Falling back to cache only when the network fails preserves the
+  // offline-shell behavior without ever letting JS/CSS lag behind the HTML
+  // while online.
   event.respondWith(
-    caches.match(req).then((cached) => {
-      const network = fetch(req)
-        .then((res) => {
-          if (res && res.ok){
-            const copy = res.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(req, copy)).catch(() => {});
-          }
-          return res;
-        })
-        .catch(() => cached);
-      return cached || network;
-    })
+    fetch(req)
+      .then((res) => {
+        if (res && res.ok){
+          const copy = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, copy)).catch(() => {});
+        }
+        return res;
+      })
+      .catch(() => caches.match(req))
   );
 });
 
