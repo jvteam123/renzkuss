@@ -5990,17 +5990,34 @@ window.addEventListener('online', () => {
    staying stuck on "Connecting to live match…" no matter how long they
    wait, or how many times they pull-to-refresh, if that gesture kept
    landing on a restore instead of a reload).
-   The fix: if 'pageshow' ever reports event.persisted === true — meaning
-   this load did NOT re-run script.js from scratch, it's a bfcache restore
-   — force a real reload immediately so viewerMode/hostSession boot from a
-   clean slate exactly like a normal fresh page load would. This is a
-   no-op on every ordinary navigation (persisted is only ever true for a
-   bfcache restore). */
+   The fix used to be: force location.reload() whenever 'pageshow' reports
+   event.persisted === true. That backfired on some mobile Chrome builds —
+   calling location.reload() synchronously from inside a pageshow handler,
+   while the tab is still mid-unfreeze, can itself get folded back into the
+   same bfcache restore instead of causing a real network navigation. The
+   result is a silent loop: restore -> reload attempt -> restore -> reload
+   attempt -> ... with the page never actually changing, which is exactly
+   "stuck on Connecting to live match, identical every time I look at it".
+   The safer fix: don't reload the page at all. Just resume whichever
+   recovery loop is already built for "this tab lost time and needs to
+   catch up" — the same one the 'online' and visibilitychange handlers
+   below already use — and reset the flags that let it run freely again. */
 window.addEventListener('pageshow', (event) => {
-  if (event.persisted){
-    console.log('[Viewer] page restored from bfcache — forcing a real reload');
-    location.reload();
+  if (!event.persisted) return;
+  console.log('[Viewer] page restored from bfcache — resuming without a hard reload');
+  if (viewerMode){
+    if (viewerSetMsgFn) viewerSetMsgFn('Reconnecting to live\u2026');
+    if (viewerPollTimer){ clearInterval(viewerPollTimer); viewerPollTimer = null; }
+    if (viewerPollFn){
+      viewerPollTimer = setInterval(viewerPollFn, VIEWER_POLL_INTERVAL_MS);
+      viewerPollFn(); // don't wait out a fresh interval — catch up right now
+    }
   }
+  if (hostSession){
+    if (hostPushPending) pushStateNow();
+    else checkHostStillLive();
+  }
+  if (authSession) checkDeviceStillActive();
 });
 
 /* ---- Foreground recovery ----
