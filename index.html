@@ -85,13 +85,17 @@
 </div>
 
 <div class="viewer-banner" id="viewerBanner" hidden>
-  <span class="eyebrow"><svg viewBox="0 0 24 24"><use href="#i-cloud"/></svg>Live spectator view</span>
-  <span class="msg" id="viewerBannerMsg"></span>
-  <button type="button" class="viewer-identity-badge" id="viewerIdentityBadge" hidden></button>
-  <button type="button" class="btn sm viewer-change-btn" id="viewerChangePlayerBtn" hidden title="Change who's watching">Change</button>
-  <button type="button" class="btn sm viewer-notify-btn" id="viewerNotifyBtn" title="Get a notification when a game ends or the next matchup is up"><svg viewBox="0 0 24 24"><use href="#i-bell"/></svg> Notify me</button>
-  <button type="button" class="viewer-notify-status" id="viewerNotifyStatus" hidden title="Notifications are on — tap to turn off"><svg viewBox="0 0 24 24"><use href="#i-bell"/></svg></button>
-  <button type="button" class="btn sm viewer-history-btn" id="viewerMatchHistoryBtn" title="See every completed match this session"><svg viewBox="0 0 24 24"><use href="#i-clock"/></svg> History</button>
+  <div class="vb-status">
+    <span class="vb-live-badge"><span class="vb-live-dot"></span>Live</span>
+    <span class="msg" id="viewerBannerMsg"></span>
+  </div>
+  <div class="vb-actions">
+    <div class="viewer-identity-group">
+      <button type="button" class="viewer-identity-badge" id="viewerIdentityBadge" hidden></button>
+      <button type="button" class="viewer-change-btn" id="viewerChangePlayerBtn" hidden title="Change who's watching" aria-label="Change who's watching"><svg viewBox="0 0 24 24"><use href="#i-pencil"/></svg></button>
+    </div>
+    <button type="button" class="viewer-history-btn" id="viewerMatchHistoryBtn" title="Match history" aria-label="Match history"><svg viewBox="0 0 24 24"><use href="#i-clock"/></svg></button>
+  </div>
 </div>
 
 <!-- Who's Watching modal (Visiting Spectator View entry point) -->
