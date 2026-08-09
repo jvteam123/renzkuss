@@ -47,6 +47,83 @@ function esc(s){
   }[c]));
 }
 
+/* ---- confirm / prompt (replaces native confirm()/prompt() popups, mirrors
+   the main app's #confirmOverlay in script.js) ----
+   A single global "in-flight resolver" was the bug in the original version
+   of this pattern: if a second showConfirm()/showPrompt() call ever came in
+   while one was already awaiting a response, it would silently clobber the
+   first call's resolver, leaving the first caller's `await` hanging forever.
+   Queuing pending requests instead of overwriting fixes that — the second
+   dialog simply opens right after the first one closes. */
+const confirmOverlay = document.getElementById('confirmOverlay');
+const confirmTitleEl = document.getElementById('confirmTitle');
+const confirmMessageEl = document.getElementById('confirmMessage');
+const confirmOkBtn = document.getElementById('confirmOkBtn');
+const confirmCancelBtn = document.getElementById('confirmCancelBtn');
+const promptOverlay = document.getElementById('promptOverlay');
+const promptTitleEl = document.getElementById('promptTitle');
+const promptMessageEl = document.getElementById('promptMessage');
+const promptInputEl = document.getElementById('promptInput');
+const promptOkBtn = document.getElementById('promptOkBtn');
+const promptCancelBtn = document.getElementById('promptCancelBtn');
+
+const dialogQueue = []; // { kind: 'confirm'|'prompt', message, opts, resolve }
+let dialogActive = null;
+
+function runNextDialog(){
+  if (dialogActive || dialogQueue.length === 0) return;
+  dialogActive = dialogQueue.shift();
+  const { kind, message, opts } = dialogActive;
+  if (kind === 'confirm'){
+    confirmTitleEl.textContent = opts.title || 'Please confirm';
+    confirmMessageEl.textContent = message;
+    confirmOkBtn.textContent = opts.confirmLabel || 'Confirm';
+    confirmCancelBtn.textContent = opts.cancelLabel || 'Cancel';
+    confirmOkBtn.className = 'btn ' + (opts.danger ? 'danger' : 'primary');
+    confirmOverlay.hidden = false;
+    confirmOkBtn.focus();
+  } else {
+    promptTitleEl.textContent = opts.title || 'Add a note';
+    promptMessageEl.textContent = message;
+    promptInputEl.value = opts.defaultValue || '';
+    promptOverlay.hidden = false;
+    promptInputEl.focus();
+  }
+}
+function closeActiveDialog(result){
+  if (!dialogActive) return;
+  const { kind, resolve } = dialogActive;
+  if (kind === 'confirm') confirmOverlay.hidden = true; else promptOverlay.hidden = true;
+  dialogActive = null;
+  resolve(result);
+  runNextDialog();
+}
+/** Promise<boolean> — true if confirmed, false if cancelled/dismissed. */
+function showConfirm(message, opts){
+  return new Promise((resolve) => {
+    dialogQueue.push({ kind: 'confirm', message, opts: opts || {}, resolve });
+    runNextDialog();
+  });
+}
+/** Promise<string|null> — the entered text, or null if skipped/cancelled. */
+function showPrompt(message, opts){
+  return new Promise((resolve) => {
+    dialogQueue.push({ kind: 'prompt', message, opts: opts || {}, resolve });
+    runNextDialog();
+  });
+}
+confirmOkBtn.addEventListener('click', () => closeActiveDialog(true));
+confirmCancelBtn.addEventListener('click', () => closeActiveDialog(false));
+confirmOverlay.addEventListener('click', (e) => { if (e.target === confirmOverlay) closeActiveDialog(false); });
+promptOkBtn.addEventListener('click', () => closeActiveDialog(promptInputEl.value.trim() || null));
+promptCancelBtn.addEventListener('click', () => closeActiveDialog(null));
+promptOverlay.addEventListener('click', (e) => { if (e.target === promptOverlay) closeActiveDialog(null); });
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (!confirmOverlay.hidden) closeActiveDialog(false);
+  else if (!promptOverlay.hidden) closeActiveDialog(null);
+});
+
 /* ---- toast (mirrors the main app's, minus the tone auto-detection) ---- */
 const toastWrap = $('#toastWrap');
 function toast(msg, kind){
@@ -370,7 +447,7 @@ $('#accountsTableWrap').addEventListener('click', async (e) => {
 
   if (btn.dataset.action === 'toggle-suspend'){
     const next = !account.is_suspended;
-    if (next && !confirm(`Suspend ${account.email}? This blocks new and resumed hosting for this account until unsuspended.`)) return;
+    if (next && !(await showConfirm(`Suspend ${account.email}? This blocks new and resumed hosting for this account until unsuspended.`, {title: 'Suspend account?', confirmLabel: 'Suspend', danger: true}))) return;
     btn.disabled = true;
     try{
       await rpc('admin_set_suspended', { target_id: id, suspended: next });
@@ -386,7 +463,7 @@ $('#accountsTableWrap').addEventListener('click', async (e) => {
     const msg = next
       ? `Make ${account.email} an admin? They'll get full access to this portal, including managing other accounts.`
       : `Remove admin access from ${account.email}?`;
-    if (!confirm(msg)) return;
+    if (!(await showConfirm(msg, {title: next ? 'Grant admin access?' : 'Remove admin access?', confirmLabel: next ? 'Make admin' : 'Remove access', danger: !next}))) return;
     btn.disabled = true;
     try{
       await rpc('admin_set_admin', { target_id: id, make_admin: next });
@@ -436,7 +513,7 @@ $('#liveTableWrap').addEventListener('click', async (e) => {
   const btn = e.target.closest('button[data-action="end"]');
   if (!btn) return;
   const id = btn.closest('tr').dataset.id;
-  if (!confirm('End this live session now? Viewers will lose the feed immediately.')) return;
+  if (!(await showConfirm('End this live session now? Viewers will lose the feed immediately.', {title: 'End live session?', confirmLabel: 'End session', danger: true}))) return;
   btn.disabled = true;
   try{
     await rpc('admin_end_session', { session_id: id });
@@ -525,7 +602,7 @@ $('#creditsTableWrap').addEventListener('click', async (e) => {
   }
 
   if (btn.dataset.action === 'approve'){
-    if (!confirm(`Approve ${request.package_credits} credits for ${request.host_email}? This adds them to the account's balance immediately.`)) return;
+    if (!(await showConfirm(`Approve ${request.package_credits} credits for ${request.host_email}? This adds them to the account's balance immediately.`, {title: 'Approve credit purchase?', confirmLabel: 'Approve'}))) return;
     btn.disabled = true;
     try{
       await rpc('admin_review_credit_purchase', { p_request_id: id, p_approve: true });
@@ -537,7 +614,7 @@ $('#creditsTableWrap').addEventListener('click', async (e) => {
   }
 
   if (btn.dataset.action === 'reject'){
-    const note = prompt('Optional note for the rejection (shown to you here, not sent to the host automatically):') || null;
+    const note = await showPrompt('Optional note for the rejection (shown to you here, not sent to the host automatically):', {title: 'Reject purchase'});
     btn.disabled = true;
     try{
       await rpc('admin_review_credit_purchase', { p_request_id: id, p_approve: false, p_note: note });
