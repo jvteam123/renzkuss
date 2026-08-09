@@ -524,6 +524,13 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
 /* ---------- Courts grid ---------- */
 .courts-main{padding:1.1rem 1.2rem 4rem}
 .courts-main h2{font-family:var(--font-display);font-size:1.02rem;margin:.2rem 0 1rem}
+.viewer-conn-card{
+  background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius);
+  padding:1.6rem 1.2rem;margin:0 0 1.1rem;text-align:center;box-shadow:var(--shadow-sm);
+}
+.viewer-conn-card-title{font-weight:700;font-size:.95rem;margin:0 0 .35rem}
+.viewer-conn-card-sub{font-size:.82rem;color:var(--slate);margin:0 0 .9rem}
+.viewer-conn-card #viewerConnRetryBtn{margin:0 auto}
 .courts-grid{
   display:grid;grid-template-columns:repeat(auto-fill, minmax(280px,1fr));
   gap:1.1rem;
