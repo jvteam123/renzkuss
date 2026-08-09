@@ -12,7 +12,7 @@
       This does NOT add true push-from-server delivery — a viewer tab still
       has to be open and polling for that part to work. */
 
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const CACHE_NAME = 'renzku-shell-' + CACHE_VERSION;
 
 // Same-origin files needed to render and run the app with no network at
