@@ -3967,6 +3967,10 @@ let hostPushPending = false;
 let hostPushInFlight = false; // true while a PATCH to hosted_sessions is actually in the air —
                                // see the in-flight guard inside pushStateNow
 let viewerPollTimer = null;
+let viewerModeInitialized = false;   // guards against enterViewerMode() ever running twice in the
+                                      // same page load (a fresh browser refresh already gets a
+                                      // brand-new script context, so this is a defensive belt-and-
+                                      // suspenders check, not the primary mechanism against dupes)
 let hostReconnecting = false;       // true once a push/keepalive to Supabase has failed while
                                      // still (as far as we know) live — drives the "Reconnecting…"
                                      // pill/badge until a request succeeds again
@@ -5369,20 +5373,110 @@ hostOverlay.addEventListener('submit', async (e) => {
   }
 });
 
+/* ---- Viewer snapshot cache ----
+   A spectator device keeps its own last-known-good copy of whatever the
+   host state looked like the last time a poll actually succeeded, entirely
+   separate from the host's local IndexedDB/queue state (which a spectator
+   must never read/use — see requirement in the viewer-refresh fix). This
+   is what lets a page refresh repaint the courts instantly instead of
+   sitting on a blank "Connecting…" screen while the first request is
+   still in flight. Keyed by invite code so multiple matches watched on the
+   same device over time don't clobber each other. */
+const VIEWER_SNAPSHOT_KEY = 'paddleStackViewerSnapshots';
+const VIEWER_POLL_INTERVAL_MS = 2000;  // unchanged from before — normal live cadence
+const VIEWER_POLL_TIMEOUT_MS = 8000;   // a single poll request must not hang indefinitely
+function loadViewerSnapshotsAll(){
+  try{
+    const raw = localStorage.getItem(VIEWER_SNAPSHOT_KEY);
+    const all = raw ? JSON.parse(raw) : {};
+    return (all && typeof all === 'object') ? all : {};
+  }catch(e){ console.error('[Viewer] snapshot read error', e); return {}; }
+}
+function loadViewerSnapshotFor(code){
+  const all = loadViewerSnapshotsAll();
+  return (all && all[code]) || null;
+}
+function saveViewerSnapshotFor(code, snap){
+  try{
+    const all = loadViewerSnapshotsAll();
+    all[code] = snap;
+    localStorage.setItem(VIEWER_SNAPSHOT_KEY, JSON.stringify(all));
+  }catch(e){ console.error('[Viewer] snapshot write error', e); }
+}
+
 /* ---- Viewer (spectator) mode: ?join=CODE in the URL ----
    Reuses the normal renderCourts()/renderUpNext() renderers against a
    read-only snapshot of the host's state, polled every few seconds —
    simpler and more robust than a live socket for a "what's the score /
    who's next" view, at the cost of a few seconds of lag. */
 function enterViewerMode(code){
+  console.log('[Viewer] code', code);
+
+  // Belt-and-suspenders guard: a normal browser refresh already gets a
+  // brand-new script context (so viewerPollTimer/viewerMode etc. can't
+  // possibly carry over), but if anything in the boot sequence ever ends
+  // up calling this twice in one page load, don't let it stand up a
+  // second banner/poll loop on top of the first one.
+  if (viewerModeInitialized){
+    console.warn('[Viewer] enterViewerMode() called again in the same session — ignoring duplicate init');
+    return;
+  }
+  viewerModeInitialized = true;
+
   viewerMode = true;
   document.body.classList.add('viewer-mode');
   const banner = $('#viewerBanner');
   const msgEl = $('#viewerBannerMsg');
   if (banner) banner.hidden = false;
   function setMsg(text){ if (msgEl) msgEl.textContent = text; }
-  setMsg('Connecting…');
   viewerSetMsgFn = setMsg; // let the global 'offline' listener update this banner instantly
+
+  /* ---- Connection error / connecting card ----
+     Sits above the Courts grid. Only shown when there's nothing useful to
+     look at yet (no cached snapshot and no live data) — normal "just
+     reconnecting in the background" states stay out of the way and only
+     update the small banner message instead. */
+  const connCard = $('#viewerConnCard');
+  const connCardTitle = $('#viewerConnCardTitle');
+  const connCardSub = $('#viewerConnCardSub');
+  const connRetryBtn = $('#viewerConnRetryBtn');
+  function showConnCard(title, sub, showRetry){
+    if (!connCard) return;
+    connCard.hidden = false;
+    if (connCardTitle) connCardTitle.textContent = title;
+    if (connCardSub) connCardSub.textContent = sub || '';
+    if (connRetryBtn) connRetryBtn.hidden = !showRetry;
+  }
+  function hideConnCard(){
+    if (connCard) connCard.hidden = true;
+  }
+
+  // ---- 1) Validate the join code first, before touching the network ----
+  if (!code || !INVITE_CODE_RE.test(code)){
+    console.error('[Viewer] invalid code format', code);
+    setMsg('Invalid or expired code');
+    showConnCard('Invalid or expired match link', 'Double\u2011check the link you were given, or ask the host to resend it.', false);
+    return; // no cached snapshot to fall back to, no polling to start
+  }
+
+  setMsg('Connecting to live match\u2026');
+
+  // ---- 2) Paint whatever we last saw for this code, instantly ----
+  // NEVER the host's own local IndexedDB/queue state (that's a completely
+  // separate thing this device may or may not also have) — only ever a
+  // previously-saved *viewer* snapshot for this exact invite code.
+  let hasRenderableSnapshot = false;
+  const cachedSnap = loadViewerSnapshotFor(code);
+  if (cachedSnap && cachedSnap.state){
+    console.log('[Viewer] rendering snapshot', cachedSnap.cached_at);
+    state = cachedSnap.state;
+    hasRenderableSnapshot = true;
+    const nameEl0 = $('.session-name');
+    if (nameEl0) nameEl0.textContent = (cachedSnap.session_name || 'Live match') + ' \u00b7 Live';
+    renderAll();
+  } else {
+    showConnCard('Connecting to live match\u2026', 'This usually only takes a second.', false);
+  }
 
   /* ---- Notifications: player calls only ----
      Spectators used to also get pinged for "match started", "substitution",
@@ -5617,27 +5711,91 @@ function enterViewerMode(code){
   let firstPoll = true;       // belt-and-suspenders: never notify on the poll that just
                                // establishes the baseline snapshot, no matter what it contains.
   let invalidPolls = 0;       // consecutive "code not found" results — stop repolling a dead code
+  let pollInFlight = false;   // true while a request is actually in the air — the next tick skips
+                               // itself entirely rather than stacking a second request on top
+  let currentPollDelay = VIEWER_POLL_INTERVAL_MS;
+
+  // Restarts the interval at a given cadence, always clearing whatever was
+  // running first — this is the single choke point every "how often do we
+  // poll" decision goes through, so reconnects/backoff/reset can never end
+  // up with two intervals ticking at once.
+  function scheduleNextPoll(delayMs){
+    if (viewerPollTimer){ clearInterval(viewerPollTimer); viewerPollTimer = null; }
+    currentPollDelay = delayMs;
+    viewerPollTimer = setInterval(poll, currentPollDelay);
+  }
+
+  // Shared by every failure path (bad HTTP status, timeout, network error):
+  // fall back to whatever's cached, or show the full error card if there's
+  // truly nothing to show.
+  function handleFailure(friendlyMsg){
+    if (hasRenderableSnapshot || loadViewerSnapshotFor(code)){
+      hasRenderableSnapshot = true;
+      hideConnCard();
+      setMsg('Showing the last saved view \u2014 reconnecting\u2026');
+    } else {
+      setMsg(friendlyMsg);
+      showConnCard('Unable to connect to this live match.', 'We\u2019ll keep trying automatically.', true);
+    }
+  }
 
   async function poll(){
-    if (!SUPABASE_CONFIGURED){ setMsg('This app isn\u2019t configured for live viewing yet.'); return; }
+    if (!SUPABASE_CONFIGURED){
+      setMsg('This app isn\u2019t configured for live viewing yet.');
+      showConnCard('Live viewing isn\u2019t set up yet.', 'Ask the app owner to finish the Supabase setup.', false);
+      return;
+    }
+    if (pollInFlight){
+      console.log('[Viewer] poll skipped \u2014 previous request still in flight');
+      return; // one request must finish before another starts
+    }
+    pollInFlight = true;
+    console.log('[Viewer] poll started');
+
+    const controller = new AbortController();
+    const timeoutTimer = setTimeout(() => controller.abort(), VIEWER_POLL_TIMEOUT_MS);
+
     try{
       const res = await sbFetch('/rest/v1/rpc/get_hosted_session_by_code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ p_code: code })
+        body: JSON.stringify({ p_code: code }),
+        signal: controller.signal
       });
-      const data = await res.json().catch(() => null);
+      console.log('[Viewer] HTTP status', res.status);
+
       if (!res.ok){
-        const apiMsg = (data && (data.message || data.hint || data.error_description)) || ('HTTP ' + res.status);
-        setMsg('Connection error: ' + apiMsg);
-        console.error('get_hosted_session_by_code failed:', res.status, data);
+        const data = await res.json().catch(() => null);
+        console.log('[Viewer] response', data);
+        console.error('[Viewer] get_hosted_session_by_code failed:', res.status, data);
+        const apiMsg = (data && (data.message || data.hint || data.error_description)) || null;
+        let friendly;
+        if (res.status === 401 || res.status === 403){
+          friendly = 'Server authorization problem \u2014 this link may no longer be valid.';
+        } else if (res.status === 404){
+          friendly = 'The live-viewing endpoint isn\u2019t available right now.';
+        } else if (res.status === 409){
+          friendly = 'The server hit a conflict updating this match \u2014 retrying.';
+        } else if (res.status === 429){
+          friendly = 'Too many requests \u2014 slowing down and retrying.';
+          scheduleNextPoll(Math.min(currentPollDelay * 2, 30000)); // slower retry, per rate limit
+        } else if (res.status >= 500){
+          friendly = 'The live-match server is having trouble \u2014 retrying automatically.';
+        } else {
+          friendly = apiMsg || ('Connection error: HTTP ' + res.status);
+        }
+        handleFailure(friendly);
         return;
       }
+
+      const data = await res.json().catch(() => null);
+      console.log('[Viewer] response', data);
       const row = Array.isArray(data) ? data[0] : null;
       if (!row){
         recordWatchFailure();
         invalidPolls++;
-        setMsg('This code is invalid or the match has ended.');
+        setMsg('Invalid or expired code');
+        showConnCard('Invalid or expired match link', 'Ask the host for a new link, or double\u2011check the code.', false);
         if (invalidPolls >= 2 && viewerPollTimer){
           clearInterval(viewerPollTimer);
           viewerPollTimer = null;
@@ -5645,17 +5803,31 @@ function enterViewerMode(code){
         return;
       }
       invalidPolls = 0;
+      if (currentPollDelay !== VIEWER_POLL_INTERVAL_MS) scheduleNextPoll(VIEWER_POLL_INTERVAL_MS);
+
       if (row.status !== 'live'){
         lastStatus = row.status;
         firstPoll = false;
-        setMsg('The host has stopped sharing this match.');
+        hideConnCard();
+        setMsg('Match ended');
         return;
       }
+
+      console.log('[Viewer] poll success');
       state = row.state;
+      hasRenderableSnapshot = true;
+      hideConnCard();
       const nameEl = $('.session-name');
       if (nameEl) nameEl.textContent = (row.session_name || 'Live match') + ' \u00b7 Live';
       setMsg('Updated ' + new Date(row.updated_at).toLocaleTimeString());
       renderAll();
+      saveViewerSnapshotFor(code, {
+        state: row.state,
+        session_name: row.session_name || null,
+        status: row.status,
+        updated_at: row.updated_at,
+        cached_at: Date.now()
+      });
 
       // Player Calling: match any new entries in state.playerCalls against
       // this device's registered player name. Guests never match (their
@@ -5683,18 +5855,33 @@ function enterViewerMode(code){
     }catch(e){
       // A thrown fetch (as opposed to a non-OK response, handled above) usually
       // means the request never left the device — no internet, DNS failure,
-      // etc. Lead with "Reconnecting to live…" in that case since that's the
-      // actionable, reassuring read; fall back to the raw error otherwise.
-      setMsg(!navigator.onLine
-        ? 'Reconnecting to live\u2026'
-        : 'Having trouble connecting: ' + (e.message || e) + ' \u2014 retrying…');
-      console.error('Viewer poll error:', e);
+      // an aborted timeout, etc.
+      if (e && e.name === 'AbortError'){
+        console.warn('[Viewer] timeout');
+        handleFailure('Request timed out \u2014 reconnecting\u2026');
+      } else {
+        console.error('[Viewer] network error', e);
+        handleFailure(!navigator.onLine
+          ? 'Reconnecting to live\u2026'
+          : 'Having trouble connecting: ' + (e.message || e) + ' \u2014 retrying\u2026');
+      }
+    }finally{
+      clearTimeout(timeoutTimer);
+      pollInFlight = false;
     }
   }
+  if (connRetryBtn){
+    connRetryBtn.addEventListener('click', () => {
+      console.log('[Viewer] manual retry requested');
+      setMsg('Connecting to live match\u2026');
+      poll();
+    });
+  }
+
   poll();
   viewerPollFn = poll; // let the global 'online' listener re-poll immediately instead of
                         // waiting out the rest of the current 2s interval
-  viewerPollTimer = setInterval(poll, 2000);
+  scheduleNextPoll(VIEWER_POLL_INTERVAL_MS);
 }
 
 /* ---- Network status: shared by the host push loop and the viewer poll loop ----
