@@ -1124,6 +1124,17 @@ body:not(.levels-on) .court-level-select{
 }
 .session-banner .eyebrow svg{width:12px;height:12px}
 .session-banner .msg{flex:1;min-width:220px;font-size:.82rem;font-weight:500;color:#7a3c22}
+/* Update banner reuses the session-banner layout but in a calm turf/blue
+   tone rather than the red "court closed" hazard styling — a new version
+   being ready isn't an alarming state the way a locked/ended session is. */
+.update-banner{background:var(--turf-pale)}
+.update-banner::before,.update-banner::after{
+  background:repeating-linear-gradient(135deg, var(--turf) 0 10px, var(--turf-deep) 10px 20px);
+}
+.update-banner .eyebrow{color:var(--turf-deep)}
+.update-banner .msg{color:var(--turf-deep)}
+html[data-theme="dark"] .update-banner{background:rgba(91,141,239,.12)}
+html[data-theme="dark"] .update-banner .eyebrow{background:var(--surface)}
 body.session-locked .add-form{opacity:.55}
 body.session-locked .add-form input,body.session-locked .add-form button{cursor:not-allowed}
 body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn{
