@@ -5138,6 +5138,7 @@ function renderCallOutList(){
 
 function openCallOutOverlay(){
   if (!callOutOverlay) return;
+  if (viewerMode) return; // spectators never get the host-only "call a player" action
   if (callOutSearch) callOutSearch.value = '';
   if (callOutStatusList) callOutStatusList.innerHTML = '';
   const disabledNote = $('#callOutDisabledNote');
