@@ -165,6 +165,91 @@ function nextId(prefix){ return prefix + (Date.now().toString(36)) + (uid++); }
 /* ================= DOM refs ================= */
 const $ = (sel) => document.querySelector(sel);
 
+/* ================= Service worker registration =================
+   Runs unconditionally, at module load, for every visitor — host, local
+   player, or spectator alike. (Previously this whole block, plus the
+   "Install app" button wiring right after it, lived INSIDE enterViewerMode()
+   and so only ever ran for someone who opened a ?join= spectator link — the
+   primary host/local-player flow silently never got the offline app shell
+   or the install prompt at all. Moving it here fixes that for everyone.) */
+let swRegistration = null;
+let swWaitingWorker = null; // a new version sitting ready, once the person opts in via the update banner
+const updateBanner = $('#updateBanner');
+const applyUpdateBtn = $('#applyUpdateBtn');
+function showUpdateBanner(worker){
+  swWaitingWorker = worker;
+  if (updateBanner) updateBanner.hidden = false;
+}
+if (applyUpdateBtn){
+  applyUpdateBtn.addEventListener('click', () => {
+    if (!swWaitingWorker) return;
+    applyUpdateBtn.disabled = true;
+    swWaitingWorker.postMessage('SKIP_WAITING');
+  });
+}
+if ('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').then(reg => {
+    swRegistration = reg;
+    // A worker already sitting in "waiting" (installed while no tab was
+    // open, or from a previous visit that never got refreshed) — surface
+    // the banner right away instead of only after a fresh 'updatefound'.
+    if (reg.waiting) showUpdateBanner(reg.waiting);
+    reg.addEventListener('updatefound', () => {
+      const installing = reg.installing;
+      if (!installing) return;
+      installing.addEventListener('statechange', () => {
+        // 'installed' + an existing controller means this is an UPDATE to
+        // an already-running app, not the very first install — that's the
+        // case that should prompt for a refresh. A first-ever install has
+        // no controller yet and shouldn't nag the person to "update".
+        if (installing.state === 'installed' && navigator.serviceWorker.controller){
+          showUpdateBanner(installing);
+        }
+      });
+    });
+  }).catch(() => {});
+  // Fires once the new worker actually takes control (after SKIP_WAITING),
+  // which only happens after the person tapped "Refresh now" — safe to
+  // reload immediately since nothing was switched out from under them
+  // without their say-so.
+  let reloadedForUpdate = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloadedForUpdate) return;
+    reloadedForUpdate = true;
+    location.reload();
+  });
+}
+
+/* ---- "Install app" (Add to Home Screen) ----
+   Installing gives a match an actual standalone app window instead of a
+   browser tab, which the OS is far less likely to reclaim/reload mid-game
+   — the main thing that can interrupt a match beyond losing internet
+   (already handled: queue state lives in IndexedDB and everything but the
+   optional live-share features works with no network at all). Chrome/
+   Edge/Android fire 'beforeinstallprompt' when the manifest+SW make the
+   site eligible; we stash that event and reveal a button instead of
+   letting the browser show its own mini-infobar. */
+let deferredInstallPrompt = null;
+const installAppBtn = $('#installAppBtn');
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  if (installAppBtn) installAppBtn.hidden = false;
+});
+if (installAppBtn){
+  installAppBtn.addEventListener('click', async () => {
+    if (!deferredInstallPrompt) return;
+    installAppBtn.hidden = true;
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice.catch(() => {});
+    deferredInstallPrompt = null;
+  });
+}
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null;
+  if (installAppBtn) installAppBtn.hidden = true;
+});
+
 /* ================= Keyboard-aware viewport (mobile modals) =================
    On phones, opening the on-screen keyboard shrinks the *visual* viewport
    without necessarily shrinking the *layout* viewport, so our fixed-position
@@ -263,35 +348,52 @@ function toast(msg, type){
   }, 900);
 }
 
-/* ================= Confirm dialog (replaces native confirm()) ================= */
+/* ================= Confirm dialog (replaces native confirm()) =================
+   Pending requests are QUEUED rather than tracked with a single global
+   resolver. The old single-resolver version had a real race: if a second
+   showConfirm() ever fired while one was still awaiting an answer (e.g. an
+   auto-start timer's confirm landing at the same moment as a manual one),
+   the second call silently clobbered the first's resolver — the first
+   caller's `await` then hung forever, since nothing was left to resolve it.
+   Queuing means the second dialog simply opens right after the first one
+   closes, and every caller's promise is guaranteed to eventually settle. */
 const confirmOverlay = $('#confirmOverlay');
 const confirmTitleEl = $('#confirmTitle');
 const confirmMessageEl = $('#confirmMessage');
 const confirmOkBtn = $('#confirmOkBtn');
 const confirmCancelBtn = $('#confirmCancelBtn');
-let confirmResolve = null;
+const confirmQueue = []; // { message, opts, resolve }
+let confirmActive = null;
+function runNextConfirm(){
+  if (confirmActive || confirmQueue.length === 0) return;
+  confirmActive = confirmQueue.shift();
+  const opts = confirmActive.opts;
+  confirmTitleEl.textContent = opts.title || 'Please confirm';
+  confirmMessageEl.textContent = confirmActive.message;
+  confirmOkBtn.textContent = opts.confirmLabel || 'Confirm';
+  confirmCancelBtn.textContent = opts.cancelLabel || 'Cancel';
+  confirmOkBtn.className = 'btn ' + (opts.danger ? 'danger' : 'primary');
+  confirmOverlay.hidden = false;
+  confirmOkBtn.focus();
+}
 /* Returns a Promise<boolean> — true if the user confirmed, false if they
    cancelled, dismissed via backdrop click, or pressed Escape. Callers use
-   `if (!(await showConfirm('...'))) return;` in place of window.confirm(). */
+   `if (!(await showConfirm('...'))) return;` in place of window.confirm().
+   If another confirm is already open, this one waits its turn instead of
+   interrupting it. */
 function showConfirm(message, opts){
-  opts = opts || {};
   return new Promise((resolve) => {
-    confirmResolve = resolve;
-    confirmTitleEl.textContent = opts.title || 'Please confirm';
-    confirmMessageEl.textContent = message;
-    confirmOkBtn.textContent = opts.confirmLabel || 'Confirm';
-    confirmCancelBtn.textContent = opts.cancelLabel || 'Cancel';
-    confirmOkBtn.className = 'btn ' + (opts.danger ? 'danger' : 'primary');
-    confirmOverlay.hidden = false;
-    confirmOkBtn.focus();
+    confirmQueue.push({ message, opts: opts || {}, resolve });
+    runNextConfirm();
   });
 }
 function closeConfirm(result){
-  if (confirmOverlay.hidden) return;
+  if (!confirmActive) return;
   confirmOverlay.hidden = true;
-  const resolve = confirmResolve;
-  confirmResolve = null;
-  if (resolve) resolve(result);
+  const resolve = confirmActive.resolve;
+  confirmActive = null;
+  resolve(result);
+  runNextConfirm();
 }
 confirmOkBtn.addEventListener('click', () => closeConfirm(true));
 confirmCancelBtn.addEventListener('click', () => closeConfirm(false));
@@ -417,8 +519,21 @@ function collectAllPlayerNames(){
   (state.courts || []).forEach(c => (c.players || []).forEach(add));
   return [...names].sort((a, b) => a.localeCompare(b));
 }
+// Shared name-comparison normalizer: trims, lowercases, collapses internal
+// whitespace runs, and folds accents/diacritics (e.g. "José" vs "Jose")
+// — used for every duplicate/collision check so two names that a human
+// would call "the same" can't slip past as different players just because
+// of a stray double space or an accent mark. Never used for anything that
+// touches DISPLAY (the name typed in is always what's stored and shown).
+function normalizeName(name){
+  return String(name || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
 function namesMatch(a, b){
-  return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+  return normalizeName(a) === normalizeName(b);
 }
 function getStats(name){
   if (isUnsafeName(name)) return { wins: 0, games: 0, scoreSum: 0, scoreGames: 0 };
@@ -1151,7 +1266,7 @@ stackList.addEventListener('click', async (e) => {
 
 /* ================= Add players ================= */
 function registerRoster(name){
-  const exists = state.roster.some(r => r.toLowerCase() === name.toLowerCase());
+  const exists = state.roster.some(r => normalizeName(r) === normalizeName(name));
   if (!exists) state.roster.push(name);
 }
 function renderRosterList(){
@@ -1165,12 +1280,12 @@ function renderRosterList(){
 // Fixes the bug where names removed from the stack lingered forever in the
 // "keep player names" list with no way to actually delete them.
 function removeFromRoster(name){
-  const idx = state.roster.findIndex(r => r.toLowerCase() === name.toLowerCase());
+  const idx = state.roster.findIndex(r => normalizeName(r) === normalizeName(name));
   if (idx === -1) return;
   state.roster.splice(idx, 1);
-  const lower = name.toLowerCase();
+  const lower = normalizeName(name);
   if (Array.isArray(state.session.fixedDuos)){
-    state.session.fixedDuos = state.session.fixedDuos.filter(d => d.a.toLowerCase() !== lower && d.b.toLowerCase() !== lower);
+    state.session.fixedDuos = state.session.fixedDuos.filter(d => normalizeName(d.a) !== lower && normalizeName(d.b) !== lower);
   }
   renderRosterList();
   renderRosterManageList($('#rosterSearchInput') ? $('#rosterSearchInput').value : '');
@@ -1191,8 +1306,8 @@ function renderRosterManageList(filter){
     return;
   }
   list.innerHTML = names.map(name => {
-    const lower = name.toLowerCase();
-    const waiting = state.arrivals.some(a => a.name.toLowerCase() === lower);
+    const lower = normalizeName(name);
+    const waiting = state.arrivals.some(a => normalizeName(a.name) === lower);
     const statusTag = waiting
       ? '<span class="tag-pill queued" title="Added but not checked in yet">Waiting to check in</span>'
       : (isNameActive(name) ? '<span class="tag-pill floor" title="Currently on the floor">On floor</span>' : '');
@@ -1246,15 +1361,15 @@ function closeRenamePlayer(){
   renamePlayerOriginal = null;
 }
 function renamePlayerEverywhere(oldName, newName){
-  const oldLower = oldName.toLowerCase();
-  state.arrivals.forEach(p => { if (p.name.toLowerCase() === oldLower) p.name = newName; });
-  state.stack.forEach(p => { if (p.name.toLowerCase() === oldLower) p.name = newName; });
-  state.winnersBlock.forEach(p => { if (p.name.toLowerCase() === oldLower) p.name = newName; });
-  state.losersBlock.forEach(p => { if (p.name.toLowerCase() === oldLower) p.name = newName; });
+  const oldLower = normalizeName(oldName);
+  state.arrivals.forEach(p => { if (normalizeName(p.name) === oldLower) p.name = newName; });
+  state.stack.forEach(p => { if (normalizeName(p.name) === oldLower) p.name = newName; });
+  state.winnersBlock.forEach(p => { if (normalizeName(p.name) === oldLower) p.name = newName; });
+  state.losersBlock.forEach(p => { if (normalizeName(p.name) === oldLower) p.name = newName; });
   state.courts.forEach(c => {
-    c.players = c.players.map(n => n.toLowerCase() === oldLower ? newName : n);
+    c.players = c.players.map(n => normalizeName(n) === oldLower ? newName : n);
   });
-  const rIdx = state.roster.findIndex(r => r.toLowerCase() === oldLower);
+  const rIdx = state.roster.findIndex(r => normalizeName(r) === oldLower);
   if (rIdx !== -1) state.roster[rIdx] = newName; else state.roster.push(newName);
   if (state.playerLevels && Object.prototype.hasOwnProperty.call(state.playerLevels, oldName)){
     state.playerLevels[newName] = state.playerLevels[oldName];
@@ -1262,8 +1377,8 @@ function renamePlayerEverywhere(oldName, newName){
   }
   if (Array.isArray(state.session.fixedDuos)){
     state.session.fixedDuos.forEach(d => {
-      if (d.a.toLowerCase() === oldLower) d.a = newName;
-      if (d.b.toLowerCase() === oldLower) d.b = newName;
+      if (normalizeName(d.a) === oldLower) d.a = newName;
+      if (normalizeName(d.b) === oldLower) d.b = newName;
     });
   }
   if (state.teammateHistory){
@@ -1295,8 +1410,8 @@ if (renamePlayerForm){
     const newName = renamePlayerInput.value.trim();
     if (!newName){ toast('Enter a name'); return; }
     if (newName === oldName){ closeRenamePlayer(); return; }
-    const newLower = newName.toLowerCase();
-    const collision = newLower !== oldName.toLowerCase() && (state.roster.some(n => n.toLowerCase() === newLower) || isNameActive(newName));
+    const newLower = normalizeName(newName);
+    const collision = newLower !== normalizeName(oldName) && (state.roster.some(n => normalizeName(n) === newLower) || isNameActive(newName));
     if (collision){ toast(newName + ' is already in use by another player'); return; }
     renamePlayerEverywhere(oldName, newName);
     closeRenamePlayer();
@@ -1327,12 +1442,12 @@ if (rosterSearchInputEl){
   rosterSearchInputEl.addEventListener('input', (e) => renderRosterManageList(e.target.value));
 }
 function isNameActive(name){
-  const lower = name.toLowerCase();
-  if (state.arrivals.some(p => p.name.toLowerCase() === lower)) return true;
-  if (state.stack.some(p => p.name.toLowerCase() === lower)) return true;
-  if (state.winnersBlock.some(p => p.name.toLowerCase() === lower)) return true;
-  if (state.losersBlock.some(p => p.name.toLowerCase() === lower)) return true;
-  if (state.courts.some(c => c.players.some(n => n.toLowerCase() === lower))) return true;
+  const norm = normalizeName(name);
+  if (state.arrivals.some(p => normalizeName(p.name) === norm)) return true;
+  if (state.stack.some(p => normalizeName(p.name) === norm)) return true;
+  if (state.winnersBlock.some(p => normalizeName(p.name) === norm)) return true;
+  if (state.losersBlock.some(p => normalizeName(p.name) === norm)) return true;
+  if (state.courts.some(c => c.players.some(n => normalizeName(n) === norm))) return true;
   return false;
 }
 /* Players land here first (added, but not yet on the floor). They only join the
@@ -1394,10 +1509,16 @@ $('#bulkAddBtn').addEventListener('click', function(){
 
 /* ---- Check-in: moves a waiting arrival into the live stack ---- */
 async function checkInArrival(id){
-  const idx = state.arrivals.findIndex(a => a.id === id);
-  if (idx === -1) return;
-  const entry = state.arrivals[idx];
+  const entry = state.arrivals.find(a => a.id === id);
+  if (!entry) return;
   if (!(await showConfirm('Add ' + entry.name + ' to the live stack now?', {title: 'Check in ' + entry.name + '?', confirmLabel: 'Check in'}))) return;
+  // Re-find by id (not a cached index) after the await: the arrivals array
+  // can change while this confirm is open — e.g. a synced state update
+  // from a live-hosted session arriving mid-dialog — so an index captured
+  // before the await could point at the wrong entry, or one that's already
+  // gone, by the time we act on it.
+  const idx = state.arrivals.findIndex(a => a.id === id);
+  if (idx === -1) return; // arrival was removed/checked in elsewhere while this was open
   state.arrivals.splice(idx, 1);
   state.stack.push({ id: nextId('p'), name: entry.name, joinedAt: Date.now(), tag: 'new' });
   checkBlockFlush();
@@ -1406,22 +1527,33 @@ async function checkInArrival(id){
 }
 async function checkInAllArrivals(){
   if (state.arrivals.length === 0) return;
+  const idsAtOpen = new Set(state.arrivals.map(a => a.id));
   const names = state.arrivals.map(a => a.name);
   const label = names.length > 1 ? names.length + ' players' : names[0];
   if (!(await showConfirm('Add ' + label + ' to the live stack now?', {title: 'Check in ' + label + '?', confirmLabel: 'Check in'}))) return;
-  state.arrivals.forEach(entry => {
+  // Only act on the arrivals that were actually present when this dialog
+  // opened (matched by id, not a blanket "clear everything") — the list
+  // can change while the confirm is open, and blindly wiping state.arrivals
+  // afterward would silently drop anyone added in the meantime.
+  const toCheckIn = state.arrivals.filter(a => idsAtOpen.has(a.id));
+  if (toCheckIn.length === 0) return;
+  toCheckIn.forEach(entry => {
     state.stack.push({ id: nextId('p'), name: entry.name, joinedAt: Date.now(), tag: 'new' });
   });
-  state.arrivals = [];
+  state.arrivals = state.arrivals.filter(a => !idsAtOpen.has(a.id));
   checkBlockFlush();
   toast(label + ' checked in and added to the stack');
   renderAll(); persist();
 }
 async function removeArrival(id){
+  const entryBefore = state.arrivals.find(a => a.id === id);
+  if (!entryBefore) return;
+  const name = entryBefore.name;
+  if (!(await showConfirm('Remove ' + name + ' from the waiting-to-check-in list?', {title: 'Remove from arrivals?', confirmLabel: 'Remove', danger: true}))) return;
+  // Re-find by id after the await — see checkInArrival() above for why a
+  // pre-await index isn't safe to reuse here.
   const idx = state.arrivals.findIndex(a => a.id === id);
   if (idx === -1) return;
-  const name = state.arrivals[idx].name;
-  if (!(await showConfirm('Remove ' + name + ' from the waiting-to-check-in list?', {title: 'Remove from arrivals?', confirmLabel: 'Remove', danger: true}))) return;
   state.arrivals.splice(idx, 1);
   toast(name + ' removed');
   renderAll(); persist();
@@ -4054,7 +4186,13 @@ async function checkDeviceStillActive(){
     return true;
   }catch(e){ return true; } // network hiccup — the next scheduled check will catch a real change
 }
-setInterval(() => { if (authSession) checkDeviceStillActive(); }, 2 * 60 * 1000);
+// Shortened from 2 minutes: this poll is what bounds how long two devices
+// can both be editing the same hosted session (and pushing conflicting,
+// last-write-wins state via pushStateNow) before the losing device gets
+// force-logged-out. 30s keeps that overlap window small without hammering
+// the API — device takeover is already an edge case (someone logging in
+// elsewhere while a session is live), not a routine event.
+setInterval(() => { if (authSession) checkDeviceStillActive(); }, 30 * 1000);
 
 /* Generic helper for the hosted_sessions REST/RPC calls. Pass useAuth=true
    to sign the request as the logged-in host; otherwise it goes out under
@@ -4111,8 +4249,12 @@ function watchCooldownRemainingMs(){
 
 async function getHostUsageToday(){
   if (!authSession) return 0;
+  // Local-day boundary (not UTC) — a host's "daily" limit should reset at
+  // THEIR midnight, not at 00:00 UTC (which for a UTC+8 host would refresh
+  // the quota mid-morning instead of overnight, and be flat-out confusing
+  // for anyone west of UTC where it'd refresh the previous afternoon).
   const startOfDay = new Date();
-  startOfDay.setUTCHours(0, 0, 0, 0);
+  startOfDay.setHours(0, 0, 0, 0);
   const res = await sbFetch(
     `/rest/v1/hosted_sessions?host_id=eq.${authSession.user.id}&created_at=gte.${startOfDay.toISOString()}&select=id`,
     { method: 'GET', headers: { 'Prefer': 'count=exact' } },
@@ -5118,7 +5260,30 @@ hostOverlay.addEventListener('click', (e) => {
 });
 hostOverlay.addEventListener('change', (e) => {
   if (e.target.id === 'hostReceiptInput'){
-    hostReceiptFile = (e.target.files && e.target.files[0]) || null;
+    const file = (e.target.files && e.target.files[0]) || null;
+    // Client-side sanity checks before we bother uploading anything —
+    // faster, friendlier feedback than waiting on a round-trip to Supabase
+    // Storage only to have it reject the file. The server/RLS layer is
+    // still the real gate; this is just a UX nicety, same spirit as the
+    // watch-code throttle above.
+    if (file){
+      const MAX_RECEIPT_BYTES = 8 * 1024 * 1024; // 8MB — comfortably covers a phone photo/screenshot
+      if (!/^image\//.test(file.type)){
+        toast('Please attach an image (screenshot or photo) of the receipt', 'warning');
+        e.target.value = '';
+        hostReceiptFile = null;
+        renderHostPanel();
+        return;
+      }
+      if (file.size > MAX_RECEIPT_BYTES){
+        toast('That image is too large (max 8MB) — try a screenshot instead of a full-res photo', 'warning');
+        e.target.value = '';
+        hostReceiptFile = null;
+        renderHostPanel();
+        return;
+      }
+    }
+    hostReceiptFile = file;
     renderHostPanel();
   }
 });
@@ -5213,41 +5378,14 @@ function enterViewerMode(code){
   const notifySound = new Audio('./notify.wav');
   notifySound.volume = 0.6;
   notifySound.preload = 'auto';
-
-  let swRegistration = null;
-  if ('serviceWorker' in navigator){
-    navigator.serviceWorker.register('sw.js').then(reg => { swRegistration = reg; }).catch(() => {});
-  }
-
-  /* ---- "Install app" (Add to Home Screen) ----
-     Installing gives the match an actual standalone app window instead of a
-     browser tab, which the OS is far less likely to reclaim/reload mid-game
-     — the main thing that can interrupt a match beyond losing internet
-     (already handled: queue state lives in IndexedDB and everything but the
-     optional live-share features works with no network at all). Chrome/
-     Edge/Android fire 'beforeinstallprompt' when the manifest+SW make the
-     site eligible; we stash that event and reveal a button instead of
-     letting the browser show its own mini-infobar. */
-  let deferredInstallPrompt = null;
-  const installAppBtn = $('#installAppBtn');
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredInstallPrompt = e;
-    if (installAppBtn) installAppBtn.hidden = false;
-  });
-  if (installAppBtn){
-    installAppBtn.addEventListener('click', async () => {
-      if (!deferredInstallPrompt) return;
-      installAppBtn.hidden = true;
-      deferredInstallPrompt.prompt();
-      await deferredInstallPrompt.userChoice.catch(() => {});
-      deferredInstallPrompt = null;
-    });
-  }
-  window.addEventListener('appinstalled', () => {
-    deferredInstallPrompt = null;
-    if (installAppBtn) installAppBtn.hidden = true;
-  });
+  // swRegistration itself is set up once, at module scope, near the top of
+  // this file — see "Service worker registration" below — so it's ready
+  // (or filling in asynchronously) regardless of whether this device is
+  // hosting/playing locally or viewing as a spectator. Bug fix: this used
+  // to be registered ONLY inside enterViewerMode(), which meant a normal
+  // host/player — the primary user of the app — never got the offline app
+  // shell or the "Install app" button at all; only someone who opened a
+  // ?join= spectator link did.
 
   // Low-level "actually show it" step used by player-call notifications.
   function fireNotification(title, body, opts){
