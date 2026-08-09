@@ -1408,26 +1408,8 @@ html[data-theme="dark"] .toast-progress{background:#fff}
 .viewer-banner .eyebrow svg{width:12px;height:12px}
 .viewer-banner .msg{font-size:.82rem;font-weight:600;color:var(--ink);flex:1 1 auto;min-width:100px}
 .viewer-banner .msg:empty{display:none}
-.viewer-notify-btn{
-  display:inline-flex;align-items:center;gap:.35rem;flex-shrink:0;margin-left:auto;
-  background:var(--surface);color:var(--turf-deep);border:1.5px solid var(--turf);
-  border-radius:99px;padding:.4rem .8rem;font-size:.76rem;font-weight:700;
-  line-height:1.1;white-space:nowrap;
-}
-.viewer-notify-btn[hidden]{display:none}
-.viewer-notify-btn svg{width:13px;height:13px;flex-shrink:0}
-.viewer-notify-btn:hover{background:var(--turf-pale);color:var(--turf-deep)}
-.viewer-notify-btn.active{background:var(--turf);color:#fff;border-color:var(--turf)}
-.viewer-notify-status{
-  display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;margin-left:auto;
-  width:2rem;height:2rem;border-radius:50%;line-height:1;
-  background:var(--turf);color:#fff;border:none;cursor:pointer;
-}
-.viewer-notify-status[hidden]{display:none}
-.viewer-notify-status svg{width:14px;height:14px}
-.viewer-notify-status:hover{opacity:.85}
 .viewer-history-btn{
-  display:inline-flex;align-items:center;gap:.35rem;flex-shrink:0;
+  display:inline-flex;align-items:center;gap:.35rem;flex-shrink:0;margin-left:auto;
   background:var(--surface);color:var(--ink);border:1.5px solid var(--line);
   border-radius:99px;padding:.4rem .8rem;font-size:.76rem;font-weight:700;
   line-height:1.1;white-space:nowrap;
@@ -1457,8 +1439,7 @@ html[data-theme="dark"] .toast-progress{background:#fff}
   .viewer-banner .msg{order:1}
   .viewer-identity-badge{order:2}
   .viewer-change-btn{order:3}
-  .viewer-notify-btn{order:4;margin-left:0;flex:1 1 100%;justify-content:center}
-  .viewer-history-btn{order:5;margin-left:0;flex:1 1 100%;justify-content:center}
+  .viewer-history-btn{order:4;margin-left:0;flex:1 1 100%;justify-content:center}
 }
 
 /* ---------- Who's Watching modal ---------- */
