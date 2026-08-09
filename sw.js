@@ -12,7 +12,7 @@
       This does NOT add true push-from-server delivery — a viewer tab still
       has to be open and polling for that part to work. */
 
-const CACHE_VERSION = 'v4';
+const CACHE_VERSION = 'v5';
 const CACHE_NAME = 'renzku-shell-' + CACHE_VERSION;
 
 // Same-origin files needed to render and run the app with no network at
@@ -41,7 +41,14 @@ self.addEventListener('install', (event) => {
       .then((cache) => cache.addAll(SHELL_FILES))
       .catch(() => {}) // a single missing/blocked file shouldn't abort install
   );
-  self.skipWaiting();
+  // Deliberately NOT calling self.skipWaiting() here anymore. This worker
+  // used to take over every open tab the instant a new version installed —
+  // including mid-match, with zero warning — via skipWaiting() +
+  // clients.claim() in 'activate' below. That's the wrong default for an
+  // app that might have a live match/timer running: the new worker now sits
+  // in "waiting" state until the page explicitly asks it to activate (see
+  // the 'message' listener below), which script.js only does after the
+  // person taps "Refresh now" on the update banner.
 });
 
 self.addEventListener('activate', (event) => {
@@ -52,6 +59,14 @@ self.addEventListener('activate', (event) => {
       ))
       .then(() => self.clients.claim())
   );
+});
+
+// The page (script.js) posts this once the person confirms they want the
+// update applied. Moving from "waiting" to "active" here is what lets a
+// long-running match keep using the old shell right up until the user
+// chooses to refresh, instead of being switched out from under them.
+self.addEventListener('message', (event) => {
+  if (event.data === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('fetch', (event) => {
