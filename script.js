@@ -5713,7 +5713,29 @@ function enterViewerMode(code){
   let invalidPolls = 0;       // consecutive "code not found" results — stop repolling a dead code
   let pollInFlight = false;   // true while a request is actually in the air — the next tick skips
                                // itself entirely rather than stacking a second request on top
+  let pollStartedAt = 0;      // when the current in-flight request began, so a wedged request can
+                               // be detected and recovered from (see VIEWER_POLL_STUCK_MS below)
+  let consecutiveFailures = 0; // resets to 0 on any successful poll; drives the "still trying to
+                               // reconnect" manual-retry affordance even while showing cached data
   let currentPollDelay = VIEWER_POLL_INTERVAL_MS;
+
+  // The AbortController timeout below is what's *supposed* to guarantee a
+  // stuck request settles within VIEWER_POLL_TIMEOUT_MS — but some mobile
+  // carriers/proxies are known to silently swallow an abort signal on an
+  // in-flight request, leaving the fetch promise neither resolved nor
+  // rejected. If that ever happens, pollInFlight would stay true forever
+  // and every future tick would just silently skip itself — the whole
+  // loop wedges shut with no visible error. This is the backstop: if a
+  // request has been "in flight" for way longer than its own timeout
+  // could ever legitimately explain, force it back to a clean slate and
+  // let a fresh attempt through instead of trusting the abort alone.
+  const VIEWER_POLL_STUCK_MS = VIEWER_POLL_TIMEOUT_MS * 3;
+
+  // After this many consecutive failures — even while there's cached
+  // content on screen keeping things looking fine — surface a small
+  // manual "Retry now" affordance instead of relying purely on silent
+  // automatic retries, so a person is never stuck with no way to act.
+  const VIEWER_STUCK_RETRY_THRESHOLD = 3;
 
   // Restarts the interval at a given cadence, always clearing whatever was
   // running first — this is the single choke point every "how often do we
@@ -5727,12 +5749,20 @@ function enterViewerMode(code){
 
   // Shared by every failure path (bad HTTP status, timeout, network error):
   // fall back to whatever's cached, or show the full error card if there's
-  // truly nothing to show.
+  // truly nothing to show. Once failures stack up even with cache present,
+  // surface a manual retry option too instead of only ever saying
+  // "reconnecting…" with no way for the person to act.
   function handleFailure(friendlyMsg){
-    if (hasRenderableSnapshot || loadViewerSnapshotFor(code)){
+    consecutiveFailures++;
+    const haveSomethingCached = hasRenderableSnapshot || !!loadViewerSnapshotFor(code);
+    if (haveSomethingCached){
       hasRenderableSnapshot = true;
-      hideConnCard();
       setMsg('Showing the last saved view \u2014 reconnecting\u2026');
+      if (consecutiveFailures >= VIEWER_STUCK_RETRY_THRESHOLD){
+        showConnCard('Still trying to reconnect\u2026', 'The view above may be a little stale. Tap retry to try again right now.', true);
+      } else {
+        hideConnCard();
+      }
     } else {
       setMsg(friendlyMsg);
       showConnCard('Unable to connect to this live match.', 'We\u2019ll keep trying automatically.', true);
@@ -5746,10 +5776,16 @@ function enterViewerMode(code){
       return;
     }
     if (pollInFlight){
-      console.log('[Viewer] poll skipped \u2014 previous request still in flight');
-      return; // one request must finish before another starts
+      if (Date.now() - pollStartedAt > VIEWER_POLL_STUCK_MS){
+        console.warn('[Viewer] previous poll appears wedged \u2014 forcing recovery');
+        pollInFlight = false; // fall through and let this tick start a fresh attempt
+      } else {
+        console.log('[Viewer] poll skipped \u2014 previous request still in flight');
+        return; // one request must finish before another starts
+      }
     }
     pollInFlight = true;
+    pollStartedAt = Date.now();
     console.log('[Viewer] poll started');
 
     const controller = new AbortController();
@@ -5803,6 +5839,7 @@ function enterViewerMode(code){
         return;
       }
       invalidPolls = 0;
+      consecutiveFailures = 0;
       if (currentPollDelay !== VIEWER_POLL_INTERVAL_MS) scheduleNextPoll(VIEWER_POLL_INTERVAL_MS);
 
       if (row.status !== 'live'){
@@ -5873,6 +5910,8 @@ function enterViewerMode(code){
   if (connRetryBtn){
     connRetryBtn.addEventListener('click', () => {
       console.log('[Viewer] manual retry requested');
+      pollInFlight = false; // a person tapping "Retry now" should always get an immediate real
+                             // attempt, even if the previous request never technically settled
       setMsg('Connecting to live match\u2026');
       poll();
     });
