@@ -87,9 +87,77 @@
 <div class="viewer-banner" id="viewerBanner" hidden>
   <span class="eyebrow"><svg viewBox="0 0 24 24"><use href="#i-cloud"/></svg>Live spectator view</span>
   <span class="msg" id="viewerBannerMsg"></span>
+  <button type="button" class="viewer-identity-badge" id="viewerIdentityBadge" hidden></button>
+  <button type="button" class="btn sm viewer-change-btn" id="viewerChangePlayerBtn" hidden title="Change who's watching">Change</button>
   <button type="button" class="btn sm viewer-notify-btn" id="viewerNotifyBtn" title="Get a notification when a game ends or the next matchup is up"><svg viewBox="0 0 24 24"><use href="#i-bell"/></svg> Notify me</button>
   <button type="button" class="viewer-notify-status" id="viewerNotifyStatus" hidden title="Notifications are on — tap to turn off"><svg viewBox="0 0 24 24"><use href="#i-bell"/></svg></button>
   <button type="button" class="btn sm viewer-history-btn" id="viewerMatchHistoryBtn" title="See every completed match this session"><svg viewBox="0 0 24 24"><use href="#i-clock"/></svg> History</button>
+</div>
+
+<!-- Who's Watching modal (Visiting Spectator View entry point) -->
+<div class="overlay whos-watching-overlay" id="whosWatchingOverlay" hidden>
+  <div class="modal whos-watching-modal" role="dialog" aria-modal="true" aria-labelledby="whosWatchingTitle">
+    <h3 id="whosWatchingTitle">👀 Who's watching?</h3>
+    <p class="winner-note" style="margin:-.3rem 0 1.1rem">Let us know who's watching so we can notify the right phone when it's their turn.</p>
+    <div class="whos-watching-choices">
+      <button type="button" class="whos-watching-choice" id="whosWatchingGuestBtn">
+        <span class="wwc-icon"><svg viewBox="0 0 24 24"><use href="#i-user"/></svg></span>
+        <span class="wwc-text">
+          <span class="wwc-label">Guest</span>
+          <span class="wwc-desc">Just here to watch — no notifications</span>
+        </span>
+        <span class="wwc-arrow"><svg viewBox="0 0 24 24"><use href="#i-chev"/></svg></span>
+      </button>
+      <button type="button" class="whos-watching-choice" id="whosWatchingPlayerBtn">
+        <span class="wwc-icon wwc-icon-turf"><svg viewBox="0 0 24 24"><use href="#i-bell"/></svg></span>
+        <span class="wwc-text">
+          <span class="wwc-label">Player</span>
+          <span class="wwc-desc">Pick your name to get called when it's your turn</span>
+        </span>
+        <span class="wwc-arrow"><svg viewBox="0 0 24 24"><use href="#i-chev"/></svg></span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Player select modal — used for first-time "Player" pick and "Change Player" -->
+<div class="overlay" id="playerSelectOverlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="playerSelectTitle">
+    <h3 id="playerSelectTitle">Which player are you?</h3>
+    <p class="winner-note" style="margin:-.3rem 0 .8rem" id="playerSelectHint">Pick your name so this phone gets notified when it's your turn.</p>
+    <div class="rankings-toolbar" style="margin-bottom:.6rem">
+      <svg viewBox="0 0 24 24"><use href="#i-search"/></svg>
+      <input type="text" id="playerSelectSearch" placeholder="Search your name…" aria-label="Search players" autocomplete="off">
+    </div>
+    <div class="roster-manage-list player-select-list" id="playerSelectList"></div>
+    <p class="stack-empty" id="playerSelectEmpty" hidden>No players found yet — check back once the host adds players.</p>
+    <div class="modal-actions">
+      <button class="btn ghost" id="playerSelectGuestBtn">Watch as Guest instead</button>
+      <button class="btn ghost" id="playerSelectBackBtn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Call Out Player modal (host) -->
+<div class="overlay" id="callOutOverlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="callOutTitle">
+    <h3 id="callOutTitle">📣 Call out a player</h3>
+    <p class="winner-note" style="margin:-.3rem 0 .8rem">Sends a phone notification straight to whoever has selected this name on the spectator view.</p>
+    <div class="field" id="callOutCourtField">
+      <label for="callOutCourtSelect">Send them to (optional)</label>
+      <select id="callOutCourtSelect"><option value="">No specific court</option></select>
+    </div>
+    <div class="rankings-toolbar" style="margin-bottom:.6rem">
+      <svg viewBox="0 0 24 24"><use href="#i-search"/></svg>
+      <input type="text" id="callOutSearch" placeholder="Search a player…" aria-label="Search players" autocomplete="off">
+    </div>
+    <div class="roster-manage-list player-select-list" id="callOutList"></div>
+    <p class="stack-empty" id="callOutEmpty" hidden>No players yet — add some players first.</p>
+    <div class="call-status-list" id="callOutStatusList"></div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="callOutDoneBtn">Done</button>
+    </div>
+  </div>
 </div>
 
 <div class="viewer-upnext-notify" id="viewerUpNextNotify" hidden aria-live="polite">
@@ -598,6 +666,7 @@
 </div>
 
 <div class="toast-wrap" id="toastWrap"></div>
+<div class="call-status-wrap" id="callStatusWrap" aria-live="polite"></div>
 
 <script src="qrcode.min.js" defer></script>
 <script src="script.js" defer></script>
