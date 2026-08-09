@@ -1434,11 +1434,100 @@ html[data-theme="dark"] .toast-progress{background:#fff}
 }
 .viewer-history-btn svg{width:13px;height:13px;flex-shrink:0}
 .viewer-history-btn:hover{background:var(--court)}
+
+/* ---------- Viewer identity (Visiting Spectator View) ---------- */
+.viewer-identity-badge{
+  display:inline-flex;align-items:center;gap:.3rem;flex-shrink:0;white-space:nowrap;
+  background:var(--surface);color:var(--turf-deep);border:1.5px solid var(--turf);
+  border-radius:99px;padding:.35rem .7rem .35rem .6rem;font-size:.76rem;font-weight:700;
+  cursor:default;line-height:1.1;
+}
+.viewer-identity-badge[hidden]{display:none}
+.viewer-identity-badge b{font-weight:800;color:var(--ink)}
+.viewer-change-btn{
+  display:inline-flex;align-items:center;flex-shrink:0;white-space:nowrap;
+  background:transparent;color:var(--slate);border:1.5px dashed var(--line);
+  border-radius:99px;padding:.35rem .7rem;font-size:.74rem;font-weight:700;
+}
+.viewer-change-btn[hidden]{display:none}
+.viewer-change-btn:hover{border-color:var(--turf);color:var(--turf-deep)}
+
 @media (max-width:520px){
   .viewer-banner{gap:.5rem .6rem}
   .viewer-banner .msg{order:1}
-  .viewer-notify-btn{order:2;margin-left:0;flex:1 1 100%;justify-content:center}
-  .viewer-history-btn{order:3;margin-left:0;flex:1 1 100%;justify-content:center}
+  .viewer-identity-badge{order:2}
+  .viewer-change-btn{order:3}
+  .viewer-notify-btn{order:4;margin-left:0;flex:1 1 100%;justify-content:center}
+  .viewer-history-btn{order:5;margin-left:0;flex:1 1 100%;justify-content:center}
+}
+
+/* ---------- Who's Watching modal ---------- */
+.whos-watching-modal{max-width:420px}
+.whos-watching-choices{display:flex;flex-direction:column;gap:.7rem}
+.whos-watching-choice{
+  display:flex;align-items:center;gap:.8rem;text-align:left;width:100%;
+  background:var(--court);border:1.5px solid var(--line);border-radius:14px;
+  padding:.9rem 1rem;cursor:pointer;font-family:var(--font-body);
+  transition:border-color .15s ease,background .15s ease,transform .1s ease;
+}
+.whos-watching-choice:hover{border-color:var(--turf);background:var(--turf-pale);transform:translateY(-1px)}
+.whos-watching-choice:active{transform:translateY(0)}
+.wwc-icon{
+  flex:0 0 auto;width:42px;height:42px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--line);color:var(--ink);
+}
+.wwc-icon svg{width:19px;height:19px}
+.wwc-icon-turf{background:var(--turf);color:#fff}
+.wwc-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:.15rem}
+.wwc-label{font-weight:800;font-size:.98rem;color:var(--ink)}
+.wwc-desc{font-size:.78rem;color:var(--slate);line-height:1.35}
+.wwc-arrow{flex:0 0 auto;color:var(--slate)}
+.wwc-arrow svg{width:16px;height:16px}
+
+/* ---------- Player select / Call Out Player lists ---------- */
+.player-select-list{max-height:min(46vh,340px)}
+.player-select-row{
+  display:flex;align-items:center;gap:.6rem;width:100%;text-align:left;
+  padding:.55rem .6rem;border-radius:9px;background:transparent;border:none;cursor:pointer;
+  font-family:var(--font-body);color:var(--ink);
+}
+.player-select-row:hover{background:var(--court)}
+.player-select-row .ps-name{flex:1;min-width:0;font-size:.88rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.player-select-row .ps-current{
+  flex-shrink:0;font-size:.66rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;
+  color:var(--turf-deep);background:var(--turf-pale);padding:.2rem .5rem;border-radius:99px;
+}
+.player-select-row .ps-call-btn{
+  flex-shrink:0;border:1.5px solid var(--turf);background:var(--surface);color:var(--turf-deep);
+  border-radius:99px;padding:.32rem .7rem;font-size:.72rem;font-weight:700;cursor:pointer;
+  display:inline-flex;align-items:center;gap:.3rem;
+}
+.player-select-row .ps-call-btn:hover{background:var(--turf);color:#fff}
+.player-select-row .ps-call-btn svg{width:11px;height:11px}
+
+/* ---------- Host "call status" feedback ---------- */
+.call-status-wrap{
+  position:fixed;bottom:1.2rem;right:1.2rem;z-index:210;display:flex;flex-direction:column;gap:.5rem;
+  max-width:min(92vw,320px);pointer-events:none;
+}
+.call-status-card{
+  pointer-events:auto;background:var(--surface);color:var(--ink);border:1.5px solid var(--line);
+  border-radius:12px;box-shadow:var(--shadow-md);padding:.7rem .8rem;
+  opacity:0;transform:translateY(8px);transition:opacity .2s ease,transform .2s ease;
+}
+.call-status-card.show{opacity:1;transform:translateY(0)}
+.call-status-card .csc-title{font-size:.76rem;font-weight:800;color:var(--slate);text-transform:uppercase;letter-spacing:.03em;margin-bottom:.35rem;display:flex;align-items:center;gap:.35rem}
+.call-status-card .csc-title svg{width:12px;height:12px}
+.call-status-line{display:flex;align-items:center;gap:.4rem;font-size:.84rem;font-weight:600;padding:.15rem 0}
+.call-status-line.ok{color:var(--turf-deep)}
+.call-status-line.warn{color:var(--clay-deep)}
+.call-status-line.unknown{color:var(--slate)}
+.call-status-list{display:flex;flex-direction:column;gap:.2rem;margin-top:.6rem}
+.call-status-list:empty{display:none;margin:0}
+
+@media (max-width:520px){
+  .call-status-wrap{left:1rem;right:1rem;max-width:none;align-items:stretch}
 }
 
 /* Spectator "up next" notification: a floating card that sits above the
