@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>PaddleStack</title>
 <meta name="theme-color" content="#0A1E3D">
 <meta name="mobile-web-app-capable" content="yes">
@@ -149,8 +149,20 @@
     <p class="winner-note" style="margin:-.3rem 0 .8rem">Sends a phone notification straight to whoever has selected this name on the spectator view.</p>
     <p class="add-hint" id="callOutDisabledNote" style="padding:0;margin:-.4rem 0 .8rem;color:var(--clay-deep)" hidden>Phone notifications are turned off — enable "Notify players by phone" in Settings to call players this way.</p>
     <div class="field" id="callOutCourtField">
-      <label for="callOutCourtSelect">Send them to (optional)</label>
-      <select id="callOutCourtSelect"><option value="">No specific court</option></select>
+      <label for="callOutCourtTrigger">Send them to (optional)</label>
+      <!-- Native <select> kept for state only (script.js reads/writes .value) —
+           the visible picker below is a custom dropdown so it can be themed to
+           match the app instead of the OS's own (dark, oversized) list popup,
+           and so it can be refreshed in the background without flickering
+           closed while the host has it open. -->
+      <select id="callOutCourtSelect" class="sr-only" tabindex="-1" aria-hidden="true"><option value="">No specific court</option></select>
+      <div class="custom-select" id="callOutCourtCustom">
+        <button type="button" class="custom-select-trigger" id="callOutCourtTrigger" aria-haspopup="listbox" aria-expanded="false">
+          <span id="callOutCourtTriggerLabel">No specific court</span>
+          <svg viewBox="0 0 24 24" class="custom-select-chevron"><use href="#i-chev"/></svg>
+        </button>
+        <div class="custom-select-panel" id="callOutCourtPanel" role="listbox" hidden></div>
+      </div>
     </div>
     <div class="rankings-toolbar" style="margin-bottom:.6rem">
       <svg viewBox="0 0 24 24"><use href="#i-search"/></svg>
