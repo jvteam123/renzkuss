@@ -5206,8 +5206,8 @@ function enterViewerMode(code){
     viewerIdentityBadge.hidden = false;
     viewerChangePlayerBtn.hidden = false;
     viewerIdentityBadge.innerHTML = (viewerIdentity.role === 'player')
-      ? `<svg viewBox="0 0 24 24" style="width:11px;height:11px"><use href="#i-bell"/></svg>Watching as <b>${esc(viewerIdentity.playerName)}</b>`
-      : `<svg viewBox="0 0 24 24" style="width:11px;height:11px"><use href="#i-user"/></svg>Watching as Guest`;
+      ? `<svg viewBox="0 0 24 24"><use href="#i-bell"/></svg><b>${esc(viewerIdentity.playerName)}</b>`
+      : `<svg viewBox="0 0 24 24"><use href="#i-user"/></svg>Guest`;
   }
 
   function openWhosWatching(){
