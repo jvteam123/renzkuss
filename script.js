@@ -138,7 +138,7 @@ function defaultCourts(n){
 
 function freshState(){
   return {
-    session: { name: 'PaddleStack', gameSize: 4, soundOn: true, status: 'active', targetGamesEnabled: false, targetGamesPerPlayer: 7, avoidRepeatTeammates: false, fixedDuos: [], scoringEnabled: true, winningScore: 11, autoStartEnabled: true, autoStartMinutes: 1, matchingStyle: 'winnersLosers', skillLevelsEnabled: false }, // status: 'active' | 'ended'; matchingStyle: 'balanced' | 'skillSeparated' | 'winnersLosers'; skillLevelsEnabled: off by default — everyone plays Open Play until turned on; autoStartMinutes: how long an open, ready court waits before auto-starting (default 1 minute)
+    session: { name: 'PaddleStack', gameSize: 4, soundOn: true, notifyCallsEnabled: true, status: 'active', targetGamesEnabled: false, targetGamesPerPlayer: 7, avoidRepeatTeammates: false, fixedDuos: [], scoringEnabled: true, winningScore: 11, autoStartEnabled: true, autoStartMinutes: 1, matchingStyle: 'winnersLosers', skillLevelsEnabled: false }, // status: 'active' | 'ended'; matchingStyle: 'balanced' | 'skillSeparated' | 'winnersLosers'; skillLevelsEnabled: off by default — everyone plays Open Play until turned on; autoStartMinutes: how long an open, ready court waits before auto-starting (default 1 minute); soundOn: on-site voice announcement only; notifyCallsEnabled: phone notifications on call-up, independent of soundOn
     courts: defaultCourts(2),
     arrivals: [],        // {id, name, addedAt} — added but not yet checked in; not part of the live queue
     stack: [],           // {id, name, joinedAt, tag: 'new'|'queued'}
@@ -1797,18 +1797,29 @@ function speakCallPlayers(court, names){
 function announceCallPlayers(court, btnEl){
   const names = court.previewOrder;
   if (!names || names.length === 0){ toast('Not enough players in the stack yet'); return; }
-  if (!state.session.soundOn){ toast('Turn on "Sound on call-up" in Settings to use Call Players'); return; }
-  speakCallPlayers(court, names);
-  if (btnEl){
-    btnEl.classList.add('speaking');
-    setTimeout(() => { btnEl.classList.remove('speaking'); }, 3500);
+  const voiceOn = !!state.session.soundOn;
+  const notifyOn = state.session.notifyCallsEnabled !== false;
+  if (!voiceOn && !notifyOn){
+    toast('Turn on "Call-up voice" or "Notify players by phone" in Settings to use Call Players');
+    return;
   }
-  // Phone notifications ride alongside the voice announcement — but only
-  // mean anything once someone could actually be watching, i.e. this
-  // device is currently broadcasting live.
-  if (hostSession){
+  if (voiceOn){
+    speakCallPlayers(court, names);
+    if (btnEl){
+      btnEl.classList.add('speaking');
+      setTimeout(() => { btnEl.classList.remove('speaking'); }, 3500);
+    }
+  }
+  // Phone notifications ride alongside (or instead of) the voice
+  // announcement — but only mean anything once someone could actually be
+  // watching, i.e. this device is currently broadcasting live.
+  if (notifyOn && hostSession){
     const calls = issuePlayerCall(names, { courtName: court.name });
     reportCallStatus(calls);
+  } else if (notifyOn && !hostSession && !voiceOn){
+    // They're relying entirely on phone notifications but aren't hosting
+    // live — nobody's watching yet, so say so instead of doing nothing.
+    toast('Go live in Host Online to notify players by phone');
   }
 }
 
@@ -3246,6 +3257,7 @@ const gameSizeSeg = $('#gameSizeSeg');
 const courtCountNum = $('#courtCountNum');
 const courtNameRows = $('#courtNameRows');
 const soundToggle = $('#soundToggle');
+const notifyCallsToggle = $('#notifyCallsToggle');
 const targetGamesToggle = $('#targetGamesToggle');
 const targetGamesSub = $('#targetGamesSub');
 const targetGamesInput = $('#targetGamesInput');
@@ -3267,6 +3279,7 @@ function openSettings(){
   settingsSessionName.value = state.session.name;
   courtCountNum.textContent = state.courts.length;
   soundToggle.checked = state.session.soundOn;
+  if (notifyCallsToggle) notifyCallsToggle.checked = state.session.notifyCallsEnabled !== false;
   targetGamesToggle.checked = state.session.targetGamesEnabled;
   targetGamesSub.hidden = !state.session.targetGamesEnabled;
   targetGamesInput.value = state.session.targetGamesPerPlayer;
@@ -3443,6 +3456,13 @@ soundToggle.addEventListener('change', () => {
   state.session.soundOn = soundToggle.checked;
   persist();
 });
+
+if (notifyCallsToggle){
+  notifyCallsToggle.addEventListener('change', () => {
+    state.session.notifyCallsEnabled = notifyCallsToggle.checked;
+    persist();
+  });
+}
 
 targetGamesToggle.addEventListener('change', () => {
   state.session.targetGamesEnabled = targetGamesToggle.checked;
@@ -4862,6 +4882,8 @@ function openCallOutOverlay(){
   if (!callOutOverlay) return;
   if (callOutSearch) callOutSearch.value = '';
   if (callOutStatusList) callOutStatusList.innerHTML = '';
+  const disabledNote = $('#callOutDisabledNote');
+  if (disabledNote) disabledNote.hidden = state.session.notifyCallsEnabled !== false;
   renderCallOutCourtOptions();
   renderCallOutList();
   callOutOverlay.hidden = false;
@@ -4892,6 +4914,10 @@ if (callOutOverlay){
     if (e.target.closest('#callOutDoneBtn')){ closeCallOutOverlay(); return; }
     const callBtn = e.target.closest('button[data-call-name]');
     if (callBtn){
+      if (state.session.notifyCallsEnabled === false){
+        toast('Turn on "Notify players by phone" in Settings first');
+        return;
+      }
       const name = callBtn.dataset.callName;
       const courtName = callOutCourtSelect ? callOutCourtSelect.value : '';
       callBtn.disabled = true;
@@ -5594,6 +5620,7 @@ function renderAll(){
     if (!Number.isFinite(state.session.autoStartMinutes) || state.session.autoStartMinutes < 1) state.session.autoStartMinutes = 1;
     if (state.session.matchingStyle !== 'balanced' && state.session.matchingStyle !== 'skillSeparated' && state.session.matchingStyle !== 'winnersLosers') state.session.matchingStyle = 'winnersLosers';
     if (typeof state.session.skillLevelsEnabled !== 'boolean') state.session.skillLevelsEnabled = false;
+    if (typeof state.session.notifyCallsEnabled !== 'boolean') state.session.notifyCallsEnabled = true;
     state.courts.forEach(c => { if (!('score' in c)) c.score = null; });
     if (!state.playerLevels || typeof state.playerLevels !== 'object') state.playerLevels = {};
     state.courts.forEach(c => { if (!c.level || !PLAYER_LEVELS.includes(c.level)) c.level = 'Open'; });
