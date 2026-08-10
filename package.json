@@ -1,1 +1,0 @@
-{ "name": "paddlestack", "private": true, "version": "1.0.0", "type": "module", "scripts": { "dev": "vite", "build": "vite build && node scripts/update-sw-precache.mjs", "preview": "vite preview" }, "devDependencies": { "vite": "^5.4.0" } }
