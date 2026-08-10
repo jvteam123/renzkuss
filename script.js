@@ -4048,7 +4048,7 @@ let lastStoppedHost = null; // { id, invite_code, session_name } | null — the 
    style.css) and by guarding the underlying functions themselves (see
    isCoHostRestricted below), so a co-host can't reach them even by poking
    at hidden elements. */
-const COHOST_CODE_ALPHABET = INVITE_CODE_ALPHABET;
+const COHOST_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // same safe alphabet as INVITE_CODE_ALPHABET below (no 0/O, 1/I) — duplicated as a literal, not a reference, so this doesn't depend on load order relative to that later `const`
 const COHOST_CODE_RE = new RegExp('^[' + COHOST_CODE_ALPHABET + ']{16,32}$');
 const COHOST_STORAGE_KEY = 'renzkuCohostSession';
 const COHOST_POLL_INTERVAL_MS = 2500;
