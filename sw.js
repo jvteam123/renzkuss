@@ -12,7 +12,7 @@
       This does NOT add true push-from-server delivery — a viewer tab still
       has to be open and polling for that part to work. */
 
-const CACHE_VERSION = 'v7'; // bumped for the viewer-refresh reconnect/snapshot fix
+const CACHE_VERSION = 'v8'; // bumped for the co-host feature + the INVITE_CODE_ALPHABET load-order crash fix in script.js
 const CACHE_NAME = 'renzku-shell-' + CACHE_VERSION;
 
 // Same-origin files needed to render and run the app with no network at
