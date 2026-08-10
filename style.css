@@ -1513,6 +1513,46 @@ html[data-theme="dark"] .vb-live-badge{background:rgba(255,107,117,.16)}
   .viewer-identity-badge{flex:1 1 auto;justify-content:center}
 }
 
+/* ---- Co-host banner ---- */
+.cohost-live-badge{color:var(--gold-deep);background:var(--gold-pale)}
+.cohost-banner .vb-live-dot{background:var(--gold-deep)}
+
+/* ---- Co-host mode: full gameplay access, but settings/roster/account
+   actions stay host-only. Mirrors body.viewer-mode below, but co-hosts
+   keep the normal stack/courts layout (they need to see who's queued to
+   know when to call the next game) — only specific controls are hidden. */
+body.cohost-mode #hostOnlineBtn,
+body.cohost-mode #settingsBtn,
+body.cohost-mode #callOutTopBtn,
+body.cohost-mode #addPlayerTabBtn,
+body.cohost-mode #checkInTabBtn,
+body.cohost-mode .session-banner,
+body.cohost-mode .player-swap-btn,
+body.cohost-mode .block-flush-btn,
+body.cohost-mode .block-level-flush-btn{ display:none !important; }
+body.cohost-mode #stackList .reorder,
+body.cohost-mode #stackList .remove-btn,
+body.cohost-mode #stackList .level-badge[data-act="cycle-level"]{ display:none !important; }
+body.cohost-mode .court-name{ pointer-events:none; }
+
+/* ---- Host panel: co-host access section ---- */
+.host-cohost-card{
+  text-align:left;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--line);
+}
+.host-cohost-header{
+  display:flex;align-items:center;gap:.5rem;font-weight:700;font-size:.86rem;color:var(--ink);
+}
+.cohost-on-badge{
+  font-family:var(--font-mono);font-size:.6rem;font-weight:700;letter-spacing:.04em;
+  text-transform:uppercase;padding:.08rem .5rem;border-radius:99px;
+  background:var(--turf-pale);color:var(--turf-deep);
+}
+.host-cohost-link{
+  font-family:var(--font-mono);font-size:.72rem;line-height:1.4;word-break:break-all;
+  color:var(--turf-deep);background:var(--turf-pale);border-radius:var(--radius-sm);
+  padding:.6rem .7rem;margin:.6rem 0;user-select:all;
+}
+
 /* ---------- Who's Watching modal ---------- */
 .whos-watching-modal{max-width:420px}
 .whos-watching-choices{display:flex;flex-direction:column;gap:.7rem}
