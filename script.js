@@ -6417,7 +6417,17 @@ function renderAll(){
   const localHostSession = joinCode ? loadHostSession() : null;
   const isOwnHostLink = !!(joinCode && localHostSession && localHostSession.invite_code === joinCode);
   if (joinCode && cohostCodeParam && !isOwnHostLink){
-    if (await enterCoHostMode(joinCode, cohostCodeParam)) return; // co-host mode never touches local IndexedDB/localStorage app state — see persist()
+    // Don't re-prompt "Co-host this game?" on every refresh — a browser
+    // reload hits this exact same URL (query params and all) every time,
+    // so without this check the confirm would fire again and again for as
+    // long as the person keeps this link open/bookmarked. Only skip it
+    // when this device already accepted THIS SAME code before; a genuinely
+    // different link (say, after the host regenerated one) still confirms.
+    const alreadyAccepted = (() => {
+      const saved = loadCohostSession();
+      return !!(saved && saved.invite_code === joinCode && saved.cohost_code === cohostCodeParam);
+    })();
+    if (await enterCoHostMode(joinCode, cohostCodeParam, { skipConfirm: alreadyAccepted })) return; // co-host mode never touches local IndexedDB/localStorage app state — see persist()
     // Invalid/declined/revoked — fall through to the normal local app rather than leaving the tab blank.
   }
   if (joinCode && !isOwnHostLink){
