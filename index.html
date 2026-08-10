@@ -111,6 +111,19 @@
   </div>
 </div>
 
+<!-- Co-host banner: shown on a device that accepted a co-host link. Full
+     read/write access to gameplay, but not settings/roster (see body.cohost-mode
+     rules in style.css and the coHostMode guards in script.js). -->
+<div class="viewer-banner cohost-banner" id="cohostBanner" hidden>
+  <div class="vb-status">
+    <span class="vb-live-badge cohost-live-badge"><span class="vb-live-dot"></span>Co-hosting</span>
+    <span class="msg" id="cohostBannerMsg"></span>
+  </div>
+  <div class="vb-actions">
+    <button type="button" class="btn ghost sm" id="cohostLeaveBtn">Stop co-hosting</button>
+  </div>
+</div>
+
 <!-- Who's Watching modal (Visiting Spectator View entry point) -->
 <div class="overlay whos-watching-overlay" id="whosWatchingOverlay" hidden>
   <div class="modal whos-watching-modal" role="dialog" aria-modal="true" aria-labelledby="whosWatchingTitle">
