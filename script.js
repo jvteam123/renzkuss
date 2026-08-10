@@ -49,9 +49,14 @@ async function idbSet(key, value){
 // burst to coalesce and a spectator noticing the delay is worse than the
 // extra network request — see queueHostPush below.
 async function persist(immediate){
-  const ok = await idbSet('state', state);
-  if (!ok){
-    try{ localStorage.setItem('paddleStackQueueState', JSON.stringify(state)); }catch(e){}
+  // A co-host device's local storage is never the source of truth — same
+  // principle as viewer mode — so skip the local write entirely and go
+  // straight to pushing the change to the shared server row.
+  if (!coHostMode){
+    const ok = await idbSet('state', state);
+    if (!ok){
+      try{ localStorage.setItem('paddleStackQueueState', JSON.stringify(state)); }catch(e){}
+    }
   }
   if (typeof queueHostPush === 'function') queueHostPush(immediate);
 }
@@ -429,6 +434,7 @@ const levelPickerCancelBtn = $('#levelPickerCancelBtn');
 const CHECK_ICON = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>';
 let levelPickerName = null;
 function openLevelPicker(name){
+  if (isCoHostRestricted()) return;
   if (!name || !levelPickerOverlay) return;
   levelPickerName = name;
   levelPickerNameEl.textContent = name;
@@ -997,6 +1003,7 @@ function updateEndSessionBtn(){
 }
 
 async function endSession(){
+  if (isCoHostRestricted()) return;
   if (!(await showConfirm('No new matches can be started and the stack will be locked, but the stack, courts, history and rankings all stay exactly as they are for review. You can resume anytime.', {title: 'End this session?', confirmLabel: 'End session'}))) return;
   state.session.status = 'ended';
   persist();
@@ -1006,6 +1013,7 @@ async function endSession(){
   toast('Session ended — all records kept for review');
 }
 function resumeSession(){
+  if (isCoHostRestricted()) return;
   state.session.status = 'active';
   persist();
   applySessionLockUI();
@@ -1232,8 +1240,12 @@ blocksPanel.addEventListener('click', (e) => {
     openBlockSubPicker(subBtn.dataset.blockSub, subBtn.dataset.entryId);
     return;
   }
+  // Manually flushing a block (whole or by level) is queue-composition
+  // management, not "start games, score, sub" — stays host-only. Subbing
+  // a player in the block above (handled just above) is still allowed.
   const levelBtn = e.target.closest('button[data-level-flush]');
   if (levelBtn){
+    if (isCoHostRestricted()) return;
     flushBlockLevelToQueue(levelBtn.dataset.blockFlush, levelBtn.dataset.levelFlush);
     toast(levelBtn.dataset.levelFlush + ' group moved to queue');
     renderAll(); persist();
@@ -1241,6 +1253,7 @@ blocksPanel.addEventListener('click', (e) => {
   }
   const btn = e.target.closest('button[data-block]');
   if (!btn || btn.disabled) return;
+  if (isCoHostRestricted()) return;
   const key = btn.dataset.block === 'winners' ? 'winnersBlock' : 'losersBlock';
   const label = btn.dataset.block === 'winners' ? 'Winners block' : 'Losers block';
   flushBlockToQueue(key);
@@ -1252,6 +1265,9 @@ stackList.addEventListener('click', async (e) => {
   if (isSessionEnded()) return;
   const btn = e.target.closest('button[data-act]');
   if (!btn) return;
+  // Reordering/removing the queue and changing a player's skill level are
+  // all queue/roster management — stays host-only for a co-host device.
+  if (isCoHostRestricted()) return;
   const act = btn.dataset.act;
   if (act === 'cycle-level'){ openLevelPicker(btn.dataset.name); return; }
   const row = btn.closest('.paddle');
@@ -1379,6 +1395,7 @@ function closeRenamePlayer(){
   renamePlayerOriginal = null;
 }
 function renamePlayerEverywhere(oldName, newName){
+  if (isCoHostRestricted()) return;
   const oldLower = normalizeName(oldName);
   state.arrivals.forEach(p => { if (normalizeName(p.name) === oldLower) p.name = newName; });
   state.stack.forEach(p => { if (normalizeName(p.name) === oldLower) p.name = newName; });
@@ -1443,6 +1460,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && renamePl
 const rosterClearAllBtn = $('#rosterClearAllBtn');
 if (rosterClearAllBtn){
   rosterClearAllBtn.addEventListener('click', async () => {
+    if (isCoHostRestricted()) return;
     if (state.roster.length === 0) return;
     if (!(await showConfirm('This clears every saved suggestion — it won\'t affect history, rankings, or anyone currently on the floor.', {title: 'Clear all ' + state.roster.length + ' known players?', confirmLabel: 'Clear all', danger: true}))) return;
     state.roster = [];
@@ -1471,6 +1489,7 @@ function isNameActive(name){
 /* Players land here first (added, but not yet on the floor). They only join the
    live stack once someone checks them in as arrived — see checkInArrival(s) below. */
 function addNamesToArrivals(names, level){
+  if (isCoHostRestricted()) return;
   const lvl = PLAYER_LEVELS.includes(level) ? level : 'Open';
   const added = [];
   const skipped = [];
@@ -1527,6 +1546,7 @@ $('#bulkAddBtn').addEventListener('click', function(){
 
 /* ---- Check-in: moves a waiting arrival into the live stack ---- */
 async function checkInArrival(id){
+  if (isCoHostRestricted()) return;
   const entry = state.arrivals.find(a => a.id === id);
   if (!entry) return;
   if (!(await showConfirm('Add ' + entry.name + ' to the live stack now?', {title: 'Check in ' + entry.name + '?', confirmLabel: 'Check in'}))) return;
@@ -1544,6 +1564,7 @@ async function checkInArrival(id){
   renderAll(); persist();
 }
 async function checkInAllArrivals(){
+  if (isCoHostRestricted()) return;
   if (state.arrivals.length === 0) return;
   const idsAtOpen = new Set(state.arrivals.map(a => a.id));
   const names = state.arrivals.map(a => a.name);
@@ -1564,6 +1585,7 @@ async function checkInAllArrivals(){
   renderAll(); persist();
 }
 async function removeArrival(id){
+  if (isCoHostRestricted()) return;
   const entryBefore = state.arrivals.find(a => a.id === id);
   if (!entryBefore) return;
   const name = entryBefore.name;
@@ -2267,6 +2289,7 @@ function getAutoStartMs(){
 }
 
 function swapCourtPartner(court, idx){
+  if (isCoHostRestricted()) return;
   const arr0 = court.status === 'open' ? court.previewOrder : court.players;
   if (arr0 && isInFixedDuo(arr0[idx])){
     toast('That pairing is fixed \u2014 can\u2019t swap them apart', 'warning');
@@ -2726,6 +2749,7 @@ courtsGrid.addEventListener('change', (e) => {
   if (viewerMode) return;
   const input = e.target.closest('input[data-act="rename"]');
   if (!input) return;
+  if (isCoHostRestricted()) return; // court naming is settings territory, not gameplay
   const card = input.closest('.court-card');
   const court = state.courts.find(c => c.id === card.dataset.id);
   if (!court) return;
@@ -3444,6 +3468,7 @@ const skillLevelsToggle = $('#skillLevelsToggle');
 const matchStyleGroup = $('#matchStyleGroup');
 
 function openSettings(){
+  if (isCoHostRestricted()) return;
   settingsSessionName.value = state.session.name;
   courtCountNum.textContent = state.courts.length;
   soundToggle.checked = state.session.soundOn;
@@ -4008,6 +4033,40 @@ let lastStoppedHost = null; // { id, invite_code, session_name } | null — the 
                              // just stopped hosting, kept around so the panel can offer to pick
                              // it back up on the same link (same row, re-activated) or start fresh
 
+/* ---- Co-host mode: a second device manages the same live match ----
+   A co-host is NOT a second login on the host's account (that's already
+   blocked by the single-device-login claim system above) — it's a scoped,
+   no-account credential (a long random code, separate from the read-only
+   spectator invite code) that a trusted helper opens via a link. That
+   device then runs almost the same UI as the host — start games, keep
+   score, handle substitutions — but pushes/pulls state through its own
+   RPCs (see supabase-cohost.sql) instead of an authenticated PATCH, and
+   never touches this device's local IndexedDB (same principle as viewer
+   mode: the server row is the only source of truth here).
+   Settings, the player roster, and account/session-lifecycle actions stay
+   host-only — enforced both by hiding those controls (body.cohost-mode in
+   style.css) and by guarding the underlying functions themselves (see
+   isCoHostRestricted below), so a co-host can't reach them even by poking
+   at hidden elements. */
+const COHOST_CODE_ALPHABET = INVITE_CODE_ALPHABET;
+const COHOST_CODE_RE = new RegExp('^[' + COHOST_CODE_ALPHABET + ']{16,32}$');
+const COHOST_STORAGE_KEY = 'renzkuCohostSession';
+const COHOST_POLL_INTERVAL_MS = 2500;
+let cohostSession = null;   // { id, invite_code, cohost_code, session_name } | null — this device's
+                             // accepted co-host credential, if any
+let coHostMode = false;     // true once this device has actually entered co-host mode this load
+let cohostModeInitialized = false; // guards against enterCoHostMode() running twice, same idea as
+                                    // viewerModeInitialized above
+let cohostPollTimer = null;
+let cohostPollFn = null;    // lets the global online/visibility/pageshow handlers trigger an
+                             // immediate re-poll, same pattern as viewerPollFn
+let lastCohostStateAt = 0;  // most recent updated_at (ms) this device has actually applied —
+                             // stops a slow/late poll response from yanking a newer local edit
+                             // backward
+let hostCohostCode = null;  // the ACTIVE co-host code for hostSession's row, as last fetched by
+                             // this (the real host's) device — null if co-host access is off
+let hostCohostBusy = false; // true while an enable/disable/regenerate request is in flight
+
 function b64UrlDecode(str){
   str = str.replace(/-/g, '+').replace(/_/g, '/');
   while (str.length % 4) str += '=';
@@ -4048,6 +4107,33 @@ function loadHostSession(){
     const raw = localStorage.getItem(HOST_STORAGE_KEY);
     return raw ? JSON.parse(raw) : null;
   }catch(e){ return null; }
+}
+
+function saveCohostSession(session){
+  cohostSession = session;
+  hostReconnecting = false;
+  hostPushPending = false;
+  stopHostReconnectRetry();
+  try{
+    if (session) localStorage.setItem(COHOST_STORAGE_KEY, JSON.stringify(session));
+    else localStorage.removeItem(COHOST_STORAGE_KEY);
+  }catch(e){}
+}
+function loadCohostSession(){
+  try{
+    const raw = localStorage.getItem(COHOST_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){ return null; }
+}
+
+/* True (and toasts a heads-up) if this device is a co-host and the action
+   being attempted is out of scope for one — settings, the player roster,
+   and account/session-lifecycle actions stay host-only. Call at the top
+   of any such action, before it mutates anything. */
+function isCoHostRestricted(){
+  if (!coHostMode) return false;
+  toast('Co-hosts can\u2019t do that \u2014 ask the host', 'warning');
+  return true;
 }
 
 function applyAuthResponse(data){
@@ -4701,6 +4787,189 @@ async function checkHostStillLive(){
 }
 setInterval(() => { if (hostSession) checkHostStillLive(); }, 2 * 60 * 1000);
 
+/* ---- Co-host: fetch/claim/push helpers ----
+   cohost_fetch_state and cohost_push_state (see supabase-cohost.sql) are
+   the only two entry points a co-host device ever calls — both anon-key,
+   both re-checking the invite code + cohost code + status='live' server
+   side on every call, since there's no login/JWT backing this device's
+   access the way there is for the real host. */
+async function fetchCohostState(inviteCode, cohostCodeVal){
+  try{
+    const res = await sbFetch('/rest/v1/rpc/cohost_fetch_state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_invite_code: inviteCode, p_cohost_code: cohostCodeVal })
+    }, false);
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => null);
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row || !row.id) return null;
+    return row; // { id, session_name, status, state, updated_at_ms }
+  }catch(e){ return null; }
+}
+
+/* Entry point for a device opening a ?join=CODE&cohost=SECRET link, or
+   auto-resuming a previously-accepted co-host session on reload (see
+   init() below). Unlike enterViewerMode, this actually takes over the
+   normal host-facing UI (courts, stack, scoring) rather than a stripped
+   read-only one — see body.cohost-mode in style.css and the
+   isCoHostRestricted() guards scattered through the mutating functions
+   above for what stays off-limits. */
+async function enterCoHostMode(inviteCode, cohostCodeVal, opts){
+  opts = opts || {};
+  if (cohostModeInitialized){
+    console.warn('[Co-host] enterCoHostMode() called again in the same session — ignoring duplicate init');
+    return false;
+  }
+  if (!inviteCode || !INVITE_CODE_RE.test(inviteCode) || !cohostCodeVal || !COHOST_CODE_RE.test(cohostCodeVal)){
+    toast('That co-host link looks invalid or incomplete', 'warning');
+    saveCohostSession(null);
+    return false;
+  }
+  const fetched = await fetchCohostState(inviteCode, cohostCodeVal);
+  if (!fetched){
+    // Only surface this as an error for a fresh link click — a silently
+    // stale auto-resume (e.g. the host turned access off while this
+    // device was closed) should just fall through to the normal local
+    // app instead of greeting the person with a warning toast.
+    if (!opts.skipConfirm) toast('This co-host link is no longer valid \u2014 ask the host to resend it', 'warning');
+    saveCohostSession(null);
+    return false;
+  }
+  if (!opts.skipConfirm){
+    const ok = await showConfirm(
+      'As a co-host you can start games, keep score, and manage substitutions on \u201c' + (fetched.session_name || 'this match') + '\u201d. Settings and the player roster stay with the host.',
+      { title: 'Co-host this game?', confirmLabel: 'Start co-hosting' }
+    );
+    if (!ok) return false;
+  }
+  cohostModeInitialized = true;
+  coHostMode = true;
+  document.body.classList.add('cohost-mode');
+  saveCohostSession({ id: fetched.id, invite_code: inviteCode, cohost_code: cohostCodeVal, session_name: fetched.session_name });
+  lastCohostStateAt = fetched.updated_at_ms || Date.now();
+  state = fetched.state;
+  const banner = $('#cohostBanner');
+  const msgEl = $('#cohostBannerMsg');
+  if (banner) banner.hidden = false;
+  if (msgEl) msgEl.textContent = fetched.session_name || 'Live match';
+  renderAll();
+  toast('You\u2019re co-hosting \u2014 changes sync live with the host');
+  startCohostPoll();
+  return true;
+}
+
+/* Access was revoked (host turned it off / regenerated the code) or the
+   match itself ended — either way this device can't keep managing it.
+   Reload so the normal boot sequence takes over cleanly (same recovery
+   shape as forceLocalLogout, just for the co-host credential instead of
+   the account login). */
+function handleCohostAccessLost(reason){
+  stopCohostPoll();
+  saveCohostSession(null);
+  coHostMode = false;
+  cohostModeInitialized = false;
+  toast(reason === 'ended' ? 'This match has ended.' : 'Your co-host access was turned off by the host.', 'warning');
+  setTimeout(() => location.reload(), 1200); // give the toast a moment to actually be seen
+}
+
+function startCohostPoll(){
+  if (cohostPollTimer){ clearInterval(cohostPollTimer); cohostPollTimer = null; }
+  const poll = async () => {
+    if (!cohostSession) return;
+    // Don't let an incoming snapshot clobber an edit of ours that's still
+    // on its way out (or about to be sent) — same reasoning as the
+    // in-flight guard in pushStateNow.
+    if (hostPushPending || hostPushInFlight) return;
+    const fetched = await fetchCohostState(cohostSession.invite_code, cohostSession.cohost_code);
+    if (!fetched){ handleCohostAccessLost('revoked'); return; }
+    if (fetched.status !== 'live'){ handleCohostAccessLost('ended'); return; }
+    // Only adopt a snapshot that's actually newer than what we already
+    // have — a slow poll response landing after we've since pushed a
+    // newer edit of our own would otherwise yank the screen backward.
+    if (fetched.updated_at_ms && fetched.updated_at_ms <= lastCohostStateAt) return;
+    lastCohostStateAt = fetched.updated_at_ms || Date.now();
+    state = fetched.state;
+    renderAll();
+  };
+  cohostPollFn = poll;
+  cohostPollTimer = setInterval(poll, COHOST_POLL_INTERVAL_MS);
+}
+function stopCohostPoll(){
+  if (cohostPollTimer){ clearInterval(cohostPollTimer); cohostPollTimer = null; }
+  cohostPollFn = null;
+}
+
+/* Voluntary exit — the co-host taps "Stop co-hosting" themselves, as
+   opposed to being kicked by handleCohostAccessLost. Just forgets the
+   credential locally; doesn't touch the host's session at all. */
+function leaveCohostMode(){
+  stopCohostPoll();
+  saveCohostSession(null);
+  coHostMode = false;
+  cohostModeInitialized = false;
+  location.href = location.pathname; // drop the ?join=&cohost= params and reload into the normal local app
+}
+const cohostLeaveBtn = $('#cohostLeaveBtn');
+if (cohostLeaveBtn) cohostLeaveBtn.addEventListener('click', async () => {
+  if (!(await showConfirm('You can stop co-hosting any time \u2014 the match keeps going for the host and anyone else managing it.', {title: 'Stop co-hosting?', confirmLabel: 'Stop co-hosting'}))) return;
+  leaveCohostMode();
+});
+
+/* ---- Host panel: enable/disable co-host access for the live session ----
+   enable_cohost / disable_cohost (see supabase-cohost.sql) are SECURITY
+   DEFINER functions that re-check auth.uid() = host_id server-side before
+   touching anything — same pattern as claim_device_session above — so
+   these calls only ever succeed for the actual logged-in host. */
+async function refreshHostCohostCode(){
+  if (!hostSession){ hostCohostCode = null; return; }
+  try{
+    const res = await sbFetch(`/rest/v1/hosted_sessions?id=eq.${hostSession.id}&select=cohost_code`, { method: 'GET' }, true);
+    if (!res.ok) return;
+    const rows = await res.json().catch(() => []);
+    const row = Array.isArray(rows) ? rows[0] : null;
+    hostCohostCode = row ? row.cohost_code : null;
+  }catch(e){}
+}
+async function enableCohostAccess(){
+  if (!hostSession || hostCohostBusy) return;
+  hostCohostBusy = true; renderHostPanel();
+  try{
+    const res = await sbFetch('/rest/v1/rpc/enable_cohost', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_session_id: hostSession.id })
+    }, true);
+    if (!res.ok) throw new Error('enable_cohost failed: HTTP ' + res.status);
+    const data = await res.json().catch(() => null);
+    const row = Array.isArray(data) ? data[0] : data;
+    hostCohostCode = row && row.cohost_code ? row.cohost_code : null;
+    if (hostCohostCode) toast('Co-host access is on \u2014 share the link below');
+    else toast('Could not enable co-host access \u2014 try again', 'warning');
+  }catch(e){
+    toast('Could not enable co-host access \u2014 has supabase-cohost.sql been applied yet?', 'warning');
+  }finally{
+    hostCohostBusy = false; renderHostPanel();
+  }
+}
+async function disableCohostAccess(){
+  if (!hostSession || hostCohostBusy) return;
+  hostCohostBusy = true; renderHostPanel();
+  try{
+    const res = await sbFetch('/rest/v1/rpc/disable_cohost', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_session_id: hostSession.id })
+    }, true);
+    if (res.ok){ hostCohostCode = null; toast('Co-host access turned off \u2014 the old link no longer works'); }
+    else toast('Could not turn off co-host access \u2014 try again', 'warning');
+  }catch(e){
+    toast('Could not turn off co-host access \u2014 try again', 'warning');
+  }finally{
+    hostCohostBusy = false; renderHostPanel();
+  }
+}
+
 /* ---- Reconnection handling ----
    A push or keepalive failing doesn't necessarily mean the match stopped —
    most of the time it's a wifi blip or a spotty venue connection. Instead
@@ -4731,7 +5000,7 @@ function stopHostReconnectRetry(){
 }
 
 async function pushStateNow(){
-  if (!hostSession) return;
+  if (!hostSession && !cohostSession) return;
   // Guard against two PATCHes ever being in flight to the same row at once.
   // Without this, a slow earlier request finishing AFTER a later one could
   // silently overwrite a viewer's fresh state with an older snapshot — the
@@ -4742,18 +5011,44 @@ async function pushStateNow(){
   if (hostPushInFlight) return;
   hostPushInFlight = true;
   try{
-    await sbFetch(`/rest/v1/hosted_sessions?id=eq.${hostSession.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ state: state, session_name: state.session.name })
-    }, true);
+    if (hostSession){
+      await sbFetch(`/rest/v1/hosted_sessions?id=eq.${hostSession.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ state: state, session_name: state.session.name })
+      }, true);
+    } else {
+      // Co-host push: no login, so this goes out under the anon key with
+      // the co-host's own scoped code — cohost_push_state (see
+      // supabase-cohost.sql) re-validates that code server-side (and that
+      // the match is still live) before writing anything.
+      const res = await sbFetch('/rest/v1/rpc/cohost_push_state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          p_invite_code: cohostSession.invite_code,
+          p_cohost_code: cohostSession.cohost_code,
+          p_state: state,
+          p_session_name: state.session.name
+        })
+      }, false);
+      if (!res.ok) throw new Error('cohost_push_state failed: HTTP ' + res.status);
+      const data = await res.json().catch(() => null);
+      const row = Array.isArray(data) ? data[0] : data;
+      if (row && row.ok === false){
+        hostPushInFlight = false;
+        hostPushPending = false;
+        handleCohostAccessLost('revoked');
+        return;
+      }
+    }
     hostPushPending = false;
     setHostReconnecting(false);
     hostPushInFlight = false;
     // Something changed (queueHostPush was called again) while this request
     // was still in flight — send that latest state right away instead of
     // waiting out the next debounce tick or the 4s reconnect-retry loop.
-    if (hostPushPending && hostSession) pushStateNow();
+    if (hostPushPending && (hostSession || cohostSession)) pushStateNow();
   }catch(e){
     hostPushInFlight = false;
     // Leave hostPushPending true — the fast retry loop (or the next state
@@ -4765,7 +5060,7 @@ async function pushStateNow(){
 // `immediate`: bypass the debounce entirely and push right now (still
 // respecting the in-flight guard in pushStateNow above) — see persist().
 function queueHostPush(immediate){
-  if (!hostSession || viewerMode) return;
+  if ((!hostSession && !cohostSession) || viewerMode) return;
   hostPushPending = true;
   if (immediate){
     if (hostPushTimer){ clearTimeout(hostPushTimer); hostPushTimer = null; }
@@ -4780,7 +5075,7 @@ function queueHostPush(immediate){
   // change for a second and a half before anyone watching sees it.
   hostPushTimer = setTimeout(() => {
     hostPushTimer = null;
-    if (!hostPushPending || !hostSession) return;
+    if (!hostPushPending || (!hostSession && !cohostSession)) return;
     pushStateNow();
   }, 500);
 }
@@ -4800,6 +5095,9 @@ function updateHostIndicator(){
 
 function joinUrlFor(code){
   return location.origin + location.pathname + '?join=' + encodeURIComponent(code);
+}
+function cohostUrlFor(inviteCode, cohostCodeVal){
+  return location.origin + location.pathname + '?join=' + encodeURIComponent(inviteCode) + '&cohost=' + encodeURIComponent(cohostCodeVal);
 }
 
 function renderHostPanel(){
@@ -4980,6 +5278,27 @@ function renderHostPanel(){
         <button type="button" class="btn ghost sm" id="hostCopyCodeBtn">Copy code</button>
       </div>
       <button type="button" class="btn danger" id="hostStopBtn" style="width:100%;margin-top:.7rem" ${hostBusy ? 'disabled' : ''}>Stop hosting</button>
+      <div class="host-cohost-card">
+        <div class="host-cohost-header">
+          <span>\u{1F91D} Co-host access</span>
+          ${hostCohostCode ? '<span class="cohost-on-badge">On</span>' : ''}
+        </div>
+        <p class="host-live-note" style="margin-top:.3rem">
+          ${hostCohostCode
+            ? 'Anyone with this link can start games, keep score, and manage substitutions \u2014 they can\u2019t touch settings or the roster.'
+            : 'Give a trusted helper their own link to run the courts \u2014 no account needed on their end, and they can\u2019t change settings or the roster.'}
+        </p>
+        ${hostCohostCode ? `
+          <div class="host-cohost-link" id="cohostLinkText">${esc(cohostUrlFor(hostSession.invite_code, hostCohostCode))}</div>
+          <div class="host-live-actions">
+            <button type="button" class="btn ghost sm" id="cohostCopyLinkBtn" ${hostCohostBusy ? 'disabled' : ''}>Copy link</button>
+            <button type="button" class="btn ghost sm" id="cohostRegenBtn" ${hostCohostBusy ? 'disabled' : ''}>${hostCohostBusy ? 'Working\u2026' : 'Regenerate'}</button>
+          </div>
+          <button type="button" class="btn danger sm" id="cohostDisableBtn" style="width:100%;margin-top:.5rem" ${hostCohostBusy ? 'disabled' : ''}>Turn off co-host access</button>
+        ` : `
+          <button type="button" class="btn ghost sm" id="cohostEnableBtn" style="width:100%" ${hostCohostBusy ? 'disabled' : ''}>${hostCohostBusy ? 'Working\u2026' : 'Enable co-host access'}</button>
+        `}
+      </div>
     </div>
   `;
   const qrBox = $('#hostQrBox');
@@ -5139,6 +5458,7 @@ function renderCallOutList(){
 function openCallOutOverlay(){
   if (!callOutOverlay) return;
   if (viewerMode) return; // spectators never get the host-only "call a player" action
+  if (isCoHostRestricted()) return; // paging/staff-call stays host-only too
   if (callOutSearch) callOutSearch.value = '';
   if (callOutStatusList) callOutStatusList.innerHTML = '';
   const disabledNote = $('#callOutDisabledNote');
@@ -5194,14 +5514,18 @@ if (callOutOverlay){
 }
 
 function openHostOverlay(){
+  if (isCoHostRestricted()) return; // account/billing/stop-hosting panel is host-only
   hostErrorMsg = '';
   if (!hostSession) remoteLiveChecked = false; // re-check each time the panel opens, in case
                                                 // the other device came back and stopped it, etc.
   hostPendingCreditRequest = undefined; // re-fetch too, in case an admin reviewed it since the overlay was last open
   renderHostPanel();
   hostOverlay.hidden = false;
-  if (hostSession) checkHostStillLive(); // catch an idle/cron auto-stop that happened while this
-                                          // device wasn't looking, and re-render if so
+  if (hostSession){
+    checkHostStillLive(); // catch an idle/cron auto-stop that happened while this
+                           // device wasn't looking, and re-render if so
+    refreshHostCohostCode().then(renderHostPanel);
+  }
 }
 
 function goWatchCode(){
@@ -5269,6 +5593,16 @@ hostOverlay.addEventListener('click', (e) => {
   if (e.target.closest('#hostEndRemoteBtn')){ endRemoteSession(); return; }
   if (e.target.closest('#hostCopyLinkBtn')){ copyText(joinUrlFor(hostSession.invite_code)); return; }
   if (e.target.closest('#hostCopyCodeBtn')){ copyText(hostSession.invite_code); return; }
+  if (e.target.closest('#cohostEnableBtn')){ enableCohostAccess(); return; }
+  if (e.target.closest('#cohostCopyLinkBtn')){ if (hostCohostCode) copyText(cohostUrlFor(hostSession.invite_code, hostCohostCode)); return; }
+  if (e.target.closest('#cohostRegenBtn')){ enableCohostAccess(); return; } // re-running enable_cohost issues a fresh code, invalidating the old link
+  if (e.target.closest('#cohostDisableBtn')){
+    (async () => {
+      if (!(await showConfirm('The current co-host link will stop working right away. You can turn access back on any time.', {title: 'Turn off co-host access?', confirmLabel: 'Turn off', danger: true}))) return;
+      disableCohostAccess();
+    })();
+    return;
+  }
   // "Call a player" now lives in the topbar (see callOutTopBtn below) since
   // it's a general paging action, not something tied to the live-hosting
   // flow — it used to sit inside this panel wedged between the QR/share
@@ -5985,6 +6319,10 @@ window.addEventListener('online', () => {
     if (hostPushPending) pushStateNow();
     else checkHostStillLive();
   }
+  if (cohostSession){
+    if (hostPushPending) pushStateNow();
+    if (cohostPollFn) cohostPollFn();
+  }
   if (authSession) checkDeviceStillActive();
   if (viewerMode && viewerPollFn) viewerPollFn();
 });
@@ -6029,6 +6367,14 @@ window.addEventListener('pageshow', (event) => {
     if (hostPushPending) pushStateNow();
     else checkHostStillLive();
   }
+  if (cohostSession){
+    if (cohostPollTimer){ clearInterval(cohostPollTimer); cohostPollTimer = null; }
+    if (cohostPollFn){
+      cohostPollTimer = setInterval(cohostPollFn, COHOST_POLL_INTERVAL_MS);
+      if (hostPushPending) pushStateNow();
+      cohostPollFn(); // catch up right now instead of waiting out a fresh interval
+    }
+  }
   if (authSession) checkDeviceStillActive();
 });
 
@@ -6042,7 +6388,9 @@ window.addEventListener('pageshow', (event) => {
    reasoning as the 'online' handler above, just for a different cause of
    staleness. */
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && viewerMode && viewerPollFn) viewerPollFn();
+  if (document.visibilityState !== 'visible') return;
+  if (viewerMode && viewerPollFn) viewerPollFn();
+  if (cohostSession && cohostPollFn) cohostPollFn();
 });
 
 /* ================= Render orchestration ================= */
@@ -6059,16 +6407,31 @@ function renderAll(){
 
 /* ================= Boot ================= */
 (async function init(){
-  const joinCode = new URLSearchParams(location.search).get('join');
+  const urlParams = new URLSearchParams(location.search);
+  const joinCode = urlParams.get('join');
+  const cohostCodeParam = urlParams.get('cohost');
   // If this is the host's own share link (they're already signed in and
   // currently broadcasting that exact code), don't drop them into the
   // read-only spectator view — just take them straight to their normal
   // host dashboard instead.
   const localHostSession = joinCode ? loadHostSession() : null;
   const isOwnHostLink = !!(joinCode && localHostSession && localHostSession.invite_code === joinCode);
+  if (joinCode && cohostCodeParam && !isOwnHostLink){
+    if (await enterCoHostMode(joinCode, cohostCodeParam)) return; // co-host mode never touches local IndexedDB/localStorage app state — see persist()
+    // Invalid/declined/revoked — fall through to the normal local app rather than leaving the tab blank.
+  }
   if (joinCode && !isOwnHostLink){
     enterViewerMode(joinCode);
     return; // spectator view never touches local IndexedDB/localStorage app state
+  }
+  // No join link this time around — but if this device already accepted a
+  // co-host invite earlier (and hasn't tapped "Stop co-hosting" since),
+  // pick that same session back up automatically, same as a real host's
+  // browser resuming hostSession below.
+  const savedCohost = loadCohostSession();
+  if (savedCohost && savedCohost.invite_code && savedCohost.cohost_code){
+    if (await enterCoHostMode(savedCohost.invite_code, savedCohost.cohost_code, { skipConfirm: true })) return;
+    // Access was revoked while this device was closed — fall through to the normal local app.
   }
 
   idb = await openDB();
