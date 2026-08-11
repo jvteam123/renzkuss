@@ -2461,6 +2461,10 @@ function renderSubPicker(court){
   // the actual candidate list (not just a visual hide) and applies to every
   // picker above: normal court subs, preview subs, and block subs alike.
   candidates = candidates.filter(e => !isInFixedDuo(e.name));
+  // Fewest games played first, so the host naturally sees who's most due
+  // for court time at the top of the list. Ties keep the original order
+  // (usually arrival/queue order) since Array#sort is stable.
+  candidates = candidates.slice().sort((a, b) => getGamesPlayed(a.name) - getGamesPlayed(b.name));
   subEmptyNote.hidden = candidates.length > 0;
   subList.innerHTML = candidates.map(entry => {
     const srcTag = entry.__src === 'winnersBlock' ? '<span class="tag-pill queued">Winners block</span>'
@@ -2469,6 +2473,7 @@ function renderSubPicker(court){
     <div class="sub-row" data-id="${entry.id}">
       <span class="arrival-name">${esc(entry.name)}</span>
       <span class="level-badge ${levelClass(getPlayerLevel(entry.name))}">${esc(levelLabel(getPlayerLevel(entry.name)))}</span>
+      ${gamesChipHtml(getGamesPlayed(entry.name))}
       ${srcTag}
     </div>
   `;
