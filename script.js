@@ -2588,6 +2588,13 @@ function performSubstitution(entryId){
     // doesn't quietly shrink; if it was the main stack, they simply requeue.
     insertIntoWaitingSource(incomingSrcKey, incomingSrcIdx, { id: nextId('p'), name: outgoing.name, joinedAt: Date.now(), tag: 'queued' });
     toast(`${incoming.name} subbed in for ${outgoing.name}`);
+    // The requeued outgoing player (or the incoming player, if they were
+    // pulled out of the OTHER block) can be exactly the player who tips a
+    // block over its auto-flush threshold. Every other block-mutating action
+    // in the app re-checks this immediately after — subs were missing it,
+    // which is how a block could sit "full" and never flush until some
+    // unrelated action happened to trigger the check.
+    checkBlockFlush();
     closeSubOverlay();
     renderAll(); persist();
     return;
@@ -2620,6 +2627,11 @@ function performSubstitution(entryId){
     // of the main stack.
     insertIntoWaitingSource(incomingSrcKey, incomingSrcIdx, { id: nextId('p'), name: outgoingName, joinedAt: Date.now(), tag: 'queued' });
     toast(`${incoming.name} subbed in for ${outgoingName}`);
+    // See the block-branch comment above: requeuing the outgoing player into
+    // a block (or pulling the incoming player out of one) can cross the
+    // auto-flush threshold, and nothing else was re-checking it for this
+    // mid-match-sub path.
+    checkBlockFlush();
   }
   closeSubOverlay();
   renderAll(); persist();
