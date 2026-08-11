@@ -43,23 +43,68 @@ async function idbSet(key, value){
   });
 }
 
-// `immediate`: skip the usual 500ms debounce and push to any live viewers
-// right away. Used for deliberate, one-off queue edits (reordering the
-// stack, substitutions, removing a player) where there's no rapid-fire
-// burst to coalesce and a spectator noticing the delay is worse than the
-// extra network request — see queueHostPush below.
+// The actual write to disk — always the *current* state at the moment it
+// runs (not a snapshot taken when it was scheduled), same idea as
+// pushStateNow() picking up whatever's latest by the time its debounce fires.
+async function writeStateNow(){
+  const ok = await idbSet('state', state);
+  if (!ok){
+    try{ localStorage.setItem('paddleStackQueueState', JSON.stringify(state)); }catch(e){}
+  }
+}
+let persistDebounceTimer = null;
+let persistDirty = false;
+
+// `immediate`: skip both the local-write debounce below AND the usual
+// 500ms network debounce, pushing to disk/live viewers right away. Used
+// for deliberate, one-off queue edits (reordering the stack, substitutions,
+// removing a player) where there's no rapid-fire burst to coalesce and a
+// spectator noticing the delay is worse than the extra network request —
+// see queueHostPush below.
+//
+// Every state-changing action in the app calls persist() — dozens of call
+// sites, many of them not awaited (fire-and-forget) — so a burst of quick
+// taps (dragging someone through the queue, mashing a score button) used to
+// mean one full IndexedDB write of the *entire* app state per tap. That's
+// wasted work the UI doesn't need to wait on: only the *last* write in a
+// burst actually matters, so coalesce them the same way queueHostPush
+// already coalesces network pushes. flushPersist() (wired to
+// visibilitychange/pagehide below) guarantees a pending write still lands
+// before the tab backgrounds or closes, so nothing is lost by debouncing.
 async function persist(immediate){
   // A co-host device's local storage is never the source of truth — same
   // principle as viewer mode — so skip the local write entirely and go
   // straight to pushing the change to the shared server row.
   if (!coHostMode){
-    const ok = await idbSet('state', state);
-    if (!ok){
-      try{ localStorage.setItem('paddleStackQueueState', JSON.stringify(state)); }catch(e){}
+    if (immediate){
+      if (persistDebounceTimer){ clearTimeout(persistDebounceTimer); persistDebounceTimer = null; }
+      persistDirty = false;
+      await writeStateNow();
+    } else {
+      persistDirty = true;
+      if (!persistDebounceTimer){
+        persistDebounceTimer = setTimeout(() => {
+          persistDebounceTimer = null;
+          if (persistDirty){ persistDirty = false; writeStateNow(); }
+        }, 250);
+      }
     }
   }
   if (typeof queueHostPush === 'function') queueHostPush(immediate);
 }
+// Safety net for the debounce above: if a write is still pending when the
+// tab backgrounds or closes, flush it immediately instead of leaving it to
+// a 250ms timer that may never get to run (mobile browsers can suspend a
+// backgrounded tab's timers with no further notice at all).
+function flushPersist(){
+  if (!persistDebounceTimer || !persistDirty) return;
+  clearTimeout(persistDebounceTimer);
+  persistDebounceTimer = null;
+  persistDirty = false;
+  writeStateNow();
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushPersist(); });
+window.addEventListener('pagehide', flushPersist);
 
 async function loadPersisted(){
   let saved = await idbGet('state');
@@ -2387,12 +2432,34 @@ function swapCourtPartner(court, idx){
    Game" — see performSubstitution()'s preview branch and
    computeOpenCourtQueue()'s previewSubMap handling. */
 let subTarget = null; // { courtId, idx, preview } | null — the slot waiting for a replacement
+let subRefreshTimer = null; // keeps the picker's candidate list live while it's open — see closeSubOverlay()
 const subOverlay = $('#subOverlay');
 const subList = $('#subList');
 const subTitle = $('#subTitle');
 const subSubtitle = $('#subSubtitle');
 const subEmptyNote = $('#subEmptyNote');
 
+// Closes the picker AND stops the live-refresh timer below — every place
+// that hides subOverlay should go through this (not set .hidden directly)
+// so a stale timer never keeps re-rendering into a closed/reused dialog.
+function closeSubOverlay(){
+  subOverlay.hidden = true;
+  subTarget = null;
+  if (subRefreshTimer){ clearInterval(subRefreshTimer); subRefreshTimer = null; }
+}
+// The stack/blocks/courts can keep changing while this dialog sits open —
+// another action on the same device, a synced change from a co-host, a
+// block auto-flushing once it fills — so, same idea as the call-out list,
+// keep the candidate list live rather than freezing it at open time. Without
+// this, tapping a name that's since moved elsewhere silently failed (see
+// performSubstitution's !foundIncoming / outIdx===-1 guards) with no
+// feedback — the exact "sometimes it just doesn't switch" symptom.
+function refreshSubPickerIfOpen(){
+  if (!subTarget || subOverlay.hidden) return;
+  const court = subTarget.courtId ? state.courts.find(c => c.id === subTarget.courtId) : null;
+  if (subTarget.courtId && !court){ closeSubOverlay(); return; } // that court is gone entirely
+  renderSubPicker(court);
+}
 function openSubPicker(court, idx){
   if (isSessionEnded()){ toast('Session has ended'); return; }
   const isPreview = court.status === 'open';
@@ -2405,6 +2472,8 @@ function openSubPicker(court, idx){
     : outgoingName + ' goes to the back of the stack once you pick a replacement.';
   renderSubPicker(court);
   subOverlay.hidden = false;
+  if (subRefreshTimer) clearInterval(subRefreshTimer);
+  subRefreshTimer = setInterval(refreshSubPickerIfOpen, 1500);
 }
 // Same idea, but for a player currently parked in the winners or losers
 // accumulating block (waiting for their level's group to fill up) instead
@@ -2423,6 +2492,8 @@ function openBlockSubPicker(blockKey, entryId){
   subSubtitle.textContent = entry.name + ' goes to the back of the queue once you pick a replacement — the incoming player takes their spot in the ' + blockLabel + '.';
   renderSubPicker(null);
   subOverlay.hidden = false;
+  if (subRefreshTimer) clearInterval(subRefreshTimer);
+  subRefreshTimer = setInterval(refreshSubPickerIfOpen, 1500);
 }
 function renderSubPicker(court){
   let candidates;
@@ -2482,11 +2553,11 @@ function renderSubPicker(court){
 function performSubstitution(entryId){
   if (!subTarget) return;
   const foundIncoming = findWaitingEntryById(entryId);
-  if (!foundIncoming){ subOverlay.hidden = true; subTarget = null; return; }
+  if (!foundIncoming){ toast('That player is no longer available — pick another'); closeSubOverlay(); return; }
   const incoming = foundIncoming.entry;
   const incomingSrcKey = foundIncoming.src, incomingSrcIdx = foundIncoming.idx;
   if (subTarget.block){
-    if (incoming.id === subTarget.entryId){ subOverlay.hidden = true; subTarget = null; return; }
+    if (incoming.id === subTarget.entryId){ closeSubOverlay(); return; }
     // Pull the incoming player out of wherever they actually are (main
     // stack or a block) before touching the target block, and re-find the
     // outgoing player's index afterward — removing from the same block
@@ -2499,7 +2570,8 @@ function performSubstitution(entryId){
       // Outgoing player no longer in the block (edge case) — don't strand
       // the incoming player mid-air, just put them back where they came from.
       insertIntoWaitingSource(incomingSrcKey, incomingSrcIdx, incoming);
-      subOverlay.hidden = true; subTarget = null; renderAll(); persist();
+      toast('That spot changed before the swap went through — nothing moved, try again');
+      closeSubOverlay(); renderAll(); persist();
       return;
     }
     const outgoing = block[outIdx];
@@ -2509,17 +2581,16 @@ function performSubstitution(entryId){
     // doesn't quietly shrink; if it was the main stack, they simply requeue.
     insertIntoWaitingSource(incomingSrcKey, incomingSrcIdx, { id: nextId('p'), name: outgoing.name, joinedAt: Date.now(), tag: 'queued' });
     toast(`${incoming.name} subbed in for ${outgoing.name}`);
-    subOverlay.hidden = true;
-    subTarget = null;
+    closeSubOverlay();
     renderAll(); persist();
     return;
   }
   const court = state.courts.find(c => c.id === subTarget.courtId);
   const idx = subTarget.idx;
-  if (!court){ subOverlay.hidden = true; subTarget = null; return; }
+  if (!court){ toast('That court is no longer open'); closeSubOverlay(); return; }
   if (subTarget.preview){
     const outgoingName = court.previewOrder && court.previewOrder[idx];
-    if (!outgoingName){ subOverlay.hidden = true; subTarget = null; return; }
+    if (!outgoingName){ closeSubOverlay(); return; }
     // Preview subs don't touch state.stack directly — the outgoing player
     // stays right where they are in the queue. We just record a pick that
     // computeOpenCourtQueue honors on the next render, claiming the incoming
@@ -2527,13 +2598,13 @@ function performSubstitution(entryId){
     const openQueueNow = computeOpenCourtQueue(state.session.gameSize);
     const myTaken = openQueueNow.get(court.id);
     const outgoingEntry = myTaken && myTaken.taken ? myTaken.taken.find(e => e.name === outgoingName) : null;
-    if (!outgoingEntry){ subOverlay.hidden = true; subTarget = null; return; }
+    if (!outgoingEntry){ toast('That preview slot changed — try again'); closeSubOverlay(); return; }
     court.previewSubMap = court.previewSubMap || {};
     court.previewSubMap[outgoingEntry.id] = incoming.id;
     if (court.previewOrder) court.previewOrder[idx] = incoming.name;
     toast(`${incoming.name} will sub in for ${outgoingName}`);
   } else {
-    if (!court.players[idx]) { subOverlay.hidden = true; subTarget = null; return; }
+    if (!court.players[idx]) { toast('That slot is no longer open'); closeSubOverlay(); return; }
     const outgoingName = court.players[idx];
     removeWaitingEntryById(incoming.id); // pulls from stack or whichever block they were parked in
     court.players[idx] = incoming.name;
@@ -2543,8 +2614,7 @@ function performSubstitution(entryId){
     insertIntoWaitingSource(incomingSrcKey, incomingSrcIdx, { id: nextId('p'), name: outgoingName, joinedAt: Date.now(), tag: 'queued' });
     toast(`${incoming.name} subbed in for ${outgoingName}`);
   }
-  subOverlay.hidden = true;
-  subTarget = null;
+  closeSubOverlay();
   renderAll(); persist();
 }
 subList.addEventListener('click', (e) => {
@@ -2552,8 +2622,8 @@ subList.addEventListener('click', (e) => {
   if (!row) return;
   performSubstitution(row.dataset.id);
 });
-$('#subCancel').addEventListener('click', () => { subOverlay.hidden = true; subTarget = null; });
-subOverlay.addEventListener('click', (e) => { if (e.target === subOverlay){ subOverlay.hidden = true; subTarget = null; } });
+$('#subCancel').addEventListener('click', closeSubOverlay);
+subOverlay.addEventListener('click', (e) => { if (e.target === subOverlay) closeSubOverlay(); });
 
 function renderCourts(){
   courtsGrid.innerHTML = '';
@@ -4717,7 +4787,7 @@ async function resumeRemoteSession(){
     const row = Array.isArray(data) ? data[0] : null;
     if (!row || !row.state) throw new Error('That live match is gone \u2014 it may have just ended.');
     state = row.state;
-    await persist(); // hostSession is still unset here, so this just saves locally — no re-broadcast
+    await persist(true); // hostSession is still unset here, so this just saves locally — no re-broadcast; immediate=true since we're about to reload the roster/UI from this exact write
     renderRosterList();
     renderAll();
     saveHostSession({ id: row.id, invite_code: row.invite_code });
