@@ -1782,8 +1782,12 @@ function playerRowHtml(name, swap, sub){
   const games = stats ? (stats.games || 0) : 0;
   const gamesChip = gamesChipHtml(games);
   const duoLocked = !!(swap && isInFixedDuo(name));
+  // While a swap is pending (somewhere on this court or another), every
+  // OTHER eligible swap button gets a blinking hint so it's obvious which
+  // icons are live tap targets right now, mirroring the text swap-hint.
+  const swapTarget = !!(swap && swap.active && !swap.selected && !duoLocked);
   const swapBtn = swap
-    ? `<button type="button" class="player-swap-btn${swap.selected ? ' selecting' : ''}${duoLocked ? ' duo-locked' : ''}" data-act="swap-partner" data-idx="${swap.idx}" ${duoLocked ? 'disabled' : ''} aria-label="${duoLocked ? (esc(name) + ' is in a fixed duo \u2014 swap disabled') : (swap.selected ? 'Cancel swap' : ('Swap partner with ' + esc(name)))}" title="${duoLocked ? 'Fixed duo \u2014 can\u2019t split them up' : 'Swap partner'}"><svg viewBox="0 0 24 24"><use href="#i-swap"/></svg></button>`
+    ? `<button type="button" class="player-swap-btn${swap.selected ? ' selecting' : ''}${swapTarget ? ' swap-target' : ''}${duoLocked ? ' duo-locked' : ''}" data-act="swap-partner" data-idx="${swap.idx}" ${duoLocked ? 'disabled' : ''} aria-label="${duoLocked ? (esc(name) + ' is in a fixed duo \u2014 swap disabled') : (swap.selected ? 'Cancel swap' : ('Swap partner with ' + esc(name)))}" title="${duoLocked ? 'Fixed duo \u2014 can\u2019t split them up' : 'Swap partner'}"><svg viewBox="0 0 24 24"><use href="#i-swap"/></svg></button>`
     : '';
   const subBtn = sub
     ? `<button type="button" class="player-sub-btn" data-act="sub-player" data-idx="${sub.idx}" aria-label="Substitute ${esc(name)}" title="Sub in a replacement for ${esc(name)}"><svg viewBox="0 0 24 24"><use href="#i-sub"/></svg></button>`
@@ -1801,7 +1805,7 @@ function playerRowHtml(name, swap, sub){
 function teamColHtml(names, side, gameSize, swapCtx, subBaseIdx){
   const slots = Math.ceil(gameSize / 2);
   const rows = names.map((n, i) => {
-    const swap = swapCtx ? { idx: swapCtx.baseIdx + i, selected: swapCtx.selectedIdx === swapCtx.baseIdx + i } : null;
+    const swap = swapCtx ? { idx: swapCtx.baseIdx + i, selected: swapCtx.selectedIdx === swapCtx.baseIdx + i, active: !!swapCtx.active } : null;
     const sub = (subBaseIdx !== undefined) ? { idx: subBaseIdx + i } : null;
     return playerRowHtml(n, swap, sub);
   });
@@ -2682,8 +2686,8 @@ function renderCourts(){
         const canSwapPartners = gameSize > 2;
         const pending = pendingSwapInfo();
         const activeSwap = (pending && pending.court.id === court.id) ? pending.idx : null;
-        const swapCtxA = canSwapPartners ? { baseIdx: 0, selectedIdx: activeSwap } : null;
-        const swapCtxB = canSwapPartners ? { baseIdx: a.length, selectedIdx: activeSwap } : null;
+        const swapCtxA = canSwapPartners ? { baseIdx: 0, selectedIdx: activeSwap, active: !!pending } : null;
+        const swapCtxB = canSwapPartners ? { baseIdx: a.length, selectedIdx: activeSwap, active: !!pending } : null;
         swapHint = (canSwapPartners && pending)
           ? (pending.court.id === court.id
               ? `<div class="swap-hint">Tap another player to swap with <b>${esc(pending.name)}</b></div>`
@@ -2731,8 +2735,8 @@ function renderCourts(){
       const canSwapPartners = gameSize > 2 && court.players.length === gameSize;
       const pending = pendingSwapInfo();
       const activeSwap = (pending && pending.court.id === court.id) ? pending.idx : null;
-      const swapCtxA = canSwapPartners ? { baseIdx: 0, selectedIdx: activeSwap } : null;
-      const swapCtxB = canSwapPartners ? { baseIdx: a.length, selectedIdx: activeSwap } : null;
+      const swapCtxA = canSwapPartners ? { baseIdx: 0, selectedIdx: activeSwap, active: !!pending } : null;
+      const swapCtxB = canSwapPartners ? { baseIdx: a.length, selectedIdx: activeSwap, active: !!pending } : null;
       const swapHint = (canSwapPartners && pending)
         ? (pending.court.id === court.id
             ? `<div class="swap-hint">Tap another player to swap with <b>${esc(pending.name)}</b></div>`
