@@ -24,6 +24,16 @@
   --surface:#FFFFFF;
   --danger:#C6272E;
   --danger-pale:#FAE1E2;
+  /* ---- Player action buttons (court cards): INFO / SWAP / SUB ----
+     Deliberately distinct from the flag-blue brand color so the three
+     actions read at a glance as separate, tappable, word-labeled buttons
+     rather than small same-color icons. */
+  --info-blue:#2F6FED;
+  --info-blue-deep:#1B4FC4;
+  --swap-orange:#F0740C;
+  --swap-orange-deep:#C25A00;
+  --sub-amber:#F0B429;
+  --sub-amber-deep:#C4880C;
   --radius:14px;
   --radius-sm:9px;
   --shadow-sm:0 1px 3px rgba(10,30,61,.08), 0 1px 2px rgba(10,30,61,.06);
@@ -348,12 +358,15 @@ body.session-locked .quick-add-panel{opacity:.55;pointer-events:none}
 .sub-row .level-badge{flex-shrink:0}
 
 .player-sub-btn{
-  border:none;background:none;color:var(--slate);cursor:pointer;
-  width:22px;height:22px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;
+  border:1px solid var(--sub-amber-deep);background:var(--sub-amber);color:var(--brand-ink);cursor:pointer;
+  height:22px;padding:0 .5rem;border-radius:99px;display:inline-flex;align-items:center;justify-content:center;gap:.22rem;
   flex-shrink:0;margin-left:.15rem;
+  font-family:var(--font-body);font-weight:800;font-size:.62rem;letter-spacing:.03em;text-transform:uppercase;
+  box-shadow:0 1px 2px rgba(10,30,61,.18);transition:background .15s,color .15s,transform .1s;
 }
-.player-sub-btn:hover{background:var(--turf-pale);color:var(--turf-deep)}
-.player-sub-btn svg{width:12px;height:12px}
+.player-sub-btn:hover{background:var(--sub-amber-deep);color:#fff}
+.player-sub-btn:active{transform:scale(.94)}
+.player-sub-btn svg{width:11px;height:11px;flex-shrink:0}
 
 .stack-list{
   flex:1;overflow-y:auto;padding:.2rem .75rem 1rem;
@@ -596,7 +609,7 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
 .player-col{display:flex;flex-direction:column;gap:3px;min-width:0}
 .player-row{display:flex;align-items:center;gap:.4rem;min-width:0}
 .team-b .player-row{flex-direction:row-reverse}
-.player-actions-row{display:flex;align-items:center;gap:.28rem;min-width:0;min-height:20px}
+.player-actions-row{display:flex;align-items:center;flex-wrap:wrap;gap:.3rem;min-width:0;min-height:22px;row-gap:.3rem}
 .team-b .player-actions-row{justify-content:flex-end}
 .player-games-row{display:flex}
 .team-b .player-games-row{justify-content:flex-end}
@@ -619,64 +632,85 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
   display:inline-flex;align-items:center;height:20px;line-height:1;
 }
 
-/* ---- Preview full name ---- */
-/* A small button next to every player name that pops up the complete,
-   normal-case name (not the uppercased/clamped card version) so a long or
-   ambiguous name is never a guess, even on the rare card where two lines
-   still isn't enough room. */
+/* ---- Player details preview ---- */
+/* A word-labeled button next to every player name that pops up their full
+   normal-case name (not the uppercased/clamped card version) plus skill
+   level, Fixed Duo pairing, and this session's games/wins — everything a
+   host needs to know about that player without leaving the court card. */
 .player-preview-btn{
-  display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
-  width:20px;height:20px;padding:0;margin-top:2px;border-radius:50%;
-  border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:rgba(255,255,255,.8);
-  cursor:pointer;transition:background .15s,border-color .15s,color .15s;
+  display:inline-flex;align-items:center;justify-content:center;gap:.22rem;flex-shrink:0;
+  height:22px;padding:0 .5rem;margin-top:2px;border-radius:99px;
+  border:1px solid var(--info-blue-deep);background:var(--info-blue);color:#fff;
+  font-family:var(--font-body);font-weight:800;font-size:.62rem;letter-spacing:.03em;text-transform:uppercase;
+  cursor:pointer;box-shadow:0 1px 2px rgba(10,30,61,.18);
+  transition:background .15s,border-color .15s,color .15s,transform .1s;
 }
-.player-preview-btn svg{width:11px;height:11px}
-.player-preview-btn:hover,.player-preview-btn:focus-visible{background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.45);color:#fff}
+.player-preview-btn svg{width:11px;height:11px;flex-shrink:0}
+.player-preview-btn:hover,.player-preview-btn:focus-visible{background:var(--info-blue-deep);color:#fff}
+.player-preview-btn:active{transform:scale(.94)}
 .court-card:not(.playing) .player-preview-btn{
-  border:1px solid var(--line);background:var(--court);color:var(--slate);
+  border-color:var(--info-blue-deep);background:var(--info-blue);color:#fff;
 }
 .court-card:not(.playing) .player-preview-btn:hover,
-.court-card:not(.playing) .player-preview-btn:focus-visible{background:var(--turf-pale);border-color:var(--turf);color:var(--turf-deep)}
+.court-card:not(.playing) .player-preview-btn:focus-visible{background:var(--info-blue-deep)}
 
-.name-preview-pop{
+.player-details-pop{
   position:fixed;z-index:9999;left:0;top:0;transform:translate(-50%,-100%);
-  background:#0E2748;color:#fff;font-family:var(--font-display);font-weight:700;font-size:.9rem;
-  line-height:1.3;padding:.5rem .75rem;border-radius:10px;box-shadow:var(--shadow-md);
-  max-width:min(78vw,300px);text-align:center;word-break:break-word;
+  background:#0E2748;color:#fff;font-family:var(--font-body);
+  padding:.65rem .8rem;border-radius:12px;box-shadow:var(--shadow-md);
+  width:max-content;max-width:min(84vw,280px);text-align:left;word-break:break-word;
   opacity:0;pointer-events:none;transition:opacity .12s ease,transform .12s ease;
 }
-.name-preview-pop::after{
+.player-details-pop::after{
   content:'';position:absolute;left:50%;top:100%;transform:translateX(-50%);
   border:6px solid transparent;border-top-color:#0E2748;
 }
-.name-preview-pop.show{opacity:1;transform:translate(-50%,calc(-100% - 10px));}
+.player-details-pop.show{opacity:1;transform:translate(-50%,calc(-100% - 10px));}
+.pd-head{display:flex;align-items:center;gap:.45rem;margin-bottom:.4rem}
+.pd-name{font-family:var(--font-display);font-weight:700;font-size:.85rem;line-height:1.2;word-break:break-word}
+.pd-badges{display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.4rem}
+.pd-badges:empty{display:none;margin:0}
+.pd-badge{
+  display:inline-flex;align-items:center;gap:.25rem;font-size:.62rem;font-weight:700;
+  letter-spacing:.02em;text-transform:uppercase;padding:.14rem .45rem;border-radius:99px;
+  background:rgba(255,255,255,.12);color:#fff;
+}
+.pd-badge svg{width:10px;height:10px;flex-shrink:0}
+.pd-badge.pd-duo{background:rgba(240,116,12,.28);color:#FFCFA3}
+.pd-badge.pd-target{background:rgba(252,209,22,.22);color:var(--gold)}
+.pd-stats{display:flex;flex-wrap:wrap;gap:.55rem;font-size:.72rem;color:rgba(255,255,255,.85)}
+.pd-stat{display:flex;align-items:baseline;gap:.28rem;white-space:nowrap}
+.pd-stat b{font-family:var(--font-mono);font-size:.85rem;color:#fff}
 
 /* ---- Swap partner (mid-match) ---- */
 .player-swap-btn{
-  display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
-  width:22px;height:22px;padding:0;margin-left:.15rem;border-radius:50%;
-  border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:rgba(255,255,255,.8);
-  cursor:pointer;transition:background .15s,border-color .15s,color .15s;
+  display:inline-flex;align-items:center;justify-content:center;gap:.22rem;flex-shrink:0;
+  height:22px;padding:0 .5rem;margin-left:.15rem;border-radius:99px;
+  border:1px solid var(--swap-orange-deep);background:var(--swap-orange);color:#fff;
+  font-family:var(--font-body);font-weight:800;font-size:.62rem;letter-spacing:.03em;text-transform:uppercase;
+  cursor:pointer;box-shadow:0 1px 2px rgba(10,30,61,.18);
+  transition:background .15s,border-color .15s,color .15s,transform .1s;
 }
-.player-swap-btn svg{width:12px;height:12px}
-.player-swap-btn:hover{background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.45);color:#fff}
-.player-swap-btn.selecting{background:var(--gold);border-color:var(--gold);color:var(--brand-ink)}
+.player-swap-btn svg{width:11px;height:11px;flex-shrink:0}
+.player-swap-btn:active{transform:scale(.94)}
+.player-swap-btn:hover{background:var(--swap-orange-deep);border-color:var(--swap-orange-deep);color:#fff}
+.player-swap-btn.selecting{background:var(--gold);border-color:var(--gold-deep);color:var(--brand-ink)}
 .player-swap-btn.selecting:hover{background:var(--gold-deep);border-color:var(--gold-deep)}
 .player-swap-btn:disabled,
 .player-swap-btn.duo-locked{
-  opacity:.35;cursor:not-allowed;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.25);color:rgba(255,255,255,.8);
+  opacity:.45;cursor:not-allowed;background:var(--slate);border-color:var(--slate);color:#fff;box-shadow:none;
 }
 /* While a swap is pending, every other eligible swap button blinks gold so
    it reads as a live tap target — same signal as the text .swap-hint above
-   it, just repeated on the icons themselves. */
+   it, just repeated on the buttons themselves. */
 @keyframes swap-target-blink{
-  0%,100%{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.25);color:rgba(255,255,255,.8);box-shadow:0 0 0 0 rgba(252,209,22,0)}
-  50%{background:var(--gold);border-color:var(--gold);color:var(--brand-ink);box-shadow:0 0 0 4px rgba(252,209,22,.25)}
+  0%,100%{background:var(--swap-orange);border-color:var(--swap-orange-deep);color:#fff;box-shadow:0 0 0 0 rgba(252,209,22,0)}
+  50%{background:var(--gold);border-color:var(--gold-deep);color:var(--brand-ink);box-shadow:0 0 0 4px rgba(252,209,22,.3)}
 }
 .player-swap-btn.swap-target{animation:swap-target-blink 1.1s ease-in-out infinite}
 .player-swap-btn.swap-target:hover{animation-play-state:paused;background:var(--gold-deep);border-color:var(--gold-deep);color:var(--brand-ink)}
 @media (prefers-reduced-motion:reduce){
-  .player-swap-btn.swap-target{animation:none;background:var(--gold);border-color:var(--gold);color:var(--brand-ink)}
+  .player-swap-btn.swap-target{animation:none;background:var(--gold);border-color:var(--gold-deep);color:var(--brand-ink)}
 }
 .swap-hint{
   font-size:.75rem;font-weight:600;color:var(--gold);text-align:center;
@@ -695,28 +729,10 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
 .swap-hint-remote{color:#9CBEFF;background:rgba(91,141,239,.16);border-color:rgba(91,141,239,.4)}
 .swap-hint-remote b{color:#fff}
 .swap-hint-court{opacity:.8;font-weight:500}
-/* The base .player-swap-btn/.swap-hint styles above assume the dark
-   .court-card.playing background. The preview matchup on a not-yet-started
-   court uses the regular light/surface card background, so those same
-   translucent-white colors would be unreadable there — override with
-   theme-aware colors instead. */
-.court-card:not(.playing) .player-swap-btn{
-  border:1px solid var(--line);background:var(--court);color:var(--slate);
-}
-.court-card:not(.playing) .player-swap-btn:hover{background:var(--turf-pale);border-color:var(--turf);color:var(--turf-deep)}
-.court-card:not(.playing) .player-swap-btn.selecting{background:var(--gold);border-color:var(--gold);color:var(--brand-ink)}
-.court-card:not(.playing) .player-swap-btn:disabled,
-.court-card:not(.playing) .player-swap-btn.duo-locked{
-  opacity:.4;cursor:not-allowed;background:var(--court);border-color:var(--line);color:var(--slate);
-}
-.court-card:not(.playing) .player-swap-btn.swap-target{
-  animation-name:swap-target-blink-light;
-}
-@keyframes swap-target-blink-light{
-  0%,100%{background:var(--court);border-color:var(--line);color:var(--slate);box-shadow:0 0 0 0 rgba(252,209,22,0)}
-  50%{background:var(--gold);border-color:var(--gold);color:var(--brand-ink);box-shadow:0 0 0 4px rgba(252,209,22,.3)}
-}
-.court-card:not(.playing) .player-swap-btn.swap-target:hover{background:var(--gold-deep);border-color:var(--gold-deep);color:var(--brand-ink)}
+/* The button itself is now a solid, theme-independent colored pill (not a
+   translucent-white icon), so it no longer needs a separate light-card
+   palette — only the surrounding .swap-hint text (which does still sit
+   directly on the card background) keeps its light-card override. */
 .court-card:not(.playing) .swap-hint b{color:var(--ink)}
 .court-card:not(.playing) .swap-hint-remote{color:var(--turf-deep);background:var(--turf-pale);border-color:var(--turf)}
 .court-card:not(.playing) .swap-hint-remote b{color:var(--turf-deep)}
