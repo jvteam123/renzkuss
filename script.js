@@ -1395,6 +1395,7 @@ function renderRosterManageList(filter){
       <span class="rm-avatar" style="background:${avatarColor(name)}">${initials(name)}</span>
       <span class="rm-name">${esc(name)}</span>
       ${statusTag}
+      <button type="button" class="level-badge ${levelClass(getPlayerLevel(name))}" data-level-name="${esc(name)}" aria-label="Change ${esc(name)}'s player type">${esc(levelLabel(getPlayerLevel(name)))}</button>
       <button type="button" class="rm-edit" data-name="${esc(name)}" aria-label="Rename ${esc(name)}"><svg viewBox="0 0 24 24"><use href="#i-pencil"/></svg></button>
       <button type="button" class="rm-del" data-name="${esc(name)}" aria-label="Remove ${esc(name)} from saved players"><svg viewBox="0 0 24 24"><use href="#i-x"/></svg></button>
     </div>
@@ -1404,6 +1405,8 @@ function renderRosterManageList(filter){
 const rosterManageListEl = $('#rosterManageList');
 if (rosterManageListEl){
   rosterManageListEl.addEventListener('click', async (e) => {
+    const levelBtn = e.target.closest('[data-level-name]');
+    if (levelBtn){ openLevelPicker(levelBtn.dataset.levelName); return; }
     const editBtn = e.target.closest('.rm-edit');
     if (editBtn){ openRenamePlayer(editBtn.dataset.name); return; }
     const btn = e.target.closest('.rm-del');
