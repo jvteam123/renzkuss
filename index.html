@@ -504,7 +504,7 @@
       <details class="roster-manage-wrap" id="rosterManageWrap">
         <summary class="roster-manage-toggle">
           <svg viewBox="0 0 24 24"><use href="#i-chev"/></svg>
-          <span>Known players</span>
+          <span>Manage known players</span>
           <span class="count-badge" id="rosterManageCount">0</span>
         </summary>
         <div class="roster-manage-body">
@@ -513,7 +513,7 @@
           <div class="roster-manage-actions">
             <button type="button" class="btn danger sm" id="rosterClearAllBtn">Clear all known players</button>
           </div>
-          <p class="add-hint" style="padding:0;margin-top:.45rem">Remove a name here to stop it appearing in quick-add suggestions and in "keep player names" — it won't touch anyone currently on the floor.</p>
+          <p class="add-hint" style="padding:0;margin-top:.45rem">Tap a name to rename it, tap the type badge to change their player type, or remove a name to stop it appearing in quick-add suggestions and in "keep player names" — none of this touches anyone currently on the floor.</p>
         </div>
       </details>
     </div>
@@ -631,7 +631,7 @@
       <li><b>Avoid Repeating Teammates</b> — tries not to pair the same two players together twice in a row; you can also lock a <b>Fixed duo</b> that always plays together.</li>
       <li><b>Enable Scoring</b> — adds a live scoreboard (serve tracking, point steppers, side‑outs) to each in‑progress court, feeding straight into End Game.</li>
       <li><b>Auto‑start Ready Courts</b> — if a court has enough players and nobody taps Start within 2 minutes, it starts itself. Turn off to always start manually.</li>
-      <li><b>Known players</b> — manage saved names used for quick‑add suggestions; removing one here doesn't affect anyone currently checked in.</li>
+      <li><b>Manage known players</b> — rename saved players, change their player type, or remove a saved name used for quick‑add suggestions; changes here don't affect anyone currently checked in except a rename, which updates them everywhere they currently appear.</li>
       <li><b>Backup</b> — export or import the full session as a JSON file.</li>
       <li><b>Session controls</b> — end the session (keeps all records), start a new session (keeps player names), or erase everything.</li>
     </ol>
@@ -695,7 +695,7 @@
   </div>
 </div>
 
-<!-- Rename player modal (Settings → Known players) -->
+<!-- Rename player modal (Settings → Manage known players) -->
 <div class="overlay" id="renamePlayerOverlay" hidden>
   <div class="modal rename-player-modal" role="dialog" aria-modal="true" aria-labelledby="renamePlayerTitle">
     <h3 id="renamePlayerTitle">Rename player</h3>
