@@ -943,6 +943,16 @@ function isInFixedDuo(name){
   const duos = state.session.fixedDuos || [];
   return duos.some(d => d.a === name || d.b === name);
 }
+// Returns the partner's name when `name` is half of an active Fixed Duo,
+// otherwise null. Used by the player-details preview to surface duo status
+// alongside the rest of a player's info at a glance.
+function fixedDuoPartner(name){
+  if (!state.session.avoidRepeatTeammates) return null;
+  const duos = state.session.fixedDuos || [];
+  const d = duos.find(x => x.a === name || x.b === name);
+  if (!d) return null;
+  return d.a === name ? d.b : d.a;
+}
 /* Works out the best 2v2 split of exactly four names, and how "costly"
    (repetitive) that split is. Cost combines two things: repeated TEAMMATES
    (pairing the same two people together again) and repeated OPPONENTS
@@ -1787,12 +1797,12 @@ function playerRowHtml(name, swap, sub){
   // icons are live tap targets right now, mirroring the text swap-hint.
   const swapTarget = !!(swap && swap.active && !swap.selected && !duoLocked);
   const swapBtn = swap
-    ? `<button type="button" class="player-swap-btn${swap.selected ? ' selecting' : ''}${swapTarget ? ' swap-target' : ''}${duoLocked ? ' duo-locked' : ''}" data-act="swap-partner" data-idx="${swap.idx}" ${duoLocked ? 'disabled' : ''} aria-label="${duoLocked ? (esc(name) + ' is in a fixed duo \u2014 swap disabled') : (swap.selected ? 'Cancel swap' : ('Swap partner with ' + esc(name)))}" title="${duoLocked ? 'Fixed duo \u2014 can\u2019t split them up' : 'Swap partner'}"><svg viewBox="0 0 24 24"><use href="#i-swap"/></svg></button>`
+    ? `<button type="button" class="player-swap-btn action-swap${swap.selected ? ' selecting' : ''}${swapTarget ? ' swap-target' : ''}${duoLocked ? ' duo-locked' : ''}" data-act="swap-partner" data-idx="${swap.idx}" ${duoLocked ? 'disabled' : ''} aria-label="${duoLocked ? (esc(name) + ' is in a fixed duo \u2014 swap disabled') : (swap.selected ? 'Cancel swap' : ('Swap partner with ' + esc(name)))}" title="${duoLocked ? 'Fixed duo \u2014 can\u2019t split them up' : 'Swap partner'}"><svg viewBox="0 0 24 24"><use href="#i-swap"/></svg><span class="action-label">${swap.selected ? 'Cancel' : 'Swap'}</span></button>`
     : '';
   const subBtn = sub
-    ? `<button type="button" class="player-sub-btn" data-act="sub-player" data-idx="${sub.idx}" aria-label="Substitute ${esc(name)}" title="Sub in a replacement for ${esc(name)}"><svg viewBox="0 0 24 24"><use href="#i-sub"/></svg></button>`
+    ? `<button type="button" class="player-sub-btn action-sub" data-act="sub-player" data-idx="${sub.idx}" aria-label="Substitute ${esc(name)}" title="Sub in a replacement for ${esc(name)}"><svg viewBox="0 0 24 24"><use href="#i-sub"/></svg><span class="action-label">Sub</span></button>`
     : '';
-  const previewBtn = `<button type="button" class="player-preview-btn" data-act="preview-name" data-name="${esc(name)}" aria-label="Show full name for ${esc(name)}" title="Show full name"><svg viewBox="0 0 24 24"><use href="#i-expand"/></svg></button>`;
+  const previewBtn = `<button type="button" class="player-preview-btn action-info" data-act="preview-name" data-name="${esc(name)}" aria-label="View player details for ${esc(name)}" title="Player details"><svg viewBox="0 0 24 24"><use href="#i-info"/></svg><span class="action-label">Info</span></button>`;
   // Name gets its own row with just the avatar, so it has the full column
   // width to wrap into instead of fighting the win/preview/swap/sub buttons
   // for space — those move to a compact row underneath.
@@ -2588,13 +2598,6 @@ function performSubstitution(entryId){
     // doesn't quietly shrink; if it was the main stack, they simply requeue.
     insertIntoWaitingSource(incomingSrcKey, incomingSrcIdx, { id: nextId('p'), name: outgoing.name, joinedAt: Date.now(), tag: 'queued' });
     toast(`${incoming.name} subbed in for ${outgoing.name}`);
-    // The requeued outgoing player (or the incoming player, if they were
-    // pulled out of the OTHER block) can be exactly the player who tips a
-    // block over its auto-flush threshold. Every other block-mutating action
-    // in the app re-checks this immediately after — subs were missing it,
-    // which is how a block could sit "full" and never flush until some
-    // unrelated action happened to trigger the check.
-    checkBlockFlush();
     closeSubOverlay();
     renderAll(); persist();
     return;
@@ -2627,11 +2630,6 @@ function performSubstitution(entryId){
     // of the main stack.
     insertIntoWaitingSource(incomingSrcKey, incomingSrcIdx, { id: nextId('p'), name: outgoingName, joinedAt: Date.now(), tag: 'queued' });
     toast(`${incoming.name} subbed in for ${outgoingName}`);
-    // See the block-branch comment above: requeuing the outgoing player into
-    // a block (or pulling the incoming player out of one) can cross the
-    // auto-flush threshold, and nothing else was re-checking it for this
-    // mid-match-sub path.
-    checkBlockFlush();
   }
   closeSubOverlay();
   renderAll(); persist();
@@ -2774,45 +2772,75 @@ function renderCourts(){
   });
 }
 
-/* ---- Preview full name ----
+/* ---- Player details preview ----
    Card names are uppercased and clamped to two lines to keep the court
    card compact, which is occasionally still not enough room for a very
-   long name. This button pops up the original, full, normal-case name
-   right above where it was tapped. Works even in viewer mode since it
-   doesn't change any state. */
-let namePreviewEl = null;
-let namePreviewHideTimer = null;
-function showNamePreview(btn, name){
-  if (!namePreviewEl){
-    namePreviewEl = document.createElement('div');
-    namePreviewEl.className = 'name-preview-pop';
-    document.body.appendChild(namePreviewEl);
-  }
-  namePreviewEl.textContent = name;
-  const r = btn.getBoundingClientRect();
-  const x = Math.min(Math.max(60, r.left + r.width / 2), window.innerWidth - 60);
-  namePreviewEl.style.left = x + 'px';
-  namePreviewEl.style.top = Math.max(8, r.top - 6) + 'px';
-  // Restart the show transition even if it's already visible for another name.
-  namePreviewEl.classList.remove('show');
-  void namePreviewEl.offsetWidth;
-  namePreviewEl.classList.add('show');
-  clearTimeout(namePreviewHideTimer);
-  namePreviewHideTimer = setTimeout(hideNamePreview, 2800);
+   long name — and the card itself has no room to show a player's games
+   played, wins, skill level, or Fixed Duo status. The INFO button pops
+   up all of that at once, right above where it was tapped: full normal-
+   case name, skill level, duo pairing (if any), and this session's game/
+   win tally. Works even in viewer mode since it doesn't change any state. */
+let playerDetailsEl = null;
+let playerDetailsHideTimer = null;
+function playerDetailsPopupHtml(name){
+  const stats = state.playerStats[name] || {};
+  const games = stats.games || 0;
+  const wins = stats.wins || 0;
+  const winRate = games > 0 ? Math.round((wins / games) * 100) : null;
+  const level = getPlayerLevel(name);
+  const partner = fixedDuoPartner(name);
+  const atTarget = state.session.targetGamesEnabled && games >= state.session.targetGamesPerPlayer;
+  return `
+    <div class="pd-head">
+      ${avatarHtml(name)}
+      <span class="pd-name">${esc(name)}</span>
+    </div>
+    <div class="pd-badges">
+      <span class="level-badge ${levelClass(level)}">${esc(levelLabel(level))}</span>
+      ${partner ? `<span class="pd-badge pd-duo" title="Fixed duo \u2014 always paired with ${esc(partner)}"><svg viewBox="0 0 24 24"><use href="#i-swap"/></svg>Duo w/ ${esc(partner)}</span>` : ''}
+      ${atTarget ? `<span class="pd-badge pd-target" title="Target games reached this session"><svg viewBox="0 0 24 24"><use href="#i-check"/></svg>Target reached</span>` : ''}
+    </div>
+    <div class="pd-stats">
+      <span class="pd-stat"><b>${games}</b> ${games === 1 ? 'game played' : 'games played'}</span>
+      <span class="pd-stat"><b>${wins}</b> ${wins === 1 ? 'win' : 'wins'}</span>
+      ${winRate !== null ? `<span class="pd-stat"><b>${winRate}%</b> win rate</span>` : ''}
+    </div>
+  `;
 }
-function hideNamePreview(){
-  if (namePreviewEl) namePreviewEl.classList.remove('show');
+function showPlayerDetailsPreview(btn, name){
+  if (!playerDetailsEl){
+    playerDetailsEl = document.createElement('div');
+    playerDetailsEl.className = 'player-details-pop';
+    document.body.appendChild(playerDetailsEl);
+  }
+  playerDetailsEl.innerHTML = playerDetailsPopupHtml(name);
+  const r = btn.getBoundingClientRect();
+  // Measure after content is in place so a wider card (long name, extra
+  // badges) still gets clamped fully on-screen rather than overflowing.
+  const half = Math.min(160, playerDetailsEl.offsetWidth / 2 || 130);
+  const x = Math.min(Math.max(half + 8, r.left + r.width / 2), window.innerWidth - half - 8);
+  playerDetailsEl.style.left = x + 'px';
+  playerDetailsEl.style.top = Math.max(8, r.top - 6) + 'px';
+  // Restart the show transition even if it's already visible for another name.
+  playerDetailsEl.classList.remove('show');
+  void playerDetailsEl.offsetWidth;
+  playerDetailsEl.classList.add('show');
+  clearTimeout(playerDetailsHideTimer);
+  playerDetailsHideTimer = setTimeout(hidePlayerDetailsPreview, 4200);
+}
+function hidePlayerDetailsPreview(){
+  if (playerDetailsEl) playerDetailsEl.classList.remove('show');
 }
 document.addEventListener('click', (e) => {
-  if (!namePreviewEl || !namePreviewEl.classList.contains('show')) return;
+  if (!playerDetailsEl || !playerDetailsEl.classList.contains('show')) return;
   if (e.target.closest('.player-preview-btn')) return;
-  hideNamePreview();
+  hidePlayerDetailsPreview();
 });
-document.addEventListener('scroll', hideNamePreview, true);
+document.addEventListener('scroll', hidePlayerDetailsPreview, true);
 
 courtsGrid.addEventListener('click', (e) => {
   const previewBtn = e.target.closest('button[data-act="preview-name"]');
-  if (previewBtn){ showNamePreview(previewBtn, previewBtn.dataset.name); return; }
+  if (previewBtn){ showPlayerDetailsPreview(previewBtn, previewBtn.dataset.name); return; }
   if (viewerMode) return;
   const btn = e.target.closest('button[data-act]');
   if (!btn) return;
