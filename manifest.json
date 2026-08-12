@@ -13,5 +13,37 @@
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "screenshots": [
+    {
+      "src": "screenshot-narrow.png",
+      "sizes": "780x1688",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Live scoring on a running court"
+    },
+    {
+      "src": "screenshot-wide.png",
+      "sizes": "2560x1664",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Player queue and courts side by side"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Add Player",
+      "short_name": "Add Player",
+      "description": "Jump straight to adding a player to the queue",
+      "url": "./index.html?action=add-player",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Check In",
+      "short_name": "Check In",
+      "description": "Jump straight to checking in waiting players",
+      "url": "./index.html?action=check-in",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
   ]
 }
