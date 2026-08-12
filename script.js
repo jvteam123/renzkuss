@@ -543,6 +543,42 @@ function esc(s){
   }[ch]));
 }
 
+// Adds native-<select>-like keyboard support to a themed custom-select
+// (trigger button + list-box panel of ".custom-select-option" rows), used
+// by both the Match History filters and "Call out a player" > court picker.
+// Without this they only responded to a mouse/tap, unlike every other
+// dropdown/modal in the app which already closes on Escape.
+//   trigger  — the button that opens/closes the panel
+//   panel    — the container the ".custom-select-option" rows are rendered into
+//   controls — { isOpen(), open(), close(), choose(optionEl) }
+function wireCustomSelectKeyboardNav(trigger, panel, controls){
+  function optionEls(){ return Array.from(panel.querySelectorAll('.custom-select-option')); }
+  function focusOpt(el){ if (el) el.focus(); }
+  trigger.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+      e.preventDefault();
+      if (!controls.isOpen()) controls.open();
+      const opts = optionEls();
+      const selected = opts.find(o => o.getAttribute('aria-selected') === 'true');
+      focusOpt(e.key === 'ArrowUp' ? opts[opts.length - 1] : (selected || opts[0]));
+    } else if (e.key === 'Escape' && controls.isOpen()){
+      e.preventDefault();
+      controls.close();
+    }
+  });
+  panel.addEventListener('keydown', (e) => {
+    const opts = optionEls();
+    const idx = opts.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown'){ e.preventDefault(); focusOpt(opts[Math.min(idx + 1, opts.length - 1)] || opts[0]); }
+    else if (e.key === 'ArrowUp'){ e.preventDefault(); focusOpt(opts[Math.max(idx - 1, 0)] || opts[0]); }
+    else if (e.key === 'Home'){ e.preventDefault(); focusOpt(opts[0]); }
+    else if (e.key === 'End'){ e.preventDefault(); focusOpt(opts[opts.length - 1]); }
+    else if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); if (idx >= 0) controls.choose(opts[idx]); }
+    else if (e.key === 'Escape'){ e.preventDefault(); controls.close(); trigger.focus(); }
+    else if (e.key === 'Tab'){ controls.close(); }
+  });
+}
+
 // Display-only: uppercases a name for the court card, without touching the
 // underlying stored name (used as-is everywhere else — stack, rankings, history, etc).
 function courtCardName(name){
@@ -3351,35 +3387,43 @@ function initMatchHistoryCustomSelect(selectEl, customEl, triggerEl, labelEl, pa
     panelEl.hidden = true;
     triggerEl.setAttribute('aria-expanded', 'false');
   }
+  function doOpen(){
+    open = true;
+    render();
+    panelEl.hidden = false;
+    triggerEl.setAttribute('aria-expanded', 'true');
+  }
   function render(){
     const opts = Array.from(selectEl.options).map(o => ({ value: o.value, label: o.textContent }));
     panelEl.innerHTML = opts.map(o => `
-      <div class="custom-select-option${o.value === selectEl.value ? ' selected' : ''}" role="option" data-value="${esc(o.value)}" aria-selected="${o.value === selectEl.value}">${esc(o.label)}</div>
+      <div class="custom-select-option${o.value === selectEl.value ? ' selected' : ''}" role="option" tabindex="-1" data-value="${esc(o.value)}" aria-selected="${o.value === selectEl.value}">${esc(o.label)}</div>
     `).join('');
     const match = opts.find(o => o.value === selectEl.value);
     labelEl.textContent = match ? match.label : (opts[0] ? opts[0].label : '');
   }
-  triggerEl.addEventListener('click', () => {
-    open = !open;
-    if (open) render();
-    panelEl.hidden = !open;
-    triggerEl.setAttribute('aria-expanded', String(open));
-  });
-  panelEl.addEventListener('click', (e) => {
-    const opt = e.target.closest('.custom-select-option');
-    if (!opt) return;
-    if (selectEl.value !== opt.dataset.value){
-      selectEl.value = opt.dataset.value;
+  function choose(optEl){
+    if (selectEl.value !== optEl.dataset.value){
+      selectEl.value = optEl.dataset.value;
       selectEl.dispatchEvent(new Event('change'));
     }
     close();
     render();
+    triggerEl.focus();
+  }
+  triggerEl.addEventListener('click', () => {
+    if (open) close(); else doOpen();
+  });
+  panelEl.addEventListener('click', (e) => {
+    const opt = e.target.closest('.custom-select-option');
+    if (!opt) return;
+    choose(opt);
   });
   document.addEventListener('click', (e) => {
     if (!open) return;
     if (e.target.closest(`#${customEl.id}`)) return;
     close();
   });
+  wireCustomSelectKeyboardNav(triggerEl, panelEl, { isOpen: () => open, open: doOpen, close, choose });
   return { render, close };
 }
 const matchHistoryCountEl = $('#matchHistoryCount');
@@ -4968,6 +5012,11 @@ async function createHostedSessionWithRetry(){
 async function startHosting(){
   if (!SUPABASE_CONFIGURED){ toast('Online hosting needs a Supabase anon key set in script.js first'); return; }
   if (!authSession) return;
+  if (navigator.onLine === false){
+    hostErrorMsg = 'You\u2019re offline \u2014 hosting needs an internet connection. Reconnect and try again.';
+    renderHostPanel();
+    return;
+  }
   hostBusy = true; hostErrorMsg = ''; renderHostPanel();
   try{
     if (hostAccountInfo && hostAccountInfo.suspended){
@@ -5032,6 +5081,12 @@ async function startHosting(){
       hostErrorMsg = 'This account has been suspended from online hosting.';
     } else if (e.message && e.message.indexOf('maintenance_mode') !== -1){
       hostErrorMsg = (siteSettingsCache && siteSettingsCache.maintenanceMessage) || 'Online hosting is temporarily paused for maintenance.';
+    } else if (e instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(e.message || '')){
+      // The fetch itself never reached the server — almost always means the
+      // connection dropped between the pre-check above and this request,
+      // rather than anything Supabase rejected. Say so plainly instead of
+      // surfacing the raw "Failed to fetch" browser wording.
+      hostErrorMsg = 'Couldn\u2019t reach the server \u2014 check your internet connection and try again.';
     } else {
       hostErrorMsg = e.message || 'Could not start hosting';
     }
@@ -5910,7 +5965,7 @@ function renderCallOutCourtOptions(force){
 
   if (callOutCourtPanel){
     callOutCourtPanel.innerHTML = opts.map(o => `
-      <div class="custom-select-option${o.value === callOutCourtSelect.value ? ' selected' : ''}" role="option" data-value="${esc(o.value)}" aria-selected="${o.value === callOutCourtSelect.value}">${esc(o.label)}</div>
+      <div class="custom-select-option${o.value === callOutCourtSelect.value ? ' selected' : ''}" role="option" tabindex="-1" data-value="${esc(o.value)}" aria-selected="${o.value === callOutCourtSelect.value}">${esc(o.label)}</div>
     `).join('');
   }
   if (callOutCourtTriggerLabel){
@@ -5919,21 +5974,28 @@ function renderCallOutCourtOptions(force){
   }
 }
 
+function openCallOutCourtPanel(){
+  callOutCourtPanelOpen = true;
+  renderCallOutCourtOptions(true);
+  if (callOutCourtPanel) callOutCourtPanel.hidden = false;
+  if (callOutCourtTrigger) callOutCourtTrigger.setAttribute('aria-expanded', 'true');
+}
+function chooseCallOutCourtOption(optEl){
+  callOutCourtSelect.value = optEl.dataset.value;
+  closeCallOutCourtPanel();
+  renderCallOutCourtOptions(true);
+  if (callOutCourtTrigger) callOutCourtTrigger.focus();
+}
 if (callOutCourtTrigger){
   callOutCourtTrigger.addEventListener('click', () => {
-    callOutCourtPanelOpen = !callOutCourtPanelOpen;
-    if (callOutCourtPanelOpen) renderCallOutCourtOptions(true);
-    if (callOutCourtPanel) callOutCourtPanel.hidden = !callOutCourtPanelOpen;
-    callOutCourtTrigger.setAttribute('aria-expanded', String(callOutCourtPanelOpen));
+    if (callOutCourtPanelOpen) closeCallOutCourtPanel(); else openCallOutCourtPanel();
   });
 }
 if (callOutCourtPanel){
   callOutCourtPanel.addEventListener('click', (e) => {
     const opt = e.target.closest('.custom-select-option');
     if (!opt) return;
-    callOutCourtSelect.value = opt.dataset.value;
-    closeCallOutCourtPanel();
-    renderCallOutCourtOptions(true);
+    chooseCallOutCourtOption(opt);
   });
 }
 document.addEventListener('click', (e) => {
@@ -5941,6 +6003,12 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('#callOutCourtCustom')) return;
   closeCallOutCourtPanel();
 });
+if (callOutCourtTrigger && callOutCourtPanel){
+  wireCustomSelectKeyboardNav(callOutCourtTrigger, callOutCourtPanel, {
+    isOpen: () => callOutCourtPanelOpen, open: openCallOutCourtPanel,
+    close: closeCallOutCourtPanel, choose: chooseCallOutCourtOption
+  });
+}
 
 function renderCallOutList(){
   if (!callOutList) return;
@@ -6038,6 +6106,12 @@ function goWatchCode(){
   if (!code){
     if (errEl){ errEl.textContent = 'Enter the code the host gave you.'; errEl.hidden = false; }
     if (input) input.focus();
+    return;
+  }
+  if (navigator.onLine === false){
+    // Navigating offline would just land on a blank/broken spectator view
+    // with no obvious explanation — catch it here instead.
+    if (errEl){ errEl.textContent = 'You\u2019re offline \u2014 watching a live session needs an internet connection.'; errEl.hidden = false; }
     return;
   }
   const cooldownMs = watchCooldownRemainingMs();
@@ -7010,6 +7084,22 @@ function renderAll(){
     let savedTab = null;
     try{ savedTab = localStorage.getItem(MOBILE_TAB_KEY); }catch(e){}
     setMobileTab(savedTab === 'courts' ? 'courts' : 'stack');
+  }
+
+  // Backs the manifest.json "shortcuts" entries (long-press the installed
+  // app icon) — e.g. ./index.html?action=add-player jumps straight to the
+  // Add Player modal instead of just opening to whatever tab was last open.
+  const shortcutAction = urlParams.get('action');
+  if (shortcutAction === 'add-player'){
+    openAddPlayerModal();
+  } else if (shortcutAction === 'check-in'){
+    openCheckInModal();
+  }
+  if (shortcutAction){
+    // Drop the param from the address bar so a later reload doesn't
+    // reopen the same modal every time.
+    const cleanUrl = location.pathname + (joinCode ? `?join=${encodeURIComponent(joinCode)}` : '');
+    history.replaceState(null, '', cleanUrl);
   }
 
   authSession = loadAuthSession();
