@@ -3336,6 +3336,51 @@ const matchHistoryCourtFilter = $('#matchHistoryCourtFilter');
 const matchHistoryResultFilter = $('#matchHistoryResultFilter');
 const matchHistoryLevelFilter = $('#matchHistoryLevelFilter');
 const matchHistoryClearFiltersBtn = $('#matchHistoryClearFiltersBtn');
+
+// Themed dropdown for the Match History filter row (court / result / level) —
+// same "custom-select" pattern used for "Call out a player" > court picker,
+// so the open list matches the app instead of the OS's own popup. Each
+// native <select> above stays the source of truth (kept in sync with the
+// existing state.value reads elsewhere); this just keeps a themed trigger +
+// panel in sync with whatever options/value the select currently holds.
+function initMatchHistoryCustomSelect(selectEl, customEl, triggerEl, labelEl, panelEl){
+  let open = false;
+  function close(){
+    open = false;
+    panelEl.hidden = true;
+    triggerEl.setAttribute('aria-expanded', 'false');
+  }
+  function render(){
+    const opts = Array.from(selectEl.options).map(o => ({ value: o.value, label: o.textContent }));
+    panelEl.innerHTML = opts.map(o => `
+      <div class="custom-select-option${o.value === selectEl.value ? ' selected' : ''}" role="option" data-value="${esc(o.value)}" aria-selected="${o.value === selectEl.value}">${esc(o.label)}</div>
+    `).join('');
+    const match = opts.find(o => o.value === selectEl.value);
+    labelEl.textContent = match ? match.label : (opts[0] ? opts[0].label : '');
+  }
+  triggerEl.addEventListener('click', () => {
+    open = !open;
+    if (open) render();
+    panelEl.hidden = !open;
+    triggerEl.setAttribute('aria-expanded', String(open));
+  });
+  panelEl.addEventListener('click', (e) => {
+    const opt = e.target.closest('.custom-select-option');
+    if (!opt) return;
+    if (selectEl.value !== opt.dataset.value){
+      selectEl.value = opt.dataset.value;
+      selectEl.dispatchEvent(new Event('change'));
+    }
+    close();
+    render();
+  });
+  document.addEventListener('click', (e) => {
+    if (!open) return;
+    if (e.target.closest(`#${customEl.id}`)) return;
+    close();
+  });
+  return { render, close };
+}
 const matchHistoryCountEl = $('#matchHistoryCount');
 // Kept across renders (not reset each render) so re-opening the modal, or a
 // live-synced history update while it's open, doesn't clear what the host
@@ -3399,6 +3444,16 @@ function matchMatchesSearch(h, needle){
   const hay = (h.courtName + ' ' + matchPlayerNames(h).join(' ')).toLowerCase();
   return hay.includes(needle);
 }
+const matchHistoryCourtCustomSelect = initMatchHistoryCustomSelect(
+  matchHistoryCourtFilter, $('#matchHistoryCourtCustom'), $('#matchHistoryCourtTrigger'), $('#matchHistoryCourtTriggerLabel'), $('#matchHistoryCourtPanel')
+);
+const matchHistoryResultCustomSelect = initMatchHistoryCustomSelect(
+  matchHistoryResultFilter, $('#matchHistoryResultCustom'), $('#matchHistoryResultTrigger'), $('#matchHistoryResultTriggerLabel'), $('#matchHistoryResultPanel')
+);
+const matchHistoryLevelCustomSelect = initMatchHistoryCustomSelect(
+  matchHistoryLevelFilter, $('#matchHistoryLevelCustom'), $('#matchHistoryLevelTrigger'), $('#matchHistoryLevelTriggerLabel'), $('#matchHistoryLevelPanel')
+);
+
 function matchMatchesFilters(h){
   const f = matchHistoryFilters;
   if (f.court !== 'all' && h.courtName !== f.court) return false;
@@ -3423,6 +3478,7 @@ function refreshMatchHistoryFilterOptions(){
   matchHistoryCourtFilter.innerHTML = '<option value="all">All courts</option>' +
     courts.map(c => `<option value="${esc(c)}" ${c === keepCourt ? 'selected' : ''}>${esc(c)}</option>`).join('');
 
+  const matchHistoryLevelCustom = $('#matchHistoryLevelCustom');
   if (state.session.skillLevelsEnabled){
     const levelsPresent = PLAYER_LEVELS.filter(lvl => state.history.some(h => matchPlayerNames(h).some(n => getPlayerLevel(n) === lvl)));
     const keepLevel = levelsPresent.includes(matchHistoryFilters.level) ? matchHistoryFilters.level : 'all';
@@ -3430,11 +3486,21 @@ function refreshMatchHistoryFilterOptions(){
     matchHistoryLevelFilter.innerHTML = '<option value="all">All levels</option>' +
       levelsPresent.map(lvl => `<option value="${esc(lvl)}" ${lvl === keepLevel ? 'selected' : ''}>${esc(levelLabel(lvl))}</option>`).join('');
     matchHistoryLevelFilter.hidden = false;
+    if (matchHistoryLevelCustom) matchHistoryLevelCustom.hidden = false;
   } else {
     matchHistoryFilters.level = 'all';
     matchHistoryLevelFilter.hidden = true;
+    if (matchHistoryLevelCustom) matchHistoryLevelCustom.hidden = true;
   }
   matchHistoryResultFilter.value = matchHistoryFilters.result;
+
+  // Keep the themed triggers/panels in sync with whatever the (now updated)
+  // native selects hold — closing each first so a background refresh (e.g.
+  // a live-synced history update) never rewrites an open panel out from
+  // under the host mid-pick.
+  matchHistoryCourtCustomSelect.close(); matchHistoryCourtCustomSelect.render();
+  matchHistoryResultCustomSelect.close(); matchHistoryResultCustomSelect.render();
+  matchHistoryLevelCustomSelect.close(); matchHistoryLevelCustomSelect.render();
 }
 
 // Re-renders just the list + count — safe to call on every keystroke since
