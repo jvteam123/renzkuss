@@ -4165,6 +4165,25 @@ let hostPushTimer = null;
 let hostPushPending = false;
 let hostPushInFlight = false; // true while a PATCH to hosted_sessions is actually in the air —
                                // see the in-flight guard inside pushStateNow
+// The host device used to only ever PUSH state up to hosted_sessions and
+// never pull it back down — fine when the host's own device was the only
+// writer, but once co-host access shipped, a co-host's changes (via
+// cohost_push_state) landed on the server row with nothing on the host's
+// side ever noticing. The host would sit there showing a stale board, and
+// worse, the *next* time the host made any edit of their own, persist()
+// would PATCH the row with that same stale local state and silently
+// stomp the co-host's change right back out. hostPollTimer/hostPollFn
+// close that gap by giving the host device the same "poll the shared row,
+// adopt anything newer" loop the co-host already has (see startCohostPoll).
+const HOST_POLL_INTERVAL_MS = 2500; // same cadence as COHOST_POLL_INTERVAL_MS below — kept as its
+                                     // own named constant since it's declared well before that one
+let hostPollTimer = null;
+let hostPollFn = null;      // lets the global online/visibility/pageshow handlers trigger an
+                             // immediate re-poll, same pattern as cohostPollFn/viewerPollFn
+let lastHostStateAt = 0;    // most recent updated_at (ms) this device has actually applied from
+                             // the server — stops a slow/late poll response from clobbering a
+                             // newer local edit, and stops this device from re-adopting the very
+                             // state it just pushed itself
 let viewerPollTimer = null;
 let viewerModeInitialized = false;   // guards against enterViewerMode() ever running twice in the
                                       // same page load (a fresh browser refresh already gets a
@@ -4253,6 +4272,8 @@ function saveHostSession(session){
   hostReconnecting = false;
   hostPushPending = false;
   stopHostReconnectRetry();
+  if (session){ lastHostStateAt = Date.now(); startHostPoll(); }
+  else stopHostPoll();
   try{
     if (session) localStorage.setItem(HOST_STORAGE_KEY, JSON.stringify(session));
     else localStorage.removeItem(HOST_STORAGE_KEY);
@@ -4943,6 +4964,51 @@ async function checkHostStillLive(){
 }
 setInterval(() => { if (hostSession) checkHostStillLive(); }, 2 * 60 * 1000);
 
+// Mirror image of startCohostPoll below: the host device also needs to
+// notice state a CO-HOST pushed while this device wasn't the one writing.
+// Uses a plain authenticated GET (the host already owns this row, so no
+// scoped RPC is needed the way a co-host's anon-key device requires) and
+// the same "only adopt if it's actually newer, and never while our own
+// edit is mid-flight" guard as the co-host loop, so the two devices can't
+// ping-pong each other's snapshots back and forth.
+async function fetchHostRowState(){
+  const res = await sbFetch(`/rest/v1/hosted_sessions?id=eq.${hostSession.id}&select=state,status,updated_at`, { method: 'GET' }, true);
+  if (!res.ok) return null;
+  const data = await res.json().catch(() => null);
+  const row = Array.isArray(data) ? data[0] : null;
+  if (!row) return null;
+  return { state: row.state, status: row.status, updated_at_ms: row.updated_at ? new Date(row.updated_at).getTime() : Date.now() };
+}
+function startHostPoll(){
+  if (hostPollTimer){ clearInterval(hostPollTimer); hostPollTimer = null; }
+  const poll = async () => {
+    if (!hostSession) return;
+    // Don't let an incoming snapshot clobber an edit of ours that's still
+    // on its way out (or about to be sent) — same reasoning as the
+    // in-flight guard in pushStateNow, and the same check startCohostPoll
+    // makes before adopting anything.
+    if (hostPushPending || hostPushInFlight) return;
+    let fetched;
+    try{ fetched = await fetchHostRowState(); }catch(e){ return; } // network hiccup — next tick retries
+    if (!fetched) return;
+    if (fetched.status !== 'live') return; // checkHostStillLive's own timer handles the "ended" toast/cleanup
+    // Only adopt a snapshot that's actually newer than what we already
+    // have — guards against a slow poll response landing after we've
+    // since pushed a newer edit of our own, which would otherwise yank
+    // the screen (and the next auto-save) backward.
+    if (fetched.updated_at_ms && fetched.updated_at_ms <= lastHostStateAt) return;
+    lastHostStateAt = fetched.updated_at_ms || Date.now();
+    state = fetched.state;
+    renderAll();
+  };
+  hostPollFn = poll;
+  hostPollTimer = setInterval(poll, HOST_POLL_INTERVAL_MS);
+}
+function stopHostPoll(){
+  if (hostPollTimer){ clearInterval(hostPollTimer); hostPollTimer = null; }
+  hostPollFn = null;
+}
+
 /* ---- Co-host: fetch/claim/push helpers ----
    cohost_fetch_state and cohost_push_state (see supabase-cohost.sql) are
    the only two entry points a co-host device ever calls — both anon-key,
@@ -5173,6 +5239,13 @@ async function pushStateNow(){
         headers: { 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
         body: JSON.stringify({ state: state, session_name: state.session.name })
       }, true);
+      // We're the ones who just wrote this row, so its updated_at is
+      // effectively "now" — mark it as already-applied so startHostPoll's
+      // next tick doesn't treat our own push as an incoming remote change
+      // (harmless either way since it'd just re-apply identical state, but
+      // pointless work, and a slow response landing late could otherwise
+      // read as older than a newer edit already in flight behind it).
+      lastHostStateAt = Date.now();
     } else {
       // Co-host push: no login, so this goes out under the anon key with
       // the co-host's own scoped code — cohost_push_state (see
@@ -6474,6 +6547,7 @@ window.addEventListener('online', () => {
   if (hostSession){
     if (hostPushPending) pushStateNow();
     else checkHostStillLive();
+    if (hostPollFn) hostPollFn();
   }
   if (cohostSession){
     if (hostPushPending) pushStateNow();
@@ -6522,6 +6596,11 @@ window.addEventListener('pageshow', (event) => {
   if (hostSession){
     if (hostPushPending) pushStateNow();
     else checkHostStillLive();
+    if (hostPollTimer){ clearInterval(hostPollTimer); hostPollTimer = null; }
+    if (hostPollFn){
+      hostPollTimer = setInterval(hostPollFn, HOST_POLL_INTERVAL_MS);
+      hostPollFn(); // catch up right now instead of waiting out a fresh interval
+    }
   }
   if (cohostSession){
     if (cohostPollTimer){ clearInterval(cohostPollTimer); cohostPollTimer = null; }
@@ -6547,6 +6626,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
   if (viewerMode && viewerPollFn) viewerPollFn();
   if (cohostSession && cohostPollFn) cohostPollFn();
+  if (hostSession && hostPollFn) hostPollFn();
 });
 
 /* ================= Render orchestration ================= */
@@ -6650,7 +6730,13 @@ function renderAll(){
   hostSession = loadHostSession();
   updateHostIndicator();
   if (hostSession && !authSession) saveHostSession(null); // stale local session with no login to back it
-  if (hostSession) checkHostStillLive(); // catch an idle/cron auto-stop that happened while this device was closed
+  if (hostSession){
+    checkHostStillLive(); // catch an idle/cron auto-stop that happened while this device was closed
+    lastHostStateAt = Date.now(); // baseline — anything checkHostStillLive/startHostPoll fetches
+                                   // from here on only overwrites local state if it's newer than this
+    startHostPoll(); // pick up anything a co-host changed while this device was closed, and keep
+                      // picking up co-host edits made while this device stays open (see startHostPoll)
+  }
   if (authSession) checkDeviceStillActive(); // catch a takeover by another device that happened while this device was closed
 })();
 
