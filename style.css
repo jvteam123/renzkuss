@@ -1937,3 +1937,164 @@ body.viewer-mode .courts-main{ display:block !important; }
 }
 .host-credit-gcash b{font-family:var(--font-mono);user-select:all}
 .host-receipt-filename{font-size:.74rem;color:var(--slate);margin-top:.4rem;word-break:break-all}
+
+/* =====================================================================
+   ---------- Visual refresh: dark "PaddlePro"-style Courts view ----------
+   Pure presentation layer — every id/class/data-act targeted below is
+   already used by script.js for real behaviour (rendering, click
+   handlers, drag/undo/etc). Nothing here adds or changes app logic; it
+   only restyles the existing markup to match the reference screenshot.
+   Scoped to dark mode (the app's default theme) so the light "flag"
+   theme is untouched. Placed last so it wins the cascade without !important.
+   ===================================================================== */
+html[data-theme="dark"]{
+  --court:#080D18;
+  --surface:#101A2C;
+  --line:#1E2A42;
+  --slate:#7C8AA5;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.5);
+  --shadow-md:0 12px 32px rgba(0,0,0,.6);
+}
+html[data-theme="dark"] body{background:radial-gradient(120% 60% at 50% -10%, #0E1A2E 0%, #080D18 55%) fixed}
+
+/* ---- Topbar: darker, circular icon chips, tighter brand lockup ---- */
+html[data-theme="dark"] .topbar{
+  background:linear-gradient(180deg,#0B1220 0%,#0A0F1C 100%);
+  border-bottom:1px solid #131E33;
+  box-shadow:none;
+}
+html[data-theme="dark"] .icon-btn{
+  background:#141F35;border:1px solid #1E2C48;border-radius:50%;
+}
+html[data-theme="dark"] .icon-btn:hover{background:#1B2A47}
+html[data-theme="dark"] .topbar .pill{
+  background:#141F35;border-color:#22314E;color:#B9C6DE;border-radius:99px;
+}
+
+/* ---- Court cards ---- */
+html[data-theme="dark"] .court-card{
+  background:linear-gradient(180deg,#111C30 0%,#0E1728 100%);
+  border:1px solid #1C283F;border-radius:20px;
+  box-shadow:0 1px 0 rgba(255,255,255,.02) inset,var(--shadow-sm);
+  padding:0 1.1rem 1.1rem;
+}
+html[data-theme="dark"] .court-card::before{display:none} /* screenshot's cards have no top accent bar */
+html[data-theme="dark"] .court-card.playing{
+  background:linear-gradient(180deg,#15233C 0%,#101B30 100%);
+  border-color:#25365A;
+}
+html[data-theme="dark"] .court-top{padding-top:1.05rem}
+html[data-theme="dark"] .court-name{
+  font-family:var(--font-display);font-size:1.05rem;letter-spacing:.02em;color:#fff;
+}
+html[data-theme="dark"] .court-name-wrap svg{color:#5B6B87;width:15px;height:15px}
+html[data-theme="dark"] .status-badge.open{
+  background:rgba(52,211,153,.14);color:#34D399;border:1px solid rgba(52,211,153,.3);
+  font-weight:700;
+}
+html[data-theme="dark"] .status-badge.playing{
+  background:rgba(255,107,117,.14);color:#FF8A93;border:1px solid rgba(255,107,117,.3);
+}
+
+/* ---- "Last result" banner + Undo ---- */
+html[data-theme="dark"] .last-result{
+  background:#0C1526;border:1px solid #1C283F;border-radius:14px;
+  padding:.7rem .85rem;font-size:.78rem;color:#C6D1E6;
+}
+html[data-theme="dark"] .last-result svg{color:#FCD116;width:15px;height:15px}
+html[data-theme="dark"] .undo-result-btn{
+  background:transparent;border:1.5px solid #E24C56;color:#FF8A93;
+  border-radius:8px;font-weight:800;letter-spacing:.04em;padding:.32rem .65rem;
+}
+html[data-theme="dark"] .undo-result-btn:hover{background:rgba(226,76,86,.15)}
+
+/* ---- VS divider ---- */
+html[data-theme="dark"] .vs-divider::after{
+  background:#101A2C;color:#5B6B87;border:1px solid #1E2A42;
+}
+html[data-theme="dark"] .court-card.playing .vs-divider::after{background:#101B30;color:#7F9FD1;border-color:#25365A}
+
+/* ---- Player rows: bigger avatar, bold caps name, full-width action pills ---- */
+html[data-theme="dark"] .avatar{
+  width:38px;height:38px;font-size:.92rem;box-shadow:0 0 0 2px rgba(255,255,255,.06);
+}
+html[data-theme="dark"] .player-name-txt{color:#fff;font-size:1rem;letter-spacing:.01em}
+html[data-theme="dark"] .games-chip{color:#66748F;font-size:.66rem;letter-spacing:.03em;text-transform:uppercase}
+.player-col{width:100%}
+.player-actions-row{gap:.4rem}
+.player-preview-btn,.player-swap-btn,.player-sub-btn{
+  height:30px;padding:0 .6rem;border-radius:9px;font-size:.64rem;
+}
+.player-preview-btn svg,.player-swap-btn svg,.player-sub-btn svg{width:12px;height:12px}
+@container court (max-width:360px){
+  .player-actions-row{width:100%}
+  .player-preview-btn,.player-swap-btn,.player-sub-btn{flex:1;margin-left:0}
+  .team-b .player-actions-row{justify-content:flex-start}
+}
+html[data-theme="dark"] .player-preview-btn{background:var(--info-blue);border-color:var(--info-blue)}
+html[data-theme="dark"] .player-swap-btn{background:var(--swap-orange);border-color:var(--swap-orange)}
+html[data-theme="dark"] .player-sub-btn{background:var(--sub-amber);border-color:var(--sub-amber);color:#241C02}
+
+/* ---- Call Players / Start Game / End game buttons ---- */
+html[data-theme="dark"] .court-cta-row .court-cta{border-radius:14px}
+html[data-theme="dark"] .court-cta.call{background:var(--info-blue)}
+html[data-theme="dark"] .court-cta.call:hover:not(:disabled){background:var(--info-blue-deep)}
+html[data-theme="dark"] .court-cta.call-players{
+  border:1.5px solid #26385C;color:#B9C6DE;background:transparent;
+}
+html[data-theme="dark"] .court-cta.call-players:hover:not(:disabled){background:#152037}
+html[data-theme="dark"] .court-cta.end{background:rgba(255,255,255,.08);border:1px solid #26385C}
+html[data-theme="dark"] .court-cta.end:hover{background:rgba(255,255,255,.14)}
+
+/* ---- "Up next" schedule list ---- */
+html[data-theme="dark"] .history summary{color:#B9C6DE;font-family:var(--font-display);font-size:.82rem}
+html[data-theme="dark"] .ondeck-row{
+  background:#0F1930;border:1px solid #1E2A42;border-radius:14px;
+}
+html[data-theme="dark"] .ondeck-row::before{background:#26385C}
+html[data-theme="dark"] .ondeck-row:first-child{
+  background:linear-gradient(180deg,rgba(47,111,237,.14) 0%,#0F1930 70%);
+  border-color:rgba(47,111,237,.35);
+}
+html[data-theme="dark"] .ondeck-row:first-child::before{background:var(--info-blue)}
+html[data-theme="dark"] .ondeck-num{
+  background:rgba(47,111,237,.16);color:#8FB3FF;border-color:rgba(47,111,237,.35);
+}
+html[data-theme="dark"] .ondeck-row:first-child .ondeck-num{background:var(--info-blue);color:#fff;border-color:var(--info-blue)}
+html[data-theme="dark"] .ondeck-matchup{color:#fff}
+html[data-theme="dark"] .ondeck-vs{background:rgba(255,255,255,.06);color:#7C8AA5}
+
+/* ---- Quick-stats bar: icon + big number + label, with dividers ---- */
+html[data-theme="dark"] .courts-stats-bar{
+  background:#0F1930;border:1px solid #1E2A42;border-radius:16px;
+  padding:0;overflow:hidden;
+}
+html[data-theme="dark"] .courts-stat{
+  background:transparent;border:none;border-radius:0;
+  position:relative;padding:1rem .4rem;
+}
+html[data-theme="dark"] .courts-stat + .courts-stat::before{
+  content:'';position:absolute;left:0;top:20%;bottom:20%;width:1px;background:#1E2A42;
+}
+html[data-theme="dark"] .courts-stat-num{color:#fff;font-size:1.2rem}
+html[data-theme="dark"] .courts-stat-label{color:#7C8AA5}
+html[data-theme="dark"] .courts-stat:nth-child(1) svg{color:var(--info-blue)}
+html[data-theme="dark"] .courts-stat:nth-child(2) svg{color:#34D399}
+html[data-theme="dark"] .courts-stat:nth-child(3) svg{color:var(--gold)}
+html[data-theme="dark"] .courts-stat:nth-child(4) svg{color:#A78BFA}
+
+/* ---- Bottom nav: 4-tab bar with pill-highlighted active tab ---- */
+html[data-theme="dark"] .mobile-tabs{
+  background:#0A0F1C;border-top:1px solid #131E33;box-shadow:none;
+}
+html[data-theme="dark"] .mobile-tabs button{color:#5B6B87}
+html[data-theme="dark"] .mobile-tabs button.active{
+  background:var(--info-blue);color:#fff;
+}
+@media (max-width:880px){
+  .mobile-tabs button{font-size:.66rem;padding:.6rem .3rem}
+  .mobile-tabs button svg{width:19px;height:19px}
+}
+
+/* ---- Session name lockup, closer to the reference logo treatment ---- */
+html[data-theme="dark"] .topbar .session-name{font-weight:800}
