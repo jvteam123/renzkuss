@@ -1563,9 +1563,12 @@ body.cohost-mode #callOutTopBtn,
 body.cohost-mode #addPlayerTabBtn,
 body.cohost-mode #checkInTabBtn,
 body.cohost-mode .session-banner,
-body.cohost-mode .player-swap-btn,
 body.cohost-mode .block-flush-btn,
 body.cohost-mode .block-level-flush-btn{ display:none !important; }
+/* Swap/Sub icons on a co-host device are now conditionally rendered by
+   script.js based on the host's Allow Swap / Allow Substitution toggles
+   (see cohostActionAllowed/getCohostPermissions) rather than always
+   hidden here — a co-host is allowed both by default. */
 body.cohost-mode #stackList .reorder,
 body.cohost-mode #stackList .remove-btn,
 body.cohost-mode #stackList .level-badge[data-act="cycle-level"]{ display:none !important; }
@@ -1588,6 +1591,15 @@ body.cohost-mode .court-name{ pointer-events:none; }
   color:var(--turf-deep);background:var(--turf-pale);border-radius:var(--radius-sm);
   padding:.6rem .7rem;margin:.6rem 0;user-select:all;
 }
+.host-cohost-permissions{
+  display:flex;flex-direction:column;gap:.45rem;margin:.7rem 0;padding:.6rem .7rem;
+  background:var(--court);border:1px solid var(--line);border-radius:var(--radius-sm);
+}
+.host-cohost-perm-row{
+  display:flex;align-items:center;gap:.55rem;font-size:.82rem;font-weight:600;color:var(--ink);
+  cursor:pointer;user-select:none;
+}
+.host-cohost-perm-row input[type="checkbox"]{width:17px;height:17px;accent-color:var(--turf-deep);cursor:pointer}
 
 /* ---------- Who's Watching modal ---------- */
 .whos-watching-modal{max-width:420px}
