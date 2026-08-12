@@ -3331,6 +3331,16 @@ function updateViewerUpNext(){
 /* ================= Match History modal (full detail + swap log) ================= */
 const matchHistoryOverlay = $('#matchHistoryOverlay');
 const matchHistoryFullList = $('#matchHistoryFullList');
+const matchHistorySearchInput = $('#matchHistorySearchInput');
+const matchHistoryCourtFilter = $('#matchHistoryCourtFilter');
+const matchHistoryResultFilter = $('#matchHistoryResultFilter');
+const matchHistoryLevelFilter = $('#matchHistoryLevelFilter');
+const matchHistoryClearFiltersBtn = $('#matchHistoryClearFiltersBtn');
+const matchHistoryCountEl = $('#matchHistoryCount');
+// Kept across renders (not reset each render) so re-opening the modal, or a
+// live-synced history update while it's open, doesn't clear what the host
+// was searching for. Reset explicitly by Clear or on a genuinely fresh open.
+let matchHistoryFilters = { search: '', court: 'all', result: 'all', level: 'all' };
 
 function fmtDateTime(ts){
   if (!ts) return '';
@@ -3375,14 +3385,82 @@ function matchFullRowHtml(h){
   </div>`;
 }
 
-function renderMatchHistory(){
+// Every player name that appears anywhere in a match entry, used both for
+// the search box (name substring match) and the level filter (does this
+// match involve anyone currently at the selected level?). Levels aren't
+// stored per-match — like everywhere else in the app, a player's level is
+// looked up live via getPlayerLevel — so this reflects each player's
+// *current* level, not necessarily what it was back when the match played.
+function matchPlayerNames(h){
+  return [].concat(h.teamA || [], h.teamB || []);
+}
+function matchMatchesSearch(h, needle){
+  if (!needle) return true;
+  const hay = (h.courtName + ' ' + matchPlayerNames(h).join(' ')).toLowerCase();
+  return hay.includes(needle);
+}
+function matchMatchesFilters(h){
+  const f = matchHistoryFilters;
+  if (f.court !== 'all' && h.courtName !== f.court) return false;
+  if (f.result === 'scored' && !(h.scoreA != null && h.scoreB != null)) return false;
+  if (f.result === 'unscored' && (h.scoreA != null && h.scoreB != null)) return false;
+  if (f.level !== 'all' && !matchPlayerNames(h).some(n => getPlayerLevel(n) === f.level)) return false;
+  if (f.search && !matchMatchesSearch(h, f.search)) return false;
+  return true;
+}
+
+// Rebuilds the Court and Level dropdown OPTIONS from what's actually in
+// state.history right now (courts get renamed/added over a long session,
+// and skill levels are only relevant once the session turns them on) —
+// while preserving whatever the host already had picked, so typing a
+// search term doesn't reset an active court/level filter out from under
+// them. Only called when the modal opens or the underlying history
+// changes shape, never on every keystroke.
+function refreshMatchHistoryFilterOptions(){
+  const courts = [...new Set(state.history.map(h => h.courtName))].sort();
+  const keepCourt = courts.includes(matchHistoryFilters.court) ? matchHistoryFilters.court : 'all';
+  matchHistoryFilters.court = keepCourt;
+  matchHistoryCourtFilter.innerHTML = '<option value="all">All courts</option>' +
+    courts.map(c => `<option value="${esc(c)}" ${c === keepCourt ? 'selected' : ''}>${esc(c)}</option>`).join('');
+
+  if (state.session.skillLevelsEnabled){
+    const levelsPresent = PLAYER_LEVELS.filter(lvl => state.history.some(h => matchPlayerNames(h).some(n => getPlayerLevel(n) === lvl)));
+    const keepLevel = levelsPresent.includes(matchHistoryFilters.level) ? matchHistoryFilters.level : 'all';
+    matchHistoryFilters.level = keepLevel;
+    matchHistoryLevelFilter.innerHTML = '<option value="all">All levels</option>' +
+      levelsPresent.map(lvl => `<option value="${esc(lvl)}" ${lvl === keepLevel ? 'selected' : ''}>${esc(levelLabel(lvl))}</option>`).join('');
+    matchHistoryLevelFilter.hidden = false;
+  } else {
+    matchHistoryFilters.level = 'all';
+    matchHistoryLevelFilter.hidden = true;
+  }
+  matchHistoryResultFilter.value = matchHistoryFilters.result;
+}
+
+// Re-renders just the list + count — safe to call on every keystroke since
+// it never touches the filter dropdowns/search input themselves, so focus
+// and cursor position in the search box are never disturbed.
+function renderMatchHistoryList(){
+  const filtered = state.history.filter(matchMatchesFilters);
+  const anyFilterActive = matchHistoryFilters.search || matchHistoryFilters.court !== 'all' || matchHistoryFilters.result !== 'all' || matchHistoryFilters.level !== 'all';
   matchHistoryFullList.innerHTML = state.history.length === 0
     ? '<div class="history-row" style="justify-content:center">No games finished yet.</div>'
-    : state.history.map(matchFullRowHtml).join('');
+    : (filtered.length === 0
+        ? '<div class="history-row" style="justify-content:center">No matches found — try a different filter.</div>'
+        : filtered.map(matchFullRowHtml).join(''));
+  matchHistoryCountEl.textContent = state.history.length === 0
+    ? ''
+    : (anyFilterActive ? `Showing ${filtered.length} of ${state.history.length} matches` : `${state.history.length} match${state.history.length === 1 ? '' : 'es'}`);
+}
+
+function renderMatchHistory(){
+  refreshMatchHistoryFilterOptions();
+  renderMatchHistoryList();
 }
 
 function openMatchHistory(){
   renderMatchHistory();
+  matchHistorySearchInput.value = matchHistoryFilters.search;
   matchHistoryOverlay.hidden = false;
 }
 $('#matchHistoryBtn').addEventListener('click', openMatchHistory);
@@ -3391,6 +3469,29 @@ $('#matchHistoryBtn').addEventListener('click', openMatchHistory);
 // instead of the (hidden-for-viewers) top toolbar icon.
 const viewerMatchHistoryBtn = $('#viewerMatchHistoryBtn');
 if (viewerMatchHistoryBtn) viewerMatchHistoryBtn.addEventListener('click', openMatchHistory);
+
+matchHistorySearchInput.addEventListener('input', () => {
+  matchHistoryFilters.search = matchHistorySearchInput.value.trim().toLowerCase();
+  renderMatchHistoryList();
+});
+matchHistoryCourtFilter.addEventListener('change', () => {
+  matchHistoryFilters.court = matchHistoryCourtFilter.value;
+  renderMatchHistoryList();
+});
+matchHistoryResultFilter.addEventListener('change', () => {
+  matchHistoryFilters.result = matchHistoryResultFilter.value;
+  renderMatchHistoryList();
+});
+matchHistoryLevelFilter.addEventListener('change', () => {
+  matchHistoryFilters.level = matchHistoryLevelFilter.value;
+  renderMatchHistoryList();
+});
+matchHistoryClearFiltersBtn.addEventListener('click', () => {
+  matchHistoryFilters = { search: '', court: 'all', result: 'all', level: 'all' };
+  matchHistorySearchInput.value = '';
+  refreshMatchHistoryFilterOptions();
+  renderMatchHistoryList();
+});
 $('#themeToggleBtn').addEventListener('click', () => {
   const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
   applyTheme(next);
