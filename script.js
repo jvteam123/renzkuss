@@ -188,7 +188,7 @@ function defaultCourts(n){
 
 function freshState(){
   return {
-    session: { name: 'PaddleStack', gameSize: 4, soundOn: true, notifyCallsEnabled: true, status: 'active', targetGamesEnabled: false, targetGamesPerPlayer: 7, avoidRepeatTeammates: false, fixedDuos: [], scoringEnabled: true, winningScore: 11, autoStartEnabled: true, autoStartMinutes: 1, matchingStyle: 'winnersLosers', skillLevelsEnabled: false }, // status: 'active' | 'ended'; matchingStyle: 'balanced' | 'skillSeparated' | 'winnersLosers'; skillLevelsEnabled: off by default — everyone plays Open Play until turned on; autoStartMinutes: how long an open, ready court waits before auto-starting (default 1 minute); soundOn: on-site voice announcement only; notifyCallsEnabled: phone notifications on call-up, independent of soundOn
+    session: { name: 'PaddleStack', gameSize: 4, soundOn: true, notifyCallsEnabled: true, status: 'active', targetGamesEnabled: false, targetGamesPerPlayer: 7, avoidRepeatTeammates: false, fixedDuos: [], scoringEnabled: true, winningScore: 11, autoStartEnabled: true, autoStartMinutes: 1, matchingStyle: 'winnersLosers', skillLevelsEnabled: false, cohostPermissions: { allowSwap: true, allowSubstitution: true } }, // status: 'active' | 'ended'; matchingStyle: 'balanced' | 'skillSeparated' | 'winnersLosers'; skillLevelsEnabled: off by default — everyone plays Open Play until turned on; autoStartMinutes: how long an open, ready court waits before auto-starting (default 1 minute); soundOn: on-site voice announcement only; notifyCallsEnabled: phone notifications on call-up, independent of soundOn; cohostPermissions: what a co-host device is allowed to do beyond start/score — both default ON, host can turn either off per-session (see setCohostPermission)
     courts: defaultCourts(2),
     arrivals: [],        // {id, name, addedAt} — added but not yet checked in; not part of the live queue
     stack: [],           // {id, name, joinedAt, tag: 'new'|'queued'}
@@ -1143,7 +1143,8 @@ function blockItemsHtml(entries, readOnly, blockKey){
     const levelBadge = readOnly
       ? `<span class="level-badge ${levelClass(getPlayerLevel(entry.name))}">${esc(levelLabel(getPlayerLevel(entry.name)))}</span>`
       : `<button type="button" class="level-badge ${levelClass(getPlayerLevel(entry.name))}" data-act="cycle-level" data-name="${esc(entry.name)}" title="Change skill level">${esc(levelLabel(getPlayerLevel(entry.name)))}</button>`;
-    const subBtn = readOnly ? '' : `<button type="button" class="block-item-sub-btn" data-block-sub="${blockKey}" data-entry-id="${entry.id}" aria-label="Substitute ${esc(entry.name)}" title="Sub in a replacement for ${esc(entry.name)}"><svg viewBox="0 0 24 24"><use href="#i-sub"/></svg></button>`;
+    const subPermitted = !coHostMode || getCohostPermissions().allowSubstitution;
+    const subBtn = (readOnly || !subPermitted) ? '' : `<button type="button" class="block-item-sub-btn" data-block-sub="${blockKey}" data-entry-id="${entry.id}" aria-label="Substitute ${esc(entry.name)}" title="Sub in a replacement for ${esc(entry.name)}"><svg viewBox="0 0 24 24"><use href="#i-sub"/></svg></button>`;
     return `
     <div class="block-item" data-id="${entry.id}">
       <span class="block-item-pos">${idx+1}</span>
@@ -1578,31 +1579,42 @@ function isNameActive(name){
 }
 /* Players land here first (added, but not yet on the floor). They only join the
    live stack once someone checks them in as arrived — see checkInArrival(s) below. */
-function addNamesToArrivals(names, level){
+/* A "duplicate" here means a name that's already active somewhere in this
+   session right now (waiting, in the stack, a block, or on a court) — see
+   isNameActive. Two different people can share a name, so this doesn't
+   block the add outright; it surfaces a proper confirm dialog (the same
+   queued modal system every other confirmation in the app uses — see
+   showConfirm above) and lets the host/co-host decide per name, instead
+   of the old behavior of silently skipping it with just a toast. */
+async function addNamesToArrivals(names, level){
   if (isCoHostRestricted()) return;
   const lvl = PLAYER_LEVELS.includes(level) ? level : 'Open';
   const added = [];
-  const skipped = [];
   const rejected = [];
-  names.forEach(name => {
+  // Sequential (not Promise.all) on purpose: showConfirm's own queue would
+  // serialize concurrent calls anyway, and going one at a time keeps each
+  // dialog's "already active" check honest against names just added a
+  // moment earlier in the same batch (so pasting the same name twice in
+  // one bulk add still prompts for the second occurrence too).
+  for (const name of names){
     if (isUnsafeName(name)){
       rejected.push(name);
-      return;
+      continue;
     }
     if (isNameActive(name)){
-      skipped.push(name);
-      return;
+      const proceed = await showConfirm(
+        '\u201c' + name + '\u201d is already waiting, in the stack, a block, or on a court. Add another player with this same name anyway?',
+        { title: 'Duplicate name', confirmLabel: 'Add anyway', cancelLabel: 'Skip' }
+      );
+      if (!proceed) continue;
     }
     state.arrivals.push({ id: nextId('a'), name, addedAt: Date.now() });
     setPlayerLevel(name, lvl);
     registerRoster(name);
     added.push(name);
-  });
+  }
   if (added.length){
     toast((added.length > 1 ? added.length + ' players' : added[0]) + ' added — check in when they arrive');
-  }
-  if (skipped.length){
-    toast(skipped.join(', ') + (skipped.length > 1 ? ' are' : ' is') + ' already waiting, in the stack, a block, or on a court');
   }
   if (rejected.length){
     toast('"' + rejected.join('", "') + '" is not a valid player name');
@@ -1610,18 +1622,18 @@ function addNamesToArrivals(names, level){
   renderRosterList();
   renderAll(); persist();
 }
-addForm.addEventListener('submit', (e) => {
+addForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   if (isSessionEnded()){ toast('Session has ended — resume it to add players'); return; }
   const raw = addNameInput.value.trim();
   if (!raw) return;
   const names = raw.split(',').map(s => s.trim()).filter(Boolean);
   addNameInput.value = '';
-  addNamesToArrivals(names, addLevelSelect ? addLevelSelect.value : 'Open');
+  await addNamesToArrivals(names, addLevelSelect ? addLevelSelect.value : 'Open');
 });
 
 /* ---- Bulk add: one name per line ---- */
-$('#bulkAddBtn').addEventListener('click', function(){
+$('#bulkAddBtn').addEventListener('click', async function(){
   if (isSessionEnded()){ toast('Session has ended — resume it to add players'); return; }
   const textarea = $('#bulkNameInput');
   const names = textarea.value.split('\n').map(s => s.trim()).filter(Boolean);
@@ -1630,8 +1642,9 @@ $('#bulkAddBtn').addEventListener('click', function(){
   // Collapse the details panel after adding
   const wrap = $('#bulkAddWrap');
   if (wrap) wrap.removeAttribute('open');
-  addNamesToArrivals(names, addLevelSelect ? addLevelSelect.value : 'Open');
-  toast(names.length + ' player' + (names.length > 1 ? 's' : '') + ' added');
+  // addNamesToArrivals already toasts its own "N added" summary (and
+  // prompts per duplicate along the way), so no need to double-toast here.
+  await addNamesToArrivals(names, addLevelSelect ? addLevelSelect.value : 'Open');
 });
 
 /* ---- Check-in: moves a waiting arrival into the live stack ---- */
@@ -1823,14 +1836,21 @@ function playerRowHtml(name, swap, sub){
   const games = stats ? (stats.games || 0) : 0;
   const gamesChip = gamesChipHtml(games);
   const duoLocked = !!(swap && isInFixedDuo(name));
+  // A co-host device without the matching permission never even sees these
+  // icons — not just CSS-hidden, but left out of the HTML entirely. The
+  // real enforcement lives in cohostActionAllowed(), called again at the
+  // top of swapCourtPartner/openSubPicker/openBlockSubPicker/performSubstitution,
+  // so this is purely about not showing a dead-end tap target.
+  const swapPermitted = !coHostMode || getCohostPermissions().allowSwap;
+  const subPermitted = !coHostMode || getCohostPermissions().allowSubstitution;
   // While a swap is pending (somewhere on this court or another), every
   // OTHER eligible swap button gets a blinking hint so it's obvious which
   // icons are live tap targets right now, mirroring the text swap-hint.
   const swapTarget = !!(swap && swap.active && !swap.selected && !duoLocked);
-  const swapBtn = swap
+  const swapBtn = (swap && swapPermitted)
     ? `<button type="button" class="player-swap-btn action-swap${swap.selected ? ' selecting' : ''}${swapTarget ? ' swap-target' : ''}${duoLocked ? ' duo-locked' : ''}" data-act="swap-partner" data-idx="${swap.idx}" ${duoLocked ? 'disabled' : ''} aria-label="${duoLocked ? (esc(name) + ' is in a fixed duo \u2014 swap disabled') : (swap.selected ? 'Cancel swap' : ('Swap partner with ' + esc(name)))}" title="${duoLocked ? 'Fixed duo \u2014 can\u2019t split them up' : 'Swap partner'}"><svg viewBox="0 0 24 24"><use href="#i-swap"/></svg><span class="action-label">${swap.selected ? 'Cancel' : 'Swap'}</span></button>`
     : '';
-  const subBtn = sub
+  const subBtn = (sub && subPermitted)
     ? `<button type="button" class="player-sub-btn action-sub" data-act="sub-player" data-idx="${sub.idx}" aria-label="Substitute ${esc(name)}" title="Sub in a replacement for ${esc(name)}"><svg viewBox="0 0 24 24"><use href="#i-sub"/></svg><span class="action-label">Sub</span></button>`
     : '';
   const previewBtn = `<button type="button" class="player-preview-btn action-info" data-act="preview-name" data-name="${esc(name)}" aria-label="View player details for ${esc(name)}" title="Player details"><svg viewBox="0 0 24 24"><use href="#i-info"/></svg><span class="action-label">Info</span></button>`;
@@ -2385,7 +2405,7 @@ function getAutoStartMs(){
 }
 
 function swapCourtPartner(court, idx){
-  if (isCoHostRestricted()) return;
+  if (!cohostActionAllowed('allowSwap', 'partner swap')) return;
   const arr0 = court.status === 'open' ? court.previewOrder : court.players;
   if (arr0 && isInFixedDuo(arr0[idx])){
     toast('That pairing is fixed \u2014 can\u2019t swap them apart', 'warning');
@@ -2512,6 +2532,7 @@ function refreshSubPickerIfOpen(){
   renderSubPicker(court);
 }
 function openSubPicker(court, idx){
+  if (!cohostActionAllowed('allowSubstitution', 'substitutions')) return;
   if (isSessionEnded()){ toast('Session has ended'); return; }
   const isPreview = court.status === 'open';
   const outgoingName = isPreview ? (court.previewOrder && court.previewOrder[idx]) : court.players[idx];
@@ -2533,6 +2554,7 @@ function openSubPicker(court, idx){
 // handy when someone in the block has to leave or wants to swap out before
 // their next game gets called.
 function openBlockSubPicker(blockKey, entryId){
+  if (!cohostActionAllowed('allowSubstitution', 'substitutions')) return;
   if (isSessionEnded()){ toast('Session has ended'); return; }
   const block = state[blockKey];
   const entry = block && block.find(e => e.id === entryId);
@@ -2603,6 +2625,10 @@ function renderSubPicker(court){
 }
 function performSubstitution(entryId){
   if (!subTarget) return;
+  // Defense in depth: re-check even though openSubPicker/openBlockSubPicker
+  // already gated getting here — closes the gap where the host flips the
+  // permission off while this device already has the picker open.
+  if (!cohostActionAllowed('allowSubstitution', 'substitutions')){ closeSubOverlay(); return; }
   const foundIncoming = findWaitingEntryById(entryId);
   if (!foundIncoming){ toast('That player is no longer available — pick another'); closeSubOverlay(); return; }
   const incoming = foundIncoming.entry;
@@ -3931,6 +3957,7 @@ $('#importFile').addEventListener('change', async (e) => {
     if (!parsed.session.winningScore || parsed.session.winningScore < 1) parsed.session.winningScore = 11;
     if (typeof parsed.session.autoStartEnabled !== 'boolean') parsed.session.autoStartEnabled = true;
     if (!Number.isFinite(parsed.session.autoStartMinutes) || parsed.session.autoStartMinutes < 1) parsed.session.autoStartMinutes = 1;
+    normalizeCohostPermissions(parsed.session);
     parsed.courts.forEach(c => { if (!('score' in c)) c.score = null; });
     if (!parsed.playerLevels || typeof parsed.playerLevels !== 'object') parsed.playerLevels = {};
     parsed.courts.forEach(c => { if (!c.level || !PLAYER_LEVELS.includes(c.level)) c.level = 'Open'; });
@@ -4311,6 +4338,49 @@ function isCoHostRestricted(){
   if (!coHostMode) return false;
   toast('Co-hosts can\u2019t do that \u2014 ask the host', 'warning');
   return true;
+}
+
+/* ---- Co-host fine-grained permissions: Allow Swap / Allow Substitution ----
+   Unlike the host-only actions above (always off-limits to a co-host),
+   swap and substitution are ALLOWED by default for a co-host, but the
+   host can turn either one off per-session. The flags live on
+   state.session.cohostPermissions, so — same as every other session
+   setting — they ride along on the exact same JSON blob that's already
+   pushed to (and polled from) the shared server row, meaning a change
+   the host makes applies immediately and survives a refresh/reconnect
+   on both sides with no extra plumbing.
+   This is called on every path that can (re)assign state.session,
+   whether it originates from freshState, a local IndexedDB load, an
+   imported backup, or a co-host device fetching/polling the host's
+   state — so older saved sessions transparently pick up the defaults. */
+function normalizeCohostPermissions(session){
+  if (!session) return;
+  if (!session.cohostPermissions || typeof session.cohostPermissions !== 'object'){
+    session.cohostPermissions = { allowSwap: true, allowSubstitution: true };
+    return;
+  }
+  if (typeof session.cohostPermissions.allowSwap !== 'boolean') session.cohostPermissions.allowSwap = true;
+  if (typeof session.cohostPermissions.allowSubstitution !== 'boolean') session.cohostPermissions.allowSubstitution = true;
+}
+function getCohostPermissions(){
+  normalizeCohostPermissions(state.session);
+  return state.session.cohostPermissions;
+}
+/* Gate for the two co-host-toggleable actions themselves (as opposed to
+   isCoHostRestricted's always-host-only actions). `key` is
+   'allowSwap' or 'allowSubstitution'. Always true for the real host — a
+   host device is never coHostMode, so it keeps full access regardless of
+   how these toggles are set (the toggles only ever constrain the co-host
+   device polling/pushing that same session). Returns false (and toasts)
+   when a co-host tries an action the host has turned off. Call this at
+   the top of the actual mutating function AND anywhere the corresponding
+   button/icon gets rendered, so a co-host can't reach the action even by
+   poking at a hidden element or calling the function directly. */
+function cohostActionAllowed(key, label){
+  if (!coHostMode) return true;
+  if (getCohostPermissions()[key]) return true;
+  toast('The host has turned off ' + label + ' for co-hosts', 'warning');
+  return false;
 }
 
 function applyAuthResponse(data){
@@ -5060,7 +5130,7 @@ async function enterCoHostMode(inviteCode, cohostCodeVal, opts){
   }
   if (!opts.skipConfirm){
     const ok = await showConfirm(
-      'As a co-host you can start games, keep score, and manage substitutions on \u201c' + (fetched.session_name || 'this match') + '\u201d. Settings and the player roster stay with the host.',
+      'As a co-host you can start games and keep score on \u201c' + (fetched.session_name || 'this match') + '\u201d, plus swap partners and manage substitutions unless the host turns those off. Settings and the player roster stay with the host.',
       { title: 'Co-host this game?', confirmLabel: 'Start co-hosting' }
     );
     if (!ok) return false;
@@ -5071,6 +5141,7 @@ async function enterCoHostMode(inviteCode, cohostCodeVal, opts){
   saveCohostSession({ id: fetched.id, invite_code: inviteCode, cohost_code: cohostCodeVal, session_name: fetched.session_name });
   lastCohostStateAt = fetched.updated_at_ms || Date.now();
   state = fetched.state;
+  normalizeCohostPermissions(state.session);
   const banner = $('#cohostBanner');
   const msgEl = $('#cohostBannerMsg');
   if (banner) banner.hidden = false;
@@ -5112,6 +5183,7 @@ function startCohostPoll(){
     if (fetched.updated_at_ms && fetched.updated_at_ms <= lastCohostStateAt) return;
     lastCohostStateAt = fetched.updated_at_ms || Date.now();
     state = fetched.state;
+    normalizeCohostPermissions(state.session);
     renderAll();
   };
   cohostPollFn = poll;
@@ -5190,6 +5262,25 @@ async function disableCohostAccess(){
   }finally{
     hostCohostBusy = false; renderHostPanel();
   }
+}
+
+/* Host-only: flip Allow Swap / Allow Substitution for the co-host on this
+   live session. This is a plain state.session edit — same as any other
+   session setting the host changes — so it rides the existing persist()
+   plumbing: written to this device's IndexedDB immediately, and pushed
+   (immediate=true) to the shared server row that the co-host polls every
+   COHOST_POLL_INTERVAL_MS. That's what makes the change apply right away
+   on the co-host's screen and survive a refresh/reconnect on both sides,
+   without any new sync mechanism. The host device itself is never
+   coHostMode, so none of this ever constrains the host's own access. */
+function setCohostPermission(key, value, label){
+  if (isCoHostRestricted()) return; // belt-and-suspenders: only the real host panel renders these toggles
+  normalizeCohostPermissions(state.session);
+  state.session.cohostPermissions[key] = !!value;
+  toast((value ? 'Co-hosts can now ' : 'Co-hosts can no longer ') + (label === 'swap' ? 'swap partners' : 'substitute players'));
+  renderHostPanel();
+  renderAll();
+  persist(true);
 }
 
 /* ---- Reconnection handling ----
@@ -5514,7 +5605,7 @@ function renderHostPanel(){
         </div>
         <p class="host-live-note" style="margin-top:.3rem">
           ${hostCohostCode
-            ? 'Anyone with this link can start games, keep score, and manage substitutions \u2014 they can\u2019t touch settings or the roster.'
+            ? 'Anyone with this link can start games and keep score \u2014 use the toggles below to allow or block swap and substitution. They can\u2019t touch settings or the roster either way.'
             : 'Give a trusted helper their own link to run the courts \u2014 no account needed on their end, and they can\u2019t change settings or the roster.'}
         </p>
         ${hostCohostCode ? `
@@ -5522,6 +5613,16 @@ function renderHostPanel(){
           <div class="host-live-actions">
             <button type="button" class="btn ghost sm" id="cohostCopyLinkBtn" ${hostCohostBusy ? 'disabled' : ''}>Copy link</button>
             <button type="button" class="btn ghost sm" id="cohostRegenBtn" ${hostCohostBusy ? 'disabled' : ''}>${hostCohostBusy ? 'Working\u2026' : 'Regenerate'}</button>
+          </div>
+          <div class="host-cohost-permissions">
+            <label class="host-cohost-perm-row">
+              <input type="checkbox" id="cohostAllowSwapToggle" ${getCohostPermissions().allowSwap ? 'checked' : ''}>
+              <span>Allow Swap</span>
+            </label>
+            <label class="host-cohost-perm-row">
+              <input type="checkbox" id="cohostAllowSubToggle" ${getCohostPermissions().allowSubstitution ? 'checked' : ''}>
+              <span>Allow Substitution</span>
+            </label>
           </div>
           <button type="button" class="btn danger sm" id="cohostDisableBtn" style="width:100%;margin-top:.5rem" ${hostCohostBusy ? 'disabled' : ''}>Turn off co-host access</button>
         ` : `
@@ -5831,6 +5932,12 @@ hostOverlay.addEventListener('click', (e) => {
       disableCohostAccess();
     })();
     return;
+  }
+  {
+    const swapToggle = e.target.closest('#cohostAllowSwapToggle');
+    if (swapToggle){ setCohostPermission('allowSwap', swapToggle.checked, 'swap'); return; }
+    const subToggle = e.target.closest('#cohostAllowSubToggle');
+    if (subToggle){ setCohostPermission('allowSubstitution', subToggle.checked, 'substitution'); return; }
   }
   // "Call a player" now lives in the topbar (see callOutTopBtn below) since
   // it's a general paging action, not something tied to the live-hosting
@@ -6713,6 +6820,7 @@ function renderAll(){
     if (typeof state.session.autoStartEnabled !== 'boolean') state.session.autoStartEnabled = true;
     if (!Number.isFinite(state.session.autoStartMinutes) || state.session.autoStartMinutes < 1) state.session.autoStartMinutes = 1;
     if (state.session.matchingStyle !== 'balanced' && state.session.matchingStyle !== 'skillSeparated' && state.session.matchingStyle !== 'winnersLosers') state.session.matchingStyle = 'winnersLosers';
+    normalizeCohostPermissions(state.session);
     if (typeof state.session.skillLevelsEnabled !== 'boolean') state.session.skillLevelsEnabled = false;
     if (typeof state.session.notifyCallsEnabled !== 'boolean') state.session.notifyCallsEnabled = true;
     state.courts.forEach(c => { if (!('score' in c)) c.score = null; });
