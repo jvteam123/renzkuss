@@ -347,7 +347,11 @@ function getStoredTheme(){
 function preferredTheme(){
   const stored = getStoredTheme();
   if (stored === 'dark' || stored === 'light') return stored;
-  return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+  // Dark is the app's default look now (matches the reference design) for
+  // every first-time visitor, regardless of the device's system theme —
+  // this is a fixed brand identity, not an adaptive light/dark app. The
+  // toggle in the topbar still lets anyone switch to light and stay there.
+  return 'dark';
 }
 function applyTheme(theme){
   document.documentElement.setAttribute('data-theme', theme);
@@ -2815,8 +2819,8 @@ function renderCourts(){
         ${matchupHtml}
         ${swapHint}
         <div class="court-cta-row">
-          <button type="button" class="court-cta call-players" data-act="call-players" ${(enough && !ended) ? '' : 'disabled'} aria-label="Announce next players for ${esc(court.name)}" title="Speak the next lineup out loud, twice">📣 Call Players</button>
-          <button type="button" class="court-cta call" data-act="call" ${(enough && !ended) ? '' : 'disabled'}>${ended ? '🔒 Session ended' : '▶ Start Game'}</button>
+          <button type="button" class="court-cta call-players" data-act="call-players" ${(enough && !ended) ? '' : 'disabled'} aria-label="Announce next players for ${esc(court.name)}" title="Speak the next lineup out loud, twice"><span class="cta-icon">📣</span><span class="cta-text"><span class="cta-title">Call Players</span><span class="cta-sub">Notify players on deck</span></span></button>
+          <button type="button" class="court-cta call" data-act="call" ${(enough && !ended) ? '' : 'disabled'}><span class="cta-icon">${ended ? '🔒' : '▶'}</span><span class="cta-text"><span class="cta-title">${ended ? 'Session ended' : 'Start Game'}</span><span class="cta-sub">${ended ? 'Locked for new games' : 'Start match on this court'}</span></span></button>
         </div>
         ${autoStartHtml}
       `;
@@ -6989,9 +6993,26 @@ function renderAll(){
   renderBlocks();
   renderStack();
   renderCourts();
+  renderCourtsStatsBar();
   renderUpNext();
   renderArrivals();
   renderQuickAdd();
+}
+
+// Quick-glance totals shown under "Up next" on the Courts tab — players
+// currently active anywhere (queue + on courts + winners/losers blocks),
+// court count, how many are waiting in the queue right now, and games
+// completed this session. All derived from state already tracked elsewhere
+// (the header's "N in stack" pill, Rankings, History), just surfaced together.
+function renderCourtsStatsBar(){
+  const playersNumEl = $('#statPlayersNum');
+  if (!playersNumEl) return; // not on this build/screen
+  const onCourtCount = state.courts.reduce((n, c) => n + (c.players ? c.players.length : 0), 0);
+  const activePlayers = state.stack.length + onCourtCount + state.winnersBlock.length + state.losersBlock.length;
+  playersNumEl.textContent = activePlayers;
+  $('#statCourtsNum').textContent = state.courts.length;
+  $('#statOnDeckNum').textContent = state.stack.length;
+  $('#statGamesNum').textContent = state.history.length;
 }
 
 /* ================= Boot ================= */
