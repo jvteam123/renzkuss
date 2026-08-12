@@ -854,18 +854,26 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
   padding:.7rem;font-weight:800;font-size:.88rem;cursor:pointer;letter-spacing:.01em;
   transition:background .15s,opacity .15s,transform .1s;
 }
-.court-cta.call{background:var(--clay);color:#fff}
-.court-cta.call:hover:not(:disabled){background:var(--clay-deep)}
+.court-cta.call{background:var(--turf);color:#fff}
+.court-cta.call:hover:not(:disabled){background:var(--turf-deep)}
 .court-cta.call:disabled{background:var(--line);color:var(--slate);cursor:not-allowed}
 .court-cta.end{background:rgba(255,255,255,.12);color:#fff}
 .court-cta.end:hover{background:rgba(255,255,255,.22)}
 .court-cta:active:not(:disabled){transform:scale(.98)}
 
 .court-cta-row{display:flex;gap:.5rem;margin-top:auto}
-.court-cta-row .court-cta{margin-top:0;flex:1;width:auto;min-width:0}
-.court-cta.call-players{background:transparent;color:var(--clay-deep);border:1.5px solid var(--clay)}
-.court-cta.call-players:hover:not(:disabled){background:var(--clay);color:#fff}
+.court-cta-row .court-cta{
+  margin-top:0;flex:1;width:auto;min-width:0;border-radius:var(--radius);
+  padding:.65rem .7rem;display:flex;align-items:center;justify-content:center;gap:.5rem;
+}
+.court-cta-row .court-cta .cta-icon{font-size:1.1rem;line-height:1;flex-shrink:0}
+.court-cta-row .court-cta .cta-text{display:flex;flex-direction:column;align-items:flex-start;gap:.05rem;min-width:0}
+.court-cta-row .court-cta .cta-title{font-weight:800;font-size:.85rem;letter-spacing:.01em}
+.court-cta-row .court-cta .cta-sub{font-weight:600;font-size:.68rem;letter-spacing:0;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.court-cta.call-players{background:transparent;color:var(--turf-deep);border:1.5px solid var(--turf)}
+.court-cta.call-players:hover:not(:disabled){background:var(--turf-pale)}
 .court-cta.call-players:disabled{background:transparent;color:var(--slate);border-color:var(--line);cursor:not-allowed}
+.court-cta.call-players:disabled .cta-sub{opacity:.6}
 .court-cta.call-players.speaking{animation:call-players-pulse 1s ease-in-out infinite}
 @keyframes call-players-pulse{0%,100%{opacity:1}50%{opacity:.55}}
 
@@ -895,6 +903,24 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
   padding:.5rem .7rem;
 }
 .history-row b{color:var(--ink)}
+
+/* ---------- Courts quick-stats bar ---------- */
+.courts-stats-bar{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem;margin-top:1.4rem;
+}
+.courts-stat{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.3rem;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:.9rem .4rem;text-align:center;
+}
+.courts-stat svg{width:18px;height:18px;color:var(--turf)}
+.courts-stat-num{font-family:var(--font-mono);font-weight:700;font-size:1.15rem;color:var(--ink)}
+.courts-stat-label{font-size:.68rem;font-weight:600;color:var(--slate);letter-spacing:.01em}
+@media (max-width:420px){
+  .courts-stat svg{width:16px;height:16px}
+  .courts-stat-num{font-size:1rem}
+  .courts-stat-label{font-size:.62rem}
+}
 
 /* On-deck rows: a mono "On deck N" pill up front so the queue order reads at
    a glance, then the matchup itself set large and bold — this used to be a
@@ -1455,7 +1481,9 @@ html[data-theme="dark"] .toast-progress{background:#fff}
     cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:.2rem;
     min-height:var(--touch);
   }
-  .mobile-tabs button.active{color:#fff}
+  .mobile-tabs button.active{
+  color:#fff;background:var(--turf);border-radius:12px;margin:.3rem .35rem;
+}
   .mobile-tabs button svg{width:18px;height:18px}
   .topbar .session-name{max-width:32vw}
 }
