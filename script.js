@@ -3579,6 +3579,10 @@ function openMatchHistory(){
   matchHistoryOverlay.hidden = false;
 }
 $('#matchHistoryBtn').addEventListener('click', openMatchHistory);
+// Bottom-nav "History" tab (phones) mirrors the topbar history button —
+// same handler, just a second entry point, so no new logic is introduced.
+const tabHistoryNavBtn = $('#tabHistoryNav');
+if (tabHistoryNavBtn) tabHistoryNavBtn.addEventListener('click', openMatchHistory);
 // Same modal, same renderer — spectators get the exact same read-only match
 // history the host sees, just reached via a button in the viewer banner
 // instead of the (hidden-for-viewers) top toolbar icon.
@@ -3998,6 +4002,10 @@ courtNameRows.addEventListener('change', (e) => {
 });
 
 $('#settingsBtn').addEventListener('click', openSettings);
+// Bottom-nav "More" tab (phones) mirrors the topbar settings button — same
+// handler, just a second entry point, so no new logic is introduced.
+const tabMoreNavBtn = $('#tabMoreNav');
+if (tabMoreNavBtn) tabMoreNavBtn.addEventListener('click', openSettings);
 $('#settingsDone').addEventListener('click', () => { settingsOverlay.hidden = true; renderAll(); persist(); });
 
 $('#endSessionBtn').addEventListener('click', () => {
