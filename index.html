@@ -663,17 +663,45 @@
     <div class="match-history-filters">
       <div class="match-history-search"><input type="text" id="matchHistorySearchInput" placeholder="Search player or court…" aria-label="Search match history"></div>
       <div class="match-history-filter-row">
-        <select id="matchHistoryCourtFilter" aria-label="Filter by court">
+        <!-- Native <select> kept for state only (script.js reads/writes .value) —
+             the visible picker is a custom dropdown so it matches the themed
+             list used elsewhere (e.g. "Call out a player" > court picker)
+             instead of the OS's own popup. -->
+        <select id="matchHistoryCourtFilter" class="sr-only" tabindex="-1" aria-hidden="true">
           <option value="all">All courts</option>
         </select>
-        <select id="matchHistoryResultFilter" aria-label="Filter by result">
+        <div class="custom-select mh-filter-select" id="matchHistoryCourtCustom">
+          <button type="button" class="custom-select-trigger" id="matchHistoryCourtTrigger" aria-haspopup="listbox" aria-expanded="false" aria-label="Filter by court">
+            <span id="matchHistoryCourtTriggerLabel">All courts</span>
+            <svg viewBox="0 0 24 24" class="custom-select-chevron"><use href="#i-chev"/></svg>
+          </button>
+          <div class="custom-select-panel" id="matchHistoryCourtPanel" role="listbox" hidden></div>
+        </div>
+
+        <select id="matchHistoryResultFilter" class="sr-only" tabindex="-1" aria-hidden="true">
           <option value="all">Any result</option>
           <option value="scored">Score recorded</option>
           <option value="unscored">No score</option>
         </select>
-        <select id="matchHistoryLevelFilter" aria-label="Filter by skill level" hidden>
+        <div class="custom-select mh-filter-select" id="matchHistoryResultCustom">
+          <button type="button" class="custom-select-trigger" id="matchHistoryResultTrigger" aria-haspopup="listbox" aria-expanded="false" aria-label="Filter by result">
+            <span id="matchHistoryResultTriggerLabel">Any result</span>
+            <svg viewBox="0 0 24 24" class="custom-select-chevron"><use href="#i-chev"/></svg>
+          </button>
+          <div class="custom-select-panel" id="matchHistoryResultPanel" role="listbox" hidden></div>
+        </div>
+
+        <select id="matchHistoryLevelFilter" class="sr-only" tabindex="-1" aria-hidden="true">
           <option value="all">All levels</option>
         </select>
+        <div class="custom-select mh-filter-select" id="matchHistoryLevelCustom" hidden>
+          <button type="button" class="custom-select-trigger" id="matchHistoryLevelTrigger" aria-haspopup="listbox" aria-expanded="false" aria-label="Filter by skill level">
+            <span id="matchHistoryLevelTriggerLabel">All levels</span>
+            <svg viewBox="0 0 24 24" class="custom-select-chevron"><use href="#i-chev"/></svg>
+          </button>
+          <div class="custom-select-panel" id="matchHistoryLevelPanel" role="listbox" hidden></div>
+        </div>
+
         <button type="button" class="btn ghost sm" id="matchHistoryClearFiltersBtn">Clear</button>
       </div>
       <div class="match-history-count" id="matchHistoryCount"></div>
