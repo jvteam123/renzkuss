@@ -1181,16 +1181,25 @@ function blockListHtml(block, gameSize, blockKey, readOnly){
 
 function renderBlocks(){
   const gameSize = state.session.gameSize;
-  const hasAny = state.winnersBlock.length > 0 || state.losersBlock.length > 0;
+  // A block entry that's already been picked (via the Sub button on an
+  // open court's preview matchup) to fill an upcoming game is no longer
+  // actually "waiting" — without subtracting those out, subbing a blocked
+  // player into a preview left them listed here as still "waiting" right
+  // up until the court's match actually started: visually duplicated on
+  // both the block panel and the court they'd already been placed on.
+  const claimedIds = getPreviewClaimedIds();
+  const winnersWaiting = state.winnersBlock.filter(e => !claimedIds.has(e.id));
+  const losersWaiting = state.losersBlock.filter(e => !claimedIds.has(e.id));
+  const hasAny = winnersWaiting.length > 0 || losersWaiting.length > 0;
   blocksPanel.hidden = !hasAny;
   if (hasAny){
-    winnersBlockCount.textContent = state.winnersBlock.length + ' waiting';
-    losersBlockCount.textContent = state.losersBlock.length + ' waiting';
-    winnersBlockList.innerHTML = blockListHtml(state.winnersBlock, gameSize, 'winnersBlock');
-    losersBlockList.innerHTML = blockListHtml(state.losersBlock, gameSize, 'losersBlock');
+    winnersBlockCount.textContent = winnersWaiting.length + ' waiting';
+    losersBlockCount.textContent = losersWaiting.length + ' waiting';
+    winnersBlockList.innerHTML = blockListHtml(winnersWaiting, gameSize, 'winnersBlock');
+    losersBlockList.innerHTML = blockListHtml(losersWaiting, gameSize, 'losersBlock');
 
-    blocksPanel.querySelector('[data-block="winners"]').disabled = state.winnersBlock.length === 0 || isSessionEnded();
-    blocksPanel.querySelector('[data-block="losers"]').disabled = state.losersBlock.length === 0 || isSessionEnded();
+    blocksPanel.querySelector('[data-block="winners"]').disabled = winnersWaiting.length === 0 || isSessionEnded();
+    blocksPanel.querySelector('[data-block="losers"]').disabled = losersWaiting.length === 0 || isSessionEnded();
   }
 
   // Read-only mirror of the same data for the spectator view (no "Queue
@@ -1204,28 +1213,51 @@ function renderBlocks(){
     } else {
       vPanel.hidden = !hasAny;
       if (hasAny){
-        $('#viewerWinnersBlockCount').textContent = state.winnersBlock.length + ' waiting';
-        $('#viewerLosersBlockCount').textContent = state.losersBlock.length + ' waiting';
-        $('#viewerWinnersBlockList').innerHTML = blockListHtml(state.winnersBlock, gameSize, 'winnersBlock', true);
-        $('#viewerLosersBlockList').innerHTML = blockListHtml(state.losersBlock, gameSize, 'losersBlock', true);
+        $('#viewerWinnersBlockCount').textContent = winnersWaiting.length + ' waiting';
+        $('#viewerLosersBlockCount').textContent = losersWaiting.length + ' waiting';
+        $('#viewerWinnersBlockList').innerHTML = blockListHtml(winnersWaiting, gameSize, 'winnersBlock', true);
+        $('#viewerLosersBlockList').innerHTML = blockListHtml(losersWaiting, gameSize, 'losersBlock', true);
       }
     }
   }
 }
 
+// Everyone currently claimed by an OPEN court's preview lineup — the
+// court cards' "next up" grouping, including anyone pulled in from a
+// winners/losers block via the Sub picker (court.previewSubMap). Shared
+// by the blocks panel (so it stops listing someone as "waiting" once
+// they're already slotted into a preview) and by the flush actions below
+// (so "Queue now" can't double-queue that same person while they're still
+// spoken for).
+function getPreviewClaimedIds(){
+  const claimedIds = new Set();
+  computeOpenCourtQueue(state.session.gameSize).forEach(slot => {
+    if (slot.taken) slot.taken.forEach(e => claimedIds.add(e.id));
+  });
+  return claimedIds;
+}
 // Moves an entire block into the main queue, in order, as an intact group —
 // this is what makes callNext() pull "winners vs winners" or "losers vs losers".
 function flushBlockToQueue(blockKey){
   const block = state[blockKey];
   if (block.length === 0) return;
-  block.forEach(entry => state.stack.push(entry));
-  state[blockKey] = [];
+  // Anyone already claimed by an open court's preview (via the Sub picker)
+  // stays put in the block — they're effectively already on their way to
+  // a court, and pushing them into state.stack too would hand them a
+  // second, phantom queue spot while court.previewSubMap still points at
+  // their original block entry.
+  const claimedIds = getPreviewClaimedIds();
+  const movable = block.filter(e => !claimedIds.has(e.id));
+  if (movable.length === 0) return;
+  movable.forEach(entry => state.stack.push(entry));
+  state[blockKey] = block.filter(e => claimedIds.has(e.id));
 }
 // Same idea, but only for one level's slice of the block — leaves every
 // other level's entries sitting in the block untouched.
 function flushBlockLevelToQueue(blockKey, level){
   const block = state[blockKey];
-  const matching = block.filter(e => getPlayerLevel(e.name) === level);
+  const claimedIds = getPreviewClaimedIds();
+  const matching = block.filter(e => getPlayerLevel(e.name) === level && !claimedIds.has(e.id));
   if (matching.length === 0) return;
   const matchIds = new Set(matching.map(e => e.id));
   state[blockKey] = block.filter(e => !matchIds.has(e.id));
@@ -1788,7 +1820,6 @@ function hostAccountRowHTML(){
 }
 function playerRowHtml(name, swap, sub){
   const stats = state.playerStats[name];
-  const winChip = (stats && stats.wins > 0) ? `<span class="win-chip">🏆${stats.wins}</span>` : '';
   const games = stats ? (stats.games || 0) : 0;
   const gamesChip = gamesChipHtml(games);
   const duoLocked = !!(swap && isInFixedDuo(name));
@@ -1804,11 +1835,14 @@ function playerRowHtml(name, swap, sub){
     : '';
   const previewBtn = `<button type="button" class="player-preview-btn action-info" data-act="preview-name" data-name="${esc(name)}" aria-label="View player details for ${esc(name)}" title="Player details"><svg viewBox="0 0 24 24"><use href="#i-info"/></svg><span class="action-label">Info</span></button>`;
   // Name gets its own row with just the avatar, so it has the full column
-  // width to wrap into instead of fighting the win/preview/swap/sub buttons
-  // for space — those move to a compact row underneath.
+  // width to wrap into instead of fighting the preview/swap/sub buttons for
+  // space — those move to a compact row underneath. Wins used to get their
+  // own trophy chip here too, but that's redundant now that the Info
+  // button's popup already surfaces games played, wins, and win rate —
+  // one less thing crowding this row on narrow cards.
   return `<span class="player-col">
     <span class="player-row">${avatarHtml(name)}<span class="player-name-txt" title="${esc(name)}">${esc(courtCardName(name))}</span></span>
-    <span class="player-actions-row">${winChip}${previewBtn}${swapBtn}${subBtn}</span>
+    <span class="player-actions-row">${previewBtn}${swapBtn}${subBtn}</span>
     <span class="player-games-row">${gamesChip}</span>
   </span>`;
 }
