@@ -1237,6 +1237,8 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn{
 .about-credit{font-size:.85rem;line-height:1.6;color:var(--ink);margin:0 0 .2rem}
 .about-credit a{color:var(--turf-deep);font-weight:600;text-decoration:none}
 .about-credit a:hover{text-decoration:underline}
+.about-feedback-actions{display:flex;flex-wrap:wrap;gap:.55rem;margin-top:.2rem}
+.about-feedback-actions .btn{text-decoration:none}
 
 /* ---------- Rankings modal: header, toolbar, summary ---------- */
 .rankings-modal-head{display:flex;align-items:center;justify-content:space-between;gap:.6rem;margin-bottom:.7rem}
