@@ -660,6 +660,24 @@
   <div class="modal wide" role="dialog" aria-modal="true" aria-label="Match history">
     <h3>🕓 Match History</h3>
     <p class="winner-note" style="margin:-.3rem 0 .8rem">Every completed match this session, in full.</p>
+    <div class="match-history-filters">
+      <div class="match-history-search"><input type="text" id="matchHistorySearchInput" placeholder="Search player or court…" aria-label="Search match history"></div>
+      <div class="match-history-filter-row">
+        <select id="matchHistoryCourtFilter" aria-label="Filter by court">
+          <option value="all">All courts</option>
+        </select>
+        <select id="matchHistoryResultFilter" aria-label="Filter by result">
+          <option value="all">Any result</option>
+          <option value="scored">Score recorded</option>
+          <option value="unscored">No score</option>
+        </select>
+        <select id="matchHistoryLevelFilter" aria-label="Filter by skill level" hidden>
+          <option value="all">All levels</option>
+        </select>
+        <button type="button" class="btn ghost sm" id="matchHistoryClearFiltersBtn">Clear</button>
+      </div>
+      <div class="match-history-count" id="matchHistoryCount"></div>
+    </div>
     <div class="match-history-list" id="matchHistoryFullList"></div>
     <div class="modal-actions">
       <button class="btn primary" id="matchHistoryDone">Done</button>
