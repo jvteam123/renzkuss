@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Disclaimer & Feedback — PaddleStack</title>
+<meta name="theme-color" content="#0A1E3D">
+<link rel="icon" href="favicon.ico" sizes="any">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; script-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self';">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  /* Self-contained styling (doesn't depend on script.js/style.css so this
+     page works even if it's opened on its own) — same flag-blue palette as
+     the app, and follows the OS/browser's dark-mode preference the same
+     way the app does before it has a stored override. */
+  :root{
+    --court:#F2F5FA; --ink:#0A1E3D; --turf:#0038A8; --turf-deep:#00256E;
+    --turf-pale:#DEE7F7; --clay:#CE1126; --line:#DBE2EE; --surface:#FFFFFF;
+    --slate:#5C6B82; --radius:14px; --radius-sm:9px;
+    --shadow-sm:0 1px 3px rgba(10,30,61,.08), 0 1px 2px rgba(10,30,61,.06);
+    --font-display:'Archivo Black', Impact, sans-serif;
+    --font-body:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --court:#0B1220; --ink:#E8ECF5; --turf:#5B8DEF; --turf-deep:#9CBEFF;
+      --turf-pale:rgba(91,141,239,.16); --clay:#FF6B75; --line:#263242;
+      --surface:#141D2B; --slate:#8FA0B8;
+      --shadow-sm:0 1px 3px rgba(0,0,0,.45), 0 1px 2px rgba(0,0,0,.35);
+    }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--court); color:var(--ink); font-family:var(--font-body);
+    line-height:1.55; padding:1.5rem 1rem 3rem;
+  }
+  .wrap{max-width:680px; margin:0 auto}
+  .back-link{
+    display:inline-flex; align-items:center; gap:.35rem; color:var(--turf); text-decoration:none;
+    font-weight:700; font-size:.85rem; margin-bottom:1.1rem;
+  }
+  .back-link:hover{text-decoration:underline}
+  h1{
+    font-family:var(--font-display); font-weight:400; font-size:1.35rem; letter-spacing:.01em;
+    margin:0 0 .3rem;
+  }
+  .subtitle{color:var(--slate); font-size:.88rem; margin:0 0 1.6rem}
+  .card{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    box-shadow:var(--shadow-sm); padding:1.25rem 1.35rem; margin-bottom:1.1rem;
+  }
+  .card h2{
+    font-size:1rem; margin:0 0 .7rem; display:flex; align-items:center; gap:.4rem;
+  }
+  .card p{margin:0 0 .8rem; font-size:.92rem}
+  .card p:last-child{margin-bottom:0}
+  .feedback-actions{display:flex; flex-wrap:wrap; gap:.6rem; margin-top:.9rem}
+  .feedback-btn{
+    display:inline-flex; align-items:center; gap:.4rem; padding:.6rem .9rem;
+    border-radius:var(--radius-sm); border:1.5px solid var(--line); background:var(--court);
+    color:var(--ink); text-decoration:none; font-weight:700; font-size:.85rem;
+  }
+  .feedback-btn:hover{border-color:var(--turf); color:var(--turf)}
+  .feedback-btn svg{width:16px; height:16px; flex:0 0 auto}
+  footer{text-align:center; color:var(--slate); font-size:.78rem; margin-top:1.5rem}
+  footer a{color:var(--turf); text-decoration:none}
+  footer a:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back-link" href="index.html">&larr; Back to PaddleStack</a>
+  <h1>Disclaimer, Terms of Use &amp; Feedback</h1>
+  <p class="subtitle">PaddleStack — queue, court, and matchup manager for pickleball sessions.</p>
+
+  <div class="card">
+    <h2>Personal Use &amp; Disclaimer</h2>
+    <p>This application was created primarily for personal and recreational use, including organizing and managing pickleball games, queues, player rotations, matchups, and sessions.</p>
+    <p>The application is made available for anyone to use for personal, recreational, community, or non-commercial purposes. You are welcome to use the application for your own pickleball sessions, groups, clubs, friends, and events. You do not need to request permission to use the application for these purposes.</p>
+    <p>However, the application's original source code, branding, logos, graphics, user interface, designs, and other original materials remain the property of their respective owner(s), unless otherwise stated. Permission to use the application does not grant permission to copy, reproduce, redistribute, resell, rebrand, or commercially exploit these materials.</p>
+    <p>This application is provided "as is" without warranties of any kind. Match generation, queue management, player rotation, scoring, notifications, and other features may occasionally contain bugs, errors, or unexpected behavior. Users and session hosts are responsible for reviewing and confirming generated matchups, player assignments, scores, and other information before relying on them during play.</p>
+    <p>The application is not responsible for injuries, disputes, scheduling issues, incorrect player assignments, lost data, service interruptions, or other consequences resulting from the use of the application.</p>
+    <p>By using this application, you acknowledge and agree that you are responsible for how you use the application and for verifying important information before taking action.</p>
+  </div>
+
+  <div class="card">
+    <h2>Bug Reports &amp; Feedback</h2>
+    <p>If you encounter a bug, unexpected behavior, or incorrect result, please report it. When possible, include the steps that caused the issue, your device/browser, and a screenshot so the issue can be investigated and improved.</p>
+    <p>We welcome bug reports, suggestions, and feature requests from the community.</p>
+    <div class="feedback-actions">
+      <a class="feedback-btn" href="mailto:znerolodarbe@gmail.com?subject=PaddleStack%20-%20Bug%20report&body=Steps%20to%20reproduce%3A%0A%0ADevice%2FBrowser%3A%0A%0AWhat%20happened%3A%0A%0AWhat%20you%20expected%3A">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M14 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm7-1h-2.1a6.9 6.9 0 0 0-.7-2.3l1.5-1.5-1.4-1.4-1.5 1.5A7 7 0 0 0 14.5 6V4h1V2h-7v2h1v2a7 7 0 0 0-2.3.8L5.7 5.3 4.3 6.7l1.5 1.5A6.9 6.9 0 0 0 5.1 11H3v2h2.1c.1.8.3 1.6.7 2.3l-1.5 1.5 1.4 1.4 1.5-1.5c.7.4 1.5.7 2.3.8v2.1h4v-2.1c.8-.1 1.6-.4 2.3-.8l1.5 1.5 1.4-1.4-1.5-1.5c.4-.7.6-1.5.7-2.3H21v-2Z"/></svg>
+        Report a bug
+      </a>
+      <a class="feedback-btn" href="mailto:znerolodarbe@gmail.com?subject=PaddleStack%20-%20Feature%20suggestion&body=What%20would%20you%20like%20to%20see%3A%0A%0AWhy%20it%20would%20help%3A">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M9 21h6v-1H9v1Zm3-19a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2v.3h6v-.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2Zm1.5 11.4V17h-3v-3.6C8.5 12.6 7 10.9 7 9a5 5 0 0 1 10 0c0 1.9-1.5 3.6-3.5 4.4Z"/></svg>
+        Suggest a feature
+      </a>
+    </div>
+  </div>
+
+  <footer>
+    <b>Lorens Christopher Ebrado</b><br>
+    <a href="mailto:znerolodarbe@gmail.com">znerolodarbe@gmail.com</a>
+  </footer>
+</div>
+</body>
+</html>
