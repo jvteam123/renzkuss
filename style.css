@@ -19,6 +19,12 @@
   --gold:#FCD116;          /* flag gold — sun & stars accent */
   --gold-deep:#C79A00;
   --gold-pale:#FFF6D6;
+  /* Text-safe gold: --gold-deep on --gold-pale is only ~2.4:1 contrast,
+     well under the 4.5:1 WCAG AA minimum for small badge text (rank #1,
+     "reconnecting", credit-pending, etc). This darker shade is for TEXT
+     specifically — keep using --gold/--gold-deep for icons, borders, and
+     large/bold accents where the softer tone still reads fine. */
+  --gold-ink:#8A6A00;
   --slate:#5C6B82;
   --line:#DBE2EE;
   --surface:#FFFFFF;
@@ -63,6 +69,7 @@ html[data-theme="dark"]{
   --gold:#FCD116;
   --gold-deep:#FFDE70;
   --gold-pale:rgba(252,209,22,.14);
+  --gold-ink:#FFDE70; /* dark theme's pale gold sits on a dark surface, so the light --gold-deep already reads fine as text */
   --slate:#8FA0B8;
   --line:#263242;
   --surface:#141D2B;
@@ -433,7 +440,7 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
 .level-picker-option .level-picker-check svg{width:16px;height:16px}
 .lvl-open{background:#EAEEF5;color:var(--slate)}
 .lvl-beginner{background:var(--turf-pale);color:var(--turf-deep)}
-.lvl-advanced-beginner{background:var(--gold-pale);color:var(--gold-deep)}
+.lvl-advanced-beginner{background:var(--gold-pale);color:var(--gold-ink)}
 .lvl-intermediate{background:#FCE7D6;color:#B35900}
 .lvl-advanced{background:var(--danger-pale);color:var(--danger)}
 .court-level-badge{flex-shrink:0}
@@ -734,6 +741,7 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
    translucent-white icon), so it no longer needs a separate light-card
    palette — only the surrounding .swap-hint text (which does still sit
    directly on the card background) keeps its light-card override. */
+.court-card:not(.playing) .swap-hint{color:var(--gold-ink)}
 .court-card:not(.playing) .swap-hint b{color:var(--ink)}
 .court-card:not(.playing) .swap-hint-remote{color:var(--turf-deep);background:var(--turf-pale);border-color:var(--turf)}
 .court-card:not(.playing) .swap-hint-remote b{color:var(--turf-deep)}
@@ -1005,6 +1013,7 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
 }
 .custom-select-trigger:hover{border-color:var(--turf)}
 .custom-select-trigger[aria-expanded="true"]{border-color:var(--turf);background:#fff}
+.custom-select-trigger:focus-visible{outline:2px solid var(--turf);outline-offset:2px}
 .custom-select-chevron{width:16px;height:16px;flex-shrink:0;color:var(--slate);transform:rotate(90deg);transition:transform .15s ease}
 .custom-select-trigger[aria-expanded="true"] .custom-select-chevron{transform:rotate(-90deg)}
 .custom-select-panel{
@@ -1019,6 +1028,8 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
 }
 .custom-select-option:hover{background:var(--court)}
 .custom-select-option.selected{color:var(--turf-deep);background:var(--turf-pale)}
+.custom-select-option:focus-visible,
+.custom-select-option:focus{outline:2px solid var(--turf);outline-offset:-2px;background:var(--court)}
 html[data-theme="dark"] .custom-select-trigger{background:var(--surface)}
 .seg{display:flex;border:1.5px solid var(--line);border-radius:var(--radius-sm);overflow:hidden}
 .seg button{
@@ -1292,7 +1303,7 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn{
   width:22px;text-align:center;flex-shrink:0;
 }
 .rank-row.top1{background:var(--gold-pale);border-color:#EBD27A}
-.rank-row.top1 .rank-num{color:var(--gold-deep)}
+.rank-row.top1 .rank-num{color:var(--gold-ink)}
 .rank-row.top2 .rank-num{color:#8A8F92}
 .rank-row.top3 .rank-num{color:#B4712F}
 .rank-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:.28rem}
@@ -1566,7 +1577,7 @@ html[data-theme="dark"] .vb-live-badge{background:rgba(255,107,117,.16)}
 }
 
 /* ---- Co-host banner ---- */
-.cohost-live-badge{color:var(--gold-deep);background:var(--gold-pale)}
+.cohost-live-badge{color:var(--gold-ink);background:var(--gold-pale)}
 .cohost-banner .vb-live-dot{background:var(--gold-deep)}
 
 /* ---- Co-host mode: full gameplay access, but settings/roster/account
@@ -1835,7 +1846,7 @@ body.viewer-mode .courts-main{ display:block !important; }
   letter-spacing:.03em;background:var(--danger-pale);color:var(--danger);padding:.3rem .7rem;border-radius:99px;
 }
 .host-live-badge--stopped{background:var(--line);color:var(--slate)}
-.host-live-badge--reconnecting{background:var(--gold-pale);color:var(--gold-deep);animation:live-pulse 1s ease-in-out infinite}
+.host-live-badge--reconnecting{background:var(--gold-pale);color:var(--gold-ink);animation:live-pulse 1s ease-in-out infinite}
 .host-invite-code{
   font-family:var(--font-mono);font-size:1.6rem;font-weight:700;letter-spacing:.12em;
   color:var(--turf-deep);background:var(--turf-pale);border-radius:var(--radius-sm);
@@ -1850,7 +1861,7 @@ body.viewer-mode .courts-main{ display:block !important; }
 /* ---- Buy credits ---- */
 .host-credit-balance{color:var(--turf-deep);font-weight:700;font-size:.78rem}
 .host-credit-pending{
-  font-size:.78rem;color:var(--gold-deep);background:var(--gold-pale);
+  font-size:.78rem;color:var(--gold-ink);background:var(--gold-pale);
   border-radius:var(--radius-sm);padding:.5rem .65rem;margin:0 0 .8rem;
 }
 .host-buy-credits-toggle{display:flex;align-items:center;justify-content:center;gap:.35rem}
