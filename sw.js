@@ -12,7 +12,7 @@
       This does NOT add true push-from-server delivery — a viewer tab still
       has to be open and polling for that part to work. */
 
-const CACHE_VERSION = 'v9'; // bumped for the co-host feature + the INVITE_CODE_ALPHABET load-order crash fix in script.js
+const CACHE_VERSION = 'v9'; // bumped to precache legal.html (Disclaimer/Feedback page) so it opens offline too
 const CACHE_NAME = 'renzku-shell-' + CACHE_VERSION;
 
 // Same-origin files needed to render and run the app with no network at
@@ -23,6 +23,7 @@ const CACHE_NAME = 'renzku-shell-' + CACHE_VERSION;
 const SHELL_FILES = [
   './',
   './index.html',
+  './legal.html',
   './style.css',
   './script.js',
   './manifest.json',
