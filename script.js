@@ -340,6 +340,7 @@ window.addEventListener('appinstalled', () => {
    Preference is stored separately from the queue/app state so it can be
    applied the instant script.js runs, without waiting on IndexedDB. */
 const THEME_KEY = 'paddleStackTheme';
+const MOBILE_TAB_KEY = 'paddleStackMobileTab'; // 'stack' | 'courts' — which of the two mobile tabs (Players/Courts) was showing, so a reload doesn't bounce you back to Players
 function getStoredTheme(){
   try{ return localStorage.getItem(THEME_KEY); }catch(e){ return null; }
 }
@@ -4210,14 +4211,18 @@ $('#resetBtn').addEventListener('click', async () => {
 });
 
 /* ================= Mobile tabs ================= */
-$('#tabStack').addEventListener('click', () => {
-  appShell.classList.add('show-stack'); appShell.classList.remove('show-courts');
-  $('#tabStack').classList.add('active'); $('#tabCourts').classList.remove('active');
-});
-$('#tabCourts').addEventListener('click', () => {
-  appShell.classList.add('show-courts'); appShell.classList.remove('show-stack');
-  $('#tabCourts').classList.add('active'); $('#tabStack').classList.remove('active');
-});
+function setMobileTab(tab){ // 'stack' | 'courts'
+  if (tab === 'courts'){
+    appShell.classList.add('show-courts'); appShell.classList.remove('show-stack');
+    $('#tabCourts').classList.add('active'); $('#tabStack').classList.remove('active');
+  } else {
+    appShell.classList.add('show-stack'); appShell.classList.remove('show-courts');
+    $('#tabStack').classList.add('active'); $('#tabCourts').classList.remove('active');
+  }
+  try{ localStorage.setItem(MOBILE_TAB_KEY, tab); }catch(e){}
+}
+$('#tabStack').addEventListener('click', () => setMobileTab('stack'));
+$('#tabCourts').addEventListener('click', () => setMobileTab('courts'));
 
 /* ================= Host Online (Supabase) =================
    Lets someone create a free account and broadcast a read-only view of
@@ -6999,6 +7004,12 @@ function renderAll(){
   renderAll();
   if (window.innerWidth > 880){
     appShell.classList.add('show-stack','show-courts');
+  } else {
+    // Reopen whichever mobile tab (Players/Courts) was showing before the
+    // reload instead of always bouncing back to Players.
+    let savedTab = null;
+    try{ savedTab = localStorage.getItem(MOBILE_TAB_KEY); }catch(e){}
+    setMobileTab(savedTab === 'courts' ? 'courts' : 'stack');
   }
 
   authSession = loadAuthSession();
