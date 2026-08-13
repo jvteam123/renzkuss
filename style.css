@@ -1733,63 +1733,133 @@ body.cohost-mode .court-name{ pointer-events:none; }
    on-deck matchup to report — see updateViewerUpNext() in script.js. */
 .viewer-upnext-notify{
   max-width:1400px;margin:.75rem auto 0;padding:0 1.1rem;
-}
-.viewer-upnext-notify[hidden]{display:none}
-.viewer-upnext-notify-inner{
-  display:flex;align-items:flex-start;flex-wrap:wrap;gap:.5rem 1rem;
-  /* Fixed brand blue (not the --turf/--turf-deep pair, which get deliberately
-     LIGHTENED in dark mode for on-page text/accent contrast elsewhere) — using
-     the lightened pair here turned this into a glaring pale-blue banner against
-     a dark background. --brand-turf stays a deep navy in both themes, same as
-     the topbar, so this card reads the same (and stays comfortable to look at)
-     whether the spectator's device is in light or dark mode. */
-  background:linear-gradient(135deg,var(--brand-turf) 0%,var(--brand-turf-deep) 100%);
-  color:#fff;border-radius:var(--radius);padding:.85rem 1.1rem;
-  box-shadow:var(--shadow-md);
+  display:flex;align-items:center;flex-wrap:wrap;gap:.6rem 1rem;
   animation:viewer-upnext-in .32s cubic-bezier(.2,.8,.3,1);
 }
+.viewer-upnext-notify[hidden]{display:none}
 .viewer-upnext-badge{
-  display:inline-flex;align-items:center;gap:.4rem;flex-shrink:0;margin-top:.15rem;
+  display:inline-flex;align-items:center;gap:.4rem;flex-shrink:0;
   font-family:var(--font-mono);font-size:.68rem;font-weight:700;letter-spacing:.07em;
-  text-transform:uppercase;background:rgba(255,255,255,.2);color:#fff;
-  padding:.35rem .7rem;border-radius:99px;
+  text-transform:uppercase;color:#fff;
+  background:linear-gradient(135deg,var(--brand-turf) 0%,var(--brand-turf-deep) 100%);
+  padding:.45rem .8rem;border-radius:99px;box-shadow:var(--shadow-sm);
 }
 .viewer-upnext-badge svg{width:13px;height:13px;flex-shrink:0}
-/* Up to 2 upcoming matchups, stacked — the immediate next match reads large
-   and bold, the one after it smaller and slightly dimmed so the hierarchy
-   is obvious at a glance. */
-.viewer-upnext-body{
-  flex:1 1 auto;min-width:180px;
-  display:flex;flex-direction:column;gap:.4rem;
-}
-.viewer-upnext-item{
-  display:flex;align-items:center;flex-wrap:wrap;gap:.3rem .6rem;
-  font-size:1.02rem;font-weight:800;letter-spacing:-.01em;
-}
-.viewer-upnext-item + .viewer-upnext-item{
-  font-size:.86rem;font-weight:700;opacity:.82;
-  padding-top:.3rem;border-top:1px solid rgba(255,255,255,.18);
-}
-.viewer-upnext-tag{
-  font-family:var(--font-mono);font-size:.58rem;font-weight:700;letter-spacing:.06em;
-  text-transform:uppercase;color:rgba(255,255,255,.85);
-  background:rgba(255,255,255,.16);border-radius:5px;padding:.12rem .4rem;flex-shrink:0;
-}
-.viewer-upnext-body .ondeck-team{color:#fff}
-.viewer-upnext-body .ondeck-vs{
-  font-family:var(--font-mono);font-size:.62rem;font-weight:700;letter-spacing:.06em;
-  text-transform:uppercase;color:rgba(255,255,255,.8);
-  background:rgba(255,255,255,.16);border-radius:5px;padding:.1rem .4rem;
+/* Up to 2 upcoming matchups, rendered as compact "court card" previews —
+   the same visual language as the host's open-court cards (rounded card,
+   top accent bar, VS divider) so a spectator recognizes it instantly, just
+   small enough to sit side-by-side in this banner. See .viewer-vs-card. */
+.viewer-upnext-cards{
+  flex:1 1 auto;min-width:0;
+  display:flex;align-items:stretch;flex-wrap:wrap;gap:.6rem;
 }
 @keyframes viewer-upnext-in{
   from{opacity:0;transform:translateY(-8px)}
   to{opacity:1;transform:translateY(0)}
 }
+
+/* ---- Small "court card" style match preview used in the spectator
+   Up-next banner (and nowhere else — the host sees the full-size cards
+   in the courts grid instead). Mirrors .court-card's accent bar + surface
+   styling at a smaller scale, so it reads as "the same app" rather than a
+   bolted-on widget. ---- */
+.viewer-vs-card{
+  position:relative;flex:1 1 240px;min-width:200px;max-width:340px;
+  background:var(--surface);border:1.5px solid var(--line);border-radius:14px;
+  padding:.55rem .7rem .65rem;box-shadow:var(--shadow-sm);overflow:hidden;
+}
+.viewer-vs-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:4px;background:var(--turf);
+}
+.viewer-vs-card.viewer-vs-card--then{opacity:.78}
+.viewer-vs-card.viewer-vs-card--then::before{background:var(--slate)}
+.viewer-vs-card-top{display:flex;align-items:center;justify-content:space-between;gap:.4rem;margin-bottom:.4rem}
+.viewer-vs-tag{
+  font-family:var(--font-mono);font-size:.6rem;font-weight:800;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--turf-deep);background:var(--turf-pale);
+  padding:.16rem .5rem;border-radius:99px;white-space:nowrap;
+}
+.viewer-vs-card--then .viewer-vs-tag{color:var(--slate);background:var(--line)}
+.viewer-vs-info-btn{
+  display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
+  width:22px;height:22px;padding:0;border-radius:50%;
+  border:1px solid var(--info-blue-deep);background:var(--info-blue);color:#fff;
+  cursor:pointer;box-shadow:0 1px 2px rgba(10,30,61,.18);
+  transition:background .15s,transform .1s;
+}
+.viewer-vs-info-btn svg{width:12px;height:12px}
+.viewer-vs-info-btn:hover,.viewer-vs-info-btn:focus-visible{background:var(--info-blue-deep)}
+.viewer-vs-info-btn:active{transform:scale(.9)}
+.viewer-vs-matchup{display:flex;align-items:center;gap:0}
+.viewer-vs-team{flex:1;min-width:0;display:flex;flex-direction:column;gap:.15rem}
+.viewer-vs-team.viewer-vs-team-b{align-items:flex-end;text-align:right}
+.viewer-vs-name{
+  font-family:var(--font-display);font-size:.86rem;line-height:1.15;
+  color:var(--ink);word-break:break-word;overflow-wrap:anywhere;
+}
+.viewer-vs-card--then .viewer-vs-name{font-size:.78rem;color:var(--slate)}
+/* ---- The VS badge — bold, slanted, layered like an arcade fighting-game
+   "versus" screen: a jagged starburst behind a heavy italic outlined VS. ---- */
+.viewer-vs-badge{
+  position:relative;flex-shrink:0;width:38px;height:38px;margin:0 .35rem;
+  display:flex;align-items:center;justify-content:center;
+}
+.viewer-vs-badge::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,var(--clay) 0%,var(--gold) 52%,var(--turf) 100%);
+  clip-path:polygon(50% 0%,61% 32%,98% 30%,72% 54%,86% 90%,50% 68%,14% 90%,28% 54%,2% 30%,39% 32%);
+  transform:rotate(-8deg);filter:drop-shadow(0 2px 3px rgba(0,0,0,.32));
+}
+.viewer-vs-badge-text{
+  position:relative;z-index:1;
+  font-family:var(--font-display);font-size:.9rem;font-style:italic;font-weight:900;
+  letter-spacing:-.02em;color:#fff;transform:rotate(-8deg);
+  -webkit-text-stroke:1px var(--brand-ink);
+  text-shadow:0 1px 2px rgba(0,0,0,.4);
+}
+.viewer-vs-card--then .viewer-vs-badge{width:30px;height:30px;margin:0 .25rem}
+.viewer-vs-card--then .viewer-vs-badge-text{font-size:.72rem}
+@media (prefers-reduced-motion:no-preference){
+  .viewer-vs-card:not(.viewer-vs-card--then) .viewer-vs-badge{animation:viewer-vs-pop .5s cubic-bezier(.3,1.6,.5,1) .1s both}
+}
+@keyframes viewer-vs-pop{
+  0%{transform:scale(.4) rotate(-20deg);opacity:0}
+  100%{transform:scale(1) rotate(0deg);opacity:1}
+}
+html[data-theme="dark"] .viewer-vs-name{color:#fff}
+html[data-theme="dark"] .viewer-vs-card--then .viewer-vs-name{color:#8FA0C2}
+html[data-theme="dark"] .viewer-vs-badge-text{-webkit-text-stroke:1px #0A1830}
+
+/* ---- Match-info popover, opened from the VS card's info button — lists
+   every player in that matchup with skill level + this session's record,
+   the same facts the host's per-player Info popup shows, just grouped for
+   a whole matchup at once. Shares the dark-chip look of .player-details-pop
+   so it reads as the same UI pattern. ---- */
+.vs-info-pop{
+  position:fixed;z-index:9999;left:0;top:0;transform:translate(-50%,0);
+  background:#0E2748;color:#fff;font-family:var(--font-body);
+  padding:.7rem .8rem;border-radius:12px;box-shadow:var(--shadow-md);
+  width:max-content;max-width:min(88vw,300px);text-align:left;
+  opacity:0;pointer-events:none;transition:opacity .12s ease,transform .12s ease;
+}
+.vs-info-pop::after{
+  content:'';position:absolute;left:50%;bottom:100%;transform:translateX(-50%);
+  border:6px solid transparent;border-bottom-color:#0E2748;
+}
+.vs-info-pop.show{opacity:1;transform:translate(-50%,10px)}
+.vs-info-head{
+  font-family:var(--font-mono);font-size:.62rem;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:rgba(255,255,255,.7);margin-bottom:.5rem;
+}
+.vs-info-list{display:flex;flex-direction:column;gap:.5rem}
+.vs-info-row{display:flex;align-items:center;gap:.45rem}
+.vs-info-row .avatar{width:26px;height:26px;font-size:.68rem}
+.vs-info-name{flex:1;min-width:0;font-weight:700;font-size:.8rem;overflow-wrap:anywhere}
+.vs-info-row .level-badge{font-size:.6rem;padding:.1rem .4rem}
+.vs-info-stat{font-family:var(--font-mono);font-size:.66rem;color:rgba(255,255,255,.8);white-space:nowrap}
 @media (max-width:520px){
   .viewer-upnext-notify{padding:0 .8rem}
-  .viewer-upnext-notify-inner{padding:.7rem .85rem}
-  .viewer-upnext-item{font-size:.9rem}
-  .viewer-upnext-item + .viewer-upnext-item{font-size:.78rem}
+  .viewer-vs-card{flex:1 1 100%;max-width:none}
 }
 
 /* Read-only mode: hide everything a spectator shouldn't touch, without
