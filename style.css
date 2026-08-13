@@ -2388,3 +2388,51 @@ html[data-theme="dark"] .court-games-footer{border-top-color:#1E2A42;color:#7C8A
 body.viewer-mode .courts-grid.viewer-list-layout{
   grid-template-columns:1fr;
 }
+
+/* =====================================================================
+   Compact "view only" court cards for spectators — same data, tighter
+   layout. Host cards (with Start/End/Call buttons, swap/sub, timers) keep
+   their current size since they're the working interface; a spectator
+   never sees those controls so the card doesn't need the room for them.
+   ===================================================================== */
+body.viewer-mode .court-card{min-height:0;padding:0 1rem 1rem}
+body.viewer-mode .court-card::before{height:5px;margin:0 -1rem}
+body.viewer-mode .court-top{padding-top:.8rem}
+body.viewer-mode .court-name{font-size:1.05rem}
+body.viewer-mode .status-badge{padding:.22rem .5rem;font-size:.62rem}
+body.viewer-mode .timer-chip{padding:.2rem .45rem;font-size:.6rem}
+
+body.viewer-mode .matchup{min-height:0;margin:.7rem 0 .6rem}
+body.viewer-mode .matchup .team{gap:.55rem}
+body.viewer-mode .player-col{gap:1px}
+body.viewer-mode .avatar{width:26px;height:26px;font-size:.62rem}
+body.viewer-mode .player-name-txt{font-size:.86rem;-webkit-line-clamp:1}
+body.viewer-mode .player-games-row{display:none}
+body.viewer-mode .player-actions-row{min-height:0;margin-top:1px}
+
+/* Info button collapses to an icon-only dot in the compact layout — same
+   tap target and popover, just no label taking up room next to the name. */
+body.viewer-mode .player-preview-btn{
+  width:22px;height:22px;padding:0;border-radius:50%;justify-content:center;
+}
+body.viewer-mode .player-preview-btn .action-label{display:none}
+body.viewer-mode .player-preview-btn svg{width:11px;height:11px}
+
+body.viewer-mode .court-games-footer{margin-top:.5rem;padding-top:.45rem}
+
+/* Team 1 / Team 2 labels — blue/orange, matching the reference layout */
+.viewer-team-header{display:none}
+body.viewer-mode .viewer-team-header{
+  display:inline-flex;align-self:flex-start;font-family:var(--font-mono);
+  font-size:.58rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+  padding:.16rem .5rem;border-radius:6px;margin-bottom:.15rem;color:#fff;
+}
+body.viewer-mode .viewer-team-header-a{background:var(--turf)}
+body.viewer-mode .viewer-team-header-b{background:var(--clay);align-self:flex-end}
+body.viewer-mode .court-card.playing .viewer-team-header-a{background:#3D6FE0}
+body.viewer-mode .court-card.playing .viewer-team-header-b{background:#E0455A}
+
+@media (max-width:520px){
+  body.viewer-mode .avatar{width:24px;height:24px;font-size:.58rem}
+  body.viewer-mode .player-name-txt{font-size:.8rem}
+}
