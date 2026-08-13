@@ -1920,7 +1920,13 @@ function teamColHtml(names, side, gameSize, swapCtx, subBaseIdx){
     return playerRowHtml(n, swap, sub);
   });
   while (rows.length < slots) rows.push(`<span class="empty-slot">—</span>`);
-  return `<div class="team team-${side}">${rows.join('')}</div>`;
+  // Spectator-only colored "Team 1"/"Team 2" label, echoing the reference
+  // dashboard's blue/orange scoreboard convention — purely decorative,
+  // doesn't touch any data. Hidden entirely for the host.
+  const header = viewerMode
+    ? `<div class="viewer-team-header viewer-team-header-${side}">Team ${side === 'a' ? '1' : '2'}</div>`
+    : '';
+  return `<div class="team team-${side}">${header}${rows.join('')}</div>`;
 }
 
 /* Sequentially allocates upcoming stack entries to each *open* court, in
