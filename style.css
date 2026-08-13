@@ -2456,6 +2456,12 @@ body.viewer-mode .matchup .team{flex:1 1 0}
 body.viewer-mode .matchup .team.team-b{align-items:flex-end;text-align:right}
 body.viewer-mode .team-b .player-row{flex-direction:row-reverse}
 body.viewer-mode .vs-divider{height:auto;align-self:stretch}
+/* The dashed "net" stripe behind the divider (from the base playing-state
+   style) has more classes in its selector than our earlier override, so it
+   was winning the cascade and still showing through — kill it explicitly,
+   scoped to the exact same selector shape so this one wins outright. */
+body.viewer-mode .court-card.playing .vs-divider{background:none}
+body.viewer-mode .vs-divider::after{font-size:1rem}
 
 /* Team 1 / Team 2 — full-width colored header bar, matching the reference
    layout exactly (not just a small corner label). */
