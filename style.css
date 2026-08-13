@@ -2130,3 +2130,49 @@ html[data-theme="dark"] .mobile-tabs button.active{
 
 /* ---- Session name lockup, closer to the reference logo treatment ---- */
 html[data-theme="dark"] .topbar .session-name{font-weight:800}
+
+/* =====================================================================
+   ---------- Compact 2-up court cards on phones ----------
+   Presentation-only: same markup, same data-act handlers. Below ~600px
+   the grid switches to 2 columns and each card's internals (avatar,
+   fonts, action buttons) shrink via a container query keyed off the
+   card's own measured width, so it still looks right regardless of
+   exactly how narrow the phone is.
+   ===================================================================== */
+@media (max-width:600px){
+  .courts-grid{grid-template-columns:1fr 1fr;gap:.55rem}
+  .courts-main{padding:.8rem .6rem 2.5rem}
+}
+@container court (max-width:230px){
+  .court-card{padding:0 .6rem .6rem;min-height:0;border-radius:14px}
+  .court-top{padding-top:.6rem;gap:.3rem}
+  .court-name{font-size:.78rem}
+  .court-name-wrap svg{width:12px;height:12px}
+  .level-badge{font-size:.52rem;padding:.05rem .35rem}
+  .status-badge{font-size:.52rem;padding:.18rem .4rem}
+  .status-badge::before{width:5px;height:5px}
+  .last-result{font-size:.62rem;padding:.4rem .5rem;gap:.25rem;margin-bottom:.4rem}
+  .last-result svg{width:11px;height:11px}
+  .undo-result-btn{font-size:.52rem;padding:.2rem .4rem}
+  .matchup{margin:.5rem 0 .4rem;min-height:0;gap:.4rem}
+  .player-col{gap:.3rem}
+  .avatar{width:24px;height:24px;font-size:.6rem}
+  .player-name-txt{font-size:.72rem;-webkit-line-clamp:1}
+  .player-row{gap:.3rem}
+  .games-chip{display:none} /* not enough room at this width — Info popup still shows it */
+  .player-actions-row{gap:.25rem}
+  .player-preview-btn,.player-swap-btn,.player-sub-btn{
+    height:26px;padding:0;border-radius:7px;flex:1 1 0;
+  }
+  .player-preview-btn .action-label,.player-swap-btn .action-label,.player-sub-btn .action-label{
+    display:none; /* icon-only — not enough width for icon+label on 3 buttons at once */
+  }
+  .player-preview-btn svg,.player-swap-btn svg,.player-sub-btn svg{width:12px;height:12px}
+  .court-cta-row{gap:.35rem;flex-direction:column}
+  .court-cta-row .court-cta{min-height:0;padding:.5rem .5rem;border-radius:10px}
+  .court-cta-row .court-cta .cta-icon{font-size:.85rem}
+  .court-cta-row .court-cta .cta-sub{display:none} /* title alone fits; subtitle would force a taller card */
+  html[data-theme="dark"] .court-cta-row .court-cta .cta-title{font-size:.68rem}
+  .timer{font-size:1.1rem;margin-bottom:.4rem}
+  .timer-chip{font-size:.56rem;padding:.15rem .35rem}
+}
