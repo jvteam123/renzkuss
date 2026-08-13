@@ -3391,6 +3391,30 @@ let lastViewerUpNextHtml = null;
 function viewerVsTeamHtml(team){
   return team.map(n => `<span class="viewer-vs-name">${esc(n)}</span>`).join('');
 }
+/* Points for an 8-spike starburst, centered in a 44x44 box, computed once
+   so the polygon never has to be hand-tuned again. Kept inside the SVG's
+   own viewBox with margin to spare — combined with rotating it via an SVG
+   transform (not a CSS transform on the <svg> itself), the viewport clips
+   it cleanly no matter the angle, so it can never bleed onto the team name
+   sitting right next to it. */
+const VS_BURST_POINTS = '22,3 25.1,14.6 35.4,8.6 29.4,18.9 41,22 29.4,25.1 35.4,35.4 25.1,29.4 22,41 18.9,29.4 8.6,35.4 14.6,25.1 3,22 14.6,18.9 8.6,8.6 18.9,14.6';
+function viewerVsBadgeSvg(idx){
+  const gid = `vsGrad-${idx}`;
+  return `
+    <svg class="viewer-vs-badge-svg" viewBox="0 0 44 44" aria-hidden="true">
+      <defs>
+        <linearGradient id="${gid}" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop class="viewer-vs-stop-1" offset="0%"/>
+          <stop class="viewer-vs-stop-2" offset="55%"/>
+          <stop class="viewer-vs-stop-3" offset="100%"/>
+        </linearGradient>
+      </defs>
+      <g transform="rotate(-8 22 22)">
+        <polygon class="viewer-vs-burst" points="${VS_BURST_POINTS}" fill="url(#${gid})"/>
+      </g>
+      <text class="viewer-vs-text" x="22" y="27.5" text-anchor="middle" transform="rotate(-6 22 22)">VS</text>
+    </svg>`;
+}
 function viewerVsCardHtml(group, idx, tag, isNext){
   return `
     <div class="viewer-vs-card${isNext ? '' : ' viewer-vs-card--then'}">
@@ -3402,7 +3426,7 @@ function viewerVsCardHtml(group, idx, tag, isNext){
       </div>
       <div class="viewer-vs-matchup">
         <span class="viewer-vs-team">${viewerVsTeamHtml(group.teamA)}</span>
-        <span class="viewer-vs-badge" aria-hidden="true"><span class="viewer-vs-badge-text">VS</span></span>
+        ${viewerVsBadgeSvg(idx)}
         <span class="viewer-vs-team viewer-vs-team-b">${viewerVsTeamHtml(group.teamB)}</span>
       </div>
     </div>`;
