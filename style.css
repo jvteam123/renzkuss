@@ -601,7 +601,17 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
   flex:1;display:flex;align-items:stretch;gap:0;margin:1.1rem 0 .9rem;
   position:relative;min-height:112px;
 }
-.matchup .team{flex:1;display:flex;flex-direction:column;gap:.4rem;justify-content:center;min-width:0}
+.matchup .team{
+  flex:1;display:flex;flex-direction:column;gap:.4rem;justify-content:center;min-width:0;
+  /* The player-actions-row (Info/Swap/Sub) only ever has THIS column's width
+     to work with — teams sit side-by-side, so a team column is roughly half
+     the court card's width. The button-sizing rules below query this
+     container directly instead of the court card, so on desktop (where the
+     court card is wide but each team column still isn't) the pills size
+     correctly instead of assuming the full card width is available and
+     truncating to "I…"/"S…"/"S…". */
+  container-type:inline-size;container-name:team;
+}
 .matchup .team.team-b{align-items:flex-end;text-align:right}
 .matchup .vs-divider{
   width:1px;background:repeating-linear-gradient(var(--line),var(--line) 4px,transparent 4px,transparent 9px);
@@ -2066,6 +2076,16 @@ html[data-theme="dark"] .games-chip{color:#66748F;font-size:.68rem;letter-spacin
 @container court (max-width:360px){
   .player-actions-row{width:100%}
 }
+/* A team column comfortably fits full "Info"/"Swap"/"Sub" labels once it
+   has ~130px+ to work with (3 pills + gaps + icons) — true on desktop even
+   though the *court card* itself may be well under the old 360px cutoff
+   this used to key off of. Below that, drop to a tighter icon+short-label
+   size before finally going icon-only (handled further down). */
+@container team (min-width:130px){
+  .player-preview-btn,.player-swap-btn,.player-sub-btn{
+    padding:0 .45rem;font-size:.74rem;gap:.3rem;
+  }
+}
 html[data-theme="dark"] .player-preview-btn{background:var(--info-blue);border-color:var(--info-blue-deep);box-shadow:none}
 html[data-theme="dark"] .player-swap-btn{background:var(--swap-orange);border-color:var(--swap-orange-deep);box-shadow:none}
 html[data-theme="dark"] .player-sub-btn{background:var(--sub-amber);border-color:var(--sub-amber-deep);color:#241C02;box-shadow:none}
@@ -2219,11 +2239,12 @@ html[data-theme="dark"] .topbar .session-name{font-weight:800}
 @container court (max-width:360px){
   .matchup{gap:.4rem}
 }
-/* Real half-of-6"-phone card width (~180-195px) can't fit three
-   icon+label pills side by side — go icon-only there. Buttons stay the
-   exact same tap targets and data-act handlers, just smaller and
-   without the text. */
-@container court (max-width:210px){
+/* A team column this narrow (~half of a real half-of-6"-phone card) can't
+   fit three icon+label pills side by side — go icon-only there. Buttons
+   stay the exact same tap targets and data-act handlers, just smaller and
+   without the text. Keyed off the team column's own width (not the court
+   card's) since that's what the button row actually has to fit into. */
+@container team (max-width:105px){
   .player-actions-row{gap:.22rem}
   .player-preview-btn,.player-swap-btn,.player-sub-btn{
     height:26px;padding:0;border-radius:7px;flex:1 1 0;
@@ -2233,7 +2254,7 @@ html[data-theme="dark"] .topbar .session-name{font-weight:800}
   }
   .player-preview-btn svg,.player-swap-btn svg,.player-sub-btn svg{width:12px;height:12px}
 }
-@container court (min-width:211px) and (max-width:360px){
+@container team (min-width:106px) and (max-width:129px){
   .player-preview-btn,.player-swap-btn,.player-sub-btn{height:28px;padding:0 .4rem;font-size:.56rem}
   .player-preview-btn svg,.player-swap-btn svg,.player-sub-btn svg{width:11px;height:11px}
 }
