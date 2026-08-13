@@ -865,11 +865,12 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
 .court-cta-row .court-cta{
   margin-top:0;flex:1;width:auto;min-width:0;border-radius:var(--radius);
   padding:.65rem .7rem;display:flex;align-items:center;justify-content:center;gap:.5rem;
+  overflow:hidden;
 }
 .court-cta-row .court-cta .cta-icon{font-size:1.1rem;line-height:1;flex-shrink:0}
-.court-cta-row .court-cta .cta-text{display:flex;flex-direction:column;align-items:flex-start;gap:.05rem;min-width:0}
-.court-cta-row .court-cta .cta-title{font-weight:800;font-size:.85rem;letter-spacing:.01em}
-.court-cta-row .court-cta .cta-sub{font-weight:600;font-size:.68rem;letter-spacing:0;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.court-cta-row .court-cta .cta-text{display:flex;flex-direction:column;align-items:flex-start;gap:.05rem;min-width:0;overflow:hidden;width:100%}
+.court-cta-row .court-cta .cta-title{font-weight:800;font-size:.85rem;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.court-cta-row .court-cta .cta-sub{font-weight:600;font-size:.68rem;letter-spacing:0;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .court-cta.call-players{background:transparent;color:var(--turf-deep);border:1.5px solid var(--turf)}
 .court-cta.call-players:hover:not(:disabled){background:var(--turf-pale)}
 .court-cta.call-players:disabled{background:transparent;color:var(--slate);border-color:var(--line);cursor:not-allowed}
@@ -2053,11 +2054,11 @@ html[data-theme="dark"] .player-sub-btn{background:var(--sub-amber);border-color
    dimmer weight so it never competes with the title. */
 html[data-theme="dark"] .court-cta-row{gap:.7rem}
 html[data-theme="dark"] .court-cta-row .court-cta{
-  border-radius:16px;padding:.85rem .8rem;min-height:64px;gap:.6rem;
+  border-radius:16px;padding:.8rem .6rem;min-height:64px;gap:.5rem;overflow:hidden;
 }
-html[data-theme="dark"] .court-cta-row .court-cta .cta-icon{font-size:1.25rem}
-html[data-theme="dark"] .court-cta-row .court-cta .cta-title{font-size:.95rem;letter-spacing:.02em}
-html[data-theme="dark"] .court-cta-row .court-cta .cta-sub{font-size:.72rem;opacity:.65;font-weight:600}
+html[data-theme="dark"] .court-cta-row .court-cta .cta-icon{font-size:1.15rem}
+html[data-theme="dark"] .court-cta-row .court-cta .cta-title{font-size:.82rem;letter-spacing:.01em}
+html[data-theme="dark"] .court-cta-row .court-cta .cta-sub{font-size:.66rem;opacity:.65;font-weight:600}
 html[data-theme="dark"] .court-cta.call{
   background:linear-gradient(135deg,#3E7BFA 0%,#2A4FD8 100%);
   box-shadow:0 6px 18px rgba(47,111,237,.35);
@@ -2121,6 +2122,10 @@ html[data-theme="dark"] .mobile-tabs button.active{
 @media (max-width:880px){
   .mobile-tabs button{font-size:.66rem;padding:.6rem .3rem}
   .mobile-tabs button svg{width:19px;height:19px}
+  /* History and Settings now live in the bottom nav on phones — drop the
+     duplicate icons from the topbar so they're not offered twice. They
+     stay in the topbar on wider screens, which have no bottom nav. */
+  #matchHistoryBtn,#settingsBtn{display:none}
 }
 
 /* ---- Session name lockup, closer to the reference logo treatment ---- */
