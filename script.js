@@ -182,7 +182,7 @@ function cyclePlayerLevel(name){
 function defaultCourts(n){
   return Array.from({length:n}, (_, i) => ({
     id: 'c'+(i+1), name: 'Court '+(i+1), level: 'Open', status:'open', players: [], startTime: null, lastResult: null, swapInfo: null, score: null,
-    previewOrder: null, previewSubMap: null, openedAt: Date.now()
+    previewOrder: null, previewSubMap: null, openedAt: Date.now(), pauseStart: null, pausedMs: 0
   }));
 }
 
@@ -2859,14 +2859,14 @@ function renderCourts(){
       // Once a winner is reached, the clock freezes at the moment it was won
       // instead of continuing to run while the court still shows "on court".
       const clockEndTime = (scoringOn && sc && sc.wonAt) ? sc.wonAt : Date.now();
-      const elapsed = clockEndTime - court.startTime;
+      const elapsed = courtElapsedMs(court, clockEndTime);
       const [a, b] = splitTeams(court.players);
       const scoreboard = scoringOn ? scoreboardHtml(court) : '';
       // When scoring is on, the scoreboard already owns the vertical space,
       // so the timer moves into a compact chip up in the header row instead
       // of its own large centered block.
-      const timerChip = scoringOn ? `<span class="timer-chip" data-role="timer">${fmtClock(elapsed)}</span>` : '';
-      const timerBlock = scoringOn ? '' : `<div class="timer" data-role="timer">${fmtClock(elapsed)}</div>`;
+      const timerChip = scoringOn ? `<span class="timer-chip${court.pauseStart ? ' paused' : ''}" data-role="timer">${fmtClock(elapsed)}</span>` : '';
+      const timerBlock = scoringOn ? '' : `<div class="timer${court.pauseStart ? ' paused' : ''}" data-role="timer">${fmtClock(elapsed)}</div>`;
       // Swap-partner icons only make sense in doubles (there's no "partner"
       // to swap in singles) and only once a court actually has its full
       // roster of players on it.
@@ -2885,7 +2885,7 @@ function renderCourts(){
           <span class="court-name-wrap">${courtIcon}<input class="court-name" value="${esc(court.name)}" data-act="rename" maxlength="24" aria-label="Court name"></span>
           <span class="level-badge court-level-badge ${levelClass(court.level)}" aria-label="Court skill level">${esc(levelLabel(court.level || 'Open'))}</span>
           <span class="court-top-right">
-            <span class="status-badge playing">On court</span>
+            <span class="status-badge playing${court.pauseStart ? ' paused' : ''}">${court.pauseStart ? 'Paused' : 'On court'}</span>
             ${timerChip}
           </span>
         </div>
@@ -2893,7 +2893,10 @@ function renderCourts(){
         ${swapHint}
         ${scoreboard}
         ${timerBlock}
-        <button type="button" class="court-cta end" data-act="end">End game</button>
+        <div class="court-cta-row">
+          <button type="button" class="court-cta pause" data-act="pause"><span class="cta-icon">${court.pauseStart ? '▶' : '⏸'}</span><span class="cta-text"><span class="cta-title">${court.pauseStart ? 'Resume' : 'Pause'}</span><span class="cta-sub">${court.pauseStart ? 'Continue the clock' : 'Stop the clock'}</span></span></button>
+          <button type="button" class="court-cta end" data-act="end"><span class="cta-icon">⏹</span><span class="cta-text"><span class="cta-title">End Game</span><span class="cta-sub">Record the result</span></span></button>
+        </div>
         ${courtGamesFooter}
       `;
     }
@@ -3040,6 +3043,7 @@ courtsGrid.addEventListener('click', (e) => {
     announceCallPlayers(court, btn);
   }
   if (btn.dataset.act === 'end') openEndgame(court);
+  if (btn.dataset.act === 'pause') toggleCourtPause(court);
   if (btn.dataset.act === 'undo-result') undoLastResult(court.id);
   if (btn.dataset.act === 'score-plus') adjustCourtScore(court, btn.dataset.team, 1);
   if (btn.dataset.act === 'score-minus') adjustCourtScore(court, btn.dataset.team, -1);
@@ -3063,6 +3067,28 @@ courtsGrid.addEventListener('change', (e) => {
   persist();
   renderUpNext();
 });
+
+/* ---- Pause / resume the in-progress timer for a court ----
+   Doesn't touch court.startTime (so history's game-length math and
+   everything else keyed off it stays exactly as it was) — instead it just
+   tracks how much time has been spent paused, and the live-elapsed helper
+   below subtracts that out. Net effect: the clock visibly stops while
+   paused (water break, injury, dispute) and picks back up right where it
+   left off on resume. */
+function courtElapsedMs(court, endTime){
+  const now = endTime !== undefined ? endTime : Date.now();
+  const pausedMs = (court.pausedMs || 0) + (court.pauseStart ? (now - court.pauseStart) : 0);
+  return Math.max(0, now - court.startTime - pausedMs);
+}
+function toggleCourtPause(court){
+  if (court.pauseStart){
+    court.pausedMs = (court.pausedMs || 0) + (Date.now() - court.pauseStart);
+    court.pauseStart = null;
+  } else {
+    court.pauseStart = Date.now();
+  }
+  renderAll(); persist();
+}
 
 function callNext(court){
   const gameSize = state.session.gameSize;
@@ -3092,6 +3118,8 @@ function callNext(court){
   court.players = chosenNames;
   court.swapInfo = state.session.avoidRepeatTeammates ? buildSwapInfo(naturalNames, chosenNames, pairing.forcedDuo) : null;
   court.startTime = Date.now();
+  court.pauseStart = null;
+  court.pausedMs = 0;
   court.score = state.session.scoringEnabled ? freshCourtScore() : null;
   court.previewOrder = null;
   court.previewSubMap = null;
@@ -3326,6 +3354,8 @@ $('#endgameConfirm').addEventListener('click', async () => {
   court.status = 'open';
   court.players = [];
   court.startTime = null;
+  court.pauseStart = null;
+  court.pausedMs = 0;
   court.swapInfo = null;
   court.score = null;
   court.previewOrder = null;
@@ -3821,7 +3851,7 @@ setInterval(() => {
     if (!court || !court.startTime) return;
     if (state.session.scoringEnabled && court.score && court.score.wonAt) return; // frozen at the win
     const el = card.querySelector('[data-role="timer"]');
-    if (el) el.textContent = fmtClock(Date.now() - court.startTime);
+    if (el) el.textContent = fmtClock(courtElapsedMs(court));
   });
 }, 1000);
 
@@ -4212,7 +4242,7 @@ gameSizeSeg.addEventListener('click', (e) => {
 $('#courtPlus').addEventListener('click', () => {
   if (state.courts.length >= 24) return;
   const n = state.courts.length + 1;
-  const newCourt = { id: nextId('c'), name: 'Court ' + n, level: 'Open', status:'open', players:[], startTime:null, lastResult:null, swapInfo:null, score:null, previewOrder:null, previewSubMap:null, openedAt: Date.now() };
+  const newCourt = { id: nextId('c'), name: 'Court ' + n, level: 'Open', status:'open', players:[], startTime:null, lastResult:null, swapInfo:null, score:null, previewOrder:null, previewSubMap:null, openedAt: Date.now(), pauseStart: null, pausedMs: 0 };
   state.courts.push(newCourt);
   courtCountNum.textContent = state.courts.length;
   renderCourtNameRows(); persist(); renderAll();
