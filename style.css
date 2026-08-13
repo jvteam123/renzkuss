@@ -2157,19 +2157,31 @@ html[data-theme="dark"] .topbar .session-name{font-weight:800}
   }
   /* Cards were reading oversized on an actual phone screen — trim the
      internal spacing/type scale a notch so more of the card's real
-     content (not just whitespace) is visible without scrolling. */
-  .court-card{padding:0 .85rem .85rem;min-height:0;border-radius:18px}
-  .court-top{padding-top:.7rem}
-  .last-result{padding:.5rem .65rem;margin-bottom:.5rem;font-size:.72rem}
-  .matchup{margin:.6rem 0 .55rem;min-height:0;gap:.55rem}
-  .player-col{gap:.4rem}
-  .avatar{width:32px;height:32px;font-size:.78rem}
-  .player-name-txt{font-size:.88rem}
-  .player-preview-btn,.player-swap-btn,.player-sub-btn{height:32px;font-size:.62rem}
-  .court-cta-row .court-cta{min-height:0;padding:.6rem .6rem}
+     content (not just whitespace) is visible without scrolling. Width
+     was right; this pass is about cutting vertical air specifically:
+     tighter row gaps, tighter padding, no gap wasted on hitting some
+     minimum card height. */
+  .court-card{padding:0 .85rem .7rem;min-height:0;border-radius:18px}
+  .court-top{padding-top:.6rem}
+  .last-result{padding:.45rem .6rem;margin-bottom:.4rem;font-size:.7rem}
+  .matchup{margin:.45rem 0 .4rem;min-height:0;gap:.45rem}
+  .matchup .team{gap:.3rem}
+  .player-col{gap:.28rem}
+  .player-row{margin-bottom:0}
+  .avatar{width:30px;height:30px;font-size:.75rem}
+  .player-name-txt{font-size:.86rem;line-height:1.1}
+  .player-preview-btn,.player-swap-btn,.player-sub-btn{height:30px;font-size:.6rem}
+  .games-chip{font-size:.62rem}
+  .court-cta-row{gap:.55rem}
+  .court-cta-row .court-cta{min-height:0;padding:.55rem .6rem}
   .court-cta-row .court-cta .cta-icon{font-size:1rem}
   html[data-theme="dark"] .court-cta-row .court-cta .cta-title{font-size:.78rem}
   html[data-theme="dark"] .court-cta-row .court-cta .cta-sub{font-size:.62rem}
+  .timer{font-size:1.35rem;margin-bottom:.5rem}
+  .scoreboard-live{padding:.5rem .55rem;margin-bottom:.5rem}
+}
+@container court (max-width:360px){
+  .matchup{gap:.45rem}
 }
 
 
