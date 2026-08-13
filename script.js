@@ -3274,11 +3274,18 @@ $('#endgameConfirm').addEventListener('click', async () => {
 // preview logic computes and renders — same selectMatchEntries /
 // reconcileFixedDuosAcrossGroups calls as always, just a higher cap.
 let upNextExpanded = false;
+// Full player data (not just rendered names) for the first couple of
+// upcoming groups, captured while renderUpNext() builds the "On deck" list
+// below — the spectator VS cards read from this instead of re-deriving
+// anything from the DOM, so their info popover can show each player's
+// level/games/wins even though that never appears in the on-page rows.
+let upNextViewerGroups = [];
 function renderUpNext(){
   const expandBtn = $('#upNextExpandBtn');
   if (state.courts.length === 0){
     historyList.innerHTML = '<div class="ondeck-empty">Add a court to see who plays next.</div>';
     if (expandBtn) expandBtn.hidden = true;
+    upNextViewerGroups = [];
     updateViewerUpNext();
     return;
   }
@@ -3295,6 +3302,7 @@ function renderUpNext(){
       ? '<div class="ondeck-empty">The stack is empty — add players to fill the next match.</div>'
       : '<div class="ondeck-empty">Everyone waiting is already lined up for an open court.</div>';
     if (expandBtn) expandBtn.hidden = true;
+    upNextViewerGroups = [];
     updateViewerUpNext();
     return;
   }
@@ -3317,16 +3325,24 @@ function renderUpNext(){
   const reconciled = reconcileFixedDuosAcrossGroups(groups, onDeck, gameSize);
 
   const rows = [];
+  upNextViewerGroups = [];
   reconciled.forEach((chosen, i) => {
     const groupNum = i + 1;
     const names = orderForTeammatePairing(chosen.map(p => p.name));
     let matchup;
+    let teamA, teamB;
     if (gameSize === 2){
+      teamA = [names[0]]; teamB = [names[1]];
       matchup = `<span class="ondeck-team">${esc(names[0])}</span><span class="ondeck-vs">vs</span><span class="ondeck-team">${esc(names[1])}</span>`;
     } else {
       const [a, b] = splitTeams(names);
+      teamA = a; teamB = b;
       matchup = `<span class="ondeck-team">${a.map(esc).join(' &amp; ')}</span><span class="ondeck-vs">vs</span><span class="ondeck-team">${b.map(esc).join(' &amp; ')}</span>`;
     }
+    // Only the first 2 groups ever surface in the spectator VS cards, but
+    // capturing this here (instead of re-deriving from the on-page rows)
+    // keeps team-split logic in exactly one place.
+    if (i < 2) upNextViewerGroups.push({ teamA, teamB, size: chosen.length });
     rows.push(`
       <div class="ondeck-row">
         <span class="ondeck-badge-col">
@@ -3361,42 +3377,125 @@ if ($('#upNextExpandBtn')){
   });
 }
 
-/* Mirrors up to the first 2 "On deck" rows (if any) into the floating
-   spectator notification card that sits above the courts grid — see
-   .viewer-upnext-notify in style.css. Only relevant in viewer mode; a no-op
-   (and hidden) otherwise, since hosts already see the full stack rail. The
-   old collapsed "Up next" panel further down the page is hidden outright
-   in viewer mode (body.viewer-mode .history in style.css) since this card
-   now covers the same ground without making a spectator scroll for it. */
+/* Mirrors up to the first 2 upcoming groups (captured into
+   upNextViewerGroups above) into the floating spectator notification card
+   that sits above the courts grid — see .viewer-upnext-notify in style.css.
+   Each one renders as a small "court card" style VS matchup, echoing the
+   host's own open-court cards, with a tappable info button that surfaces
+   each player's level/record. Only relevant in viewer mode; a no-op (and
+   hidden) otherwise, since hosts already see the full stack rail. The old
+   collapsed "Up next" panel further down the page is hidden outright in
+   viewer mode (body.viewer-mode .history in style.css) since this card now
+   covers the same ground without making a spectator scroll for it. */
 let lastViewerUpNextHtml = null;
+function viewerVsTeamHtml(team){
+  return team.map(n => `<span class="viewer-vs-name">${esc(n)}</span>`).join('');
+}
+function viewerVsCardHtml(group, idx, tag, isNext){
+  return `
+    <div class="viewer-vs-card${isNext ? '' : ' viewer-vs-card--then'}">
+      <div class="viewer-vs-card-top">
+        <span class="viewer-vs-tag">${esc(tag)}</span>
+        <button type="button" class="viewer-vs-info-btn" data-act="vs-info" data-idx="${idx}" aria-label="Matchup details" title="Matchup details">
+          <svg viewBox="0 0 24 24"><use href="#i-info"/></svg>
+        </button>
+      </div>
+      <div class="viewer-vs-matchup">
+        <span class="viewer-vs-team">${viewerVsTeamHtml(group.teamA)}</span>
+        <span class="viewer-vs-badge" aria-hidden="true"><span class="viewer-vs-badge-text">VS</span></span>
+        <span class="viewer-vs-team viewer-vs-team-b">${viewerVsTeamHtml(group.teamB)}</span>
+      </div>
+    </div>`;
+}
 function updateViewerUpNext(){
   const notify = $('#viewerUpNextNotify');
   const body = $('#viewerUpNextBody');
   if (!notify || !body) return;
   if (!viewerMode){ notify.hidden = true; return; }
-  const rows = historyList ? Array.from(historyList.querySelectorAll('.ondeck-row')).slice(0, 2) : [];
-  if (rows.length === 0){
+  const groups = upNextViewerGroups.slice(0, 2);
+  if (groups.length === 0){
     notify.hidden = true;
     lastViewerUpNextHtml = null;
+    hideVsInfoPreview();
     return;
   }
   notify.hidden = false;
   const tags = ['Next', 'Then'];
-  const html = rows.map((row, i) => {
-    const matchupEl = row.querySelector('.ondeck-matchup');
-    const matchupHtml = matchupEl ? matchupEl.innerHTML : '';
-    return `<div class="viewer-upnext-item"><span class="viewer-upnext-tag">${tags[i] || ''}</span>${matchupHtml}</div>`;
-  }).join('');
+  const html = groups.map((g, i) => viewerVsCardHtml(g, i, tags[i] || '', i === 0)).join('');
   if (html !== lastViewerUpNextHtml){
     lastViewerUpNextHtml = html;
     body.innerHTML = html;
+    hideVsInfoPreview();
     // Re-trigger the slide/fade-in so a change in who's up next is visible
     // even if the spectator isn't looking right at the card at that instant.
-    notify.querySelector('.viewer-upnext-notify-inner').style.animation = 'none';
+    notify.style.animation = 'none';
     void notify.offsetWidth;
-    notify.querySelector('.viewer-upnext-notify-inner').style.animation = '';
+    notify.style.animation = '';
   }
 }
+
+/* ---- VS card info popover (spectator "Up next" cards) ----
+   One button per matchup card instead of one per player: pops up every
+   player in that matchup at once, each with skill level + this session's
+   games/wins — the same facts the host's per-player Info button shows,
+   just grouped for a whole matchup. Read-only, so it's safe in viewer mode. */
+let vsInfoEl = null;
+let vsInfoHideTimer = null;
+function vsInfoRowHtml(name){
+  const stats = state.playerStats[name] || {};
+  const games = stats.games || 0;
+  const wins = stats.wins || 0;
+  const level = getPlayerLevel(name);
+  return `
+    <div class="vs-info-row">
+      ${avatarHtml(name)}
+      <span class="vs-info-name">${esc(name)}</span>
+      <span class="level-badge ${levelClass(level)}">${esc(levelLabel(level))}</span>
+      <span class="vs-info-stat">${games}${games === 1 ? ' game' : ' games'} · ${wins}${wins === 1 ? ' win' : ' wins'}</span>
+    </div>`;
+}
+function vsInfoPopupHtml(group){
+  const names = group.teamA.concat(group.teamB);
+  return `<div class="vs-info-head">Matchup details</div><div class="vs-info-list">${names.map(vsInfoRowHtml).join('')}</div>`;
+}
+function showVsInfoPreview(btn, group){
+  if (!vsInfoEl){
+    vsInfoEl = document.createElement('div');
+    vsInfoEl.className = 'vs-info-pop';
+    document.body.appendChild(vsInfoEl);
+  }
+  vsInfoEl.innerHTML = vsInfoPopupHtml(group);
+  const r = btn.getBoundingClientRect();
+  // Measure after content is in place so a wider card (long names, extra
+  // players) still gets clamped fully on-screen rather than overflowing.
+  const half = Math.min(150, vsInfoEl.offsetWidth / 2 || 130);
+  const x = Math.min(Math.max(half + 8, r.left + r.width / 2), window.innerWidth - half - 8);
+  vsInfoEl.style.left = x + 'px';
+  // Opens downward (unlike the per-player popup, which opens upward) since
+  // this button lives near the very top of the page — opening up would
+  // usually run the popover off the top of the viewport.
+  vsInfoEl.style.top = Math.min(window.innerHeight - 8, r.bottom + 6) + 'px';
+  vsInfoEl.classList.remove('show');
+  void vsInfoEl.offsetWidth;
+  vsInfoEl.classList.add('show');
+  clearTimeout(vsInfoHideTimer);
+  vsInfoHideTimer = setTimeout(hideVsInfoPreview, 5500);
+}
+function hideVsInfoPreview(){
+  if (vsInfoEl) vsInfoEl.classList.remove('show');
+}
+document.addEventListener('click', (e) => {
+  if (e.target.closest('.viewer-vs-info-btn')){
+    const btn = e.target.closest('.viewer-vs-info-btn');
+    const idx = Number(btn.dataset.idx);
+    const group = upNextViewerGroups[idx];
+    if (group) showVsInfoPreview(btn, group);
+    return;
+  }
+  if (!vsInfoEl || !vsInfoEl.classList.contains('show')) return;
+  hideVsInfoPreview();
+});
+document.addEventListener('scroll', hideVsInfoPreview, true);
 
 /* ================= Match History modal (full detail + swap log) ================= */
 const matchHistoryOverlay = $('#matchHistoryOverlay');
