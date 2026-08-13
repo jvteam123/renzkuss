@@ -260,12 +260,28 @@ button,a,.icon-btn,.panel-action-btn,.btn,select,[role="button"]{
   border-color:var(--turf);color:var(--turf-deep);
   animation:checkin-glow 1.6s ease-in-out infinite;
 }
+/* The has-waiting text color above is meant for the plain/outline "Check
+   In" button — on the solid blue "Add Player" button it would silently
+   swap the label from white to navy-on-blue and make it unreadable, so
+   restore white here once both classes are present. */
+.panel-action-btn.solid.has-waiting{color:#fff}
 @keyframes checkin-glow{
   0%,100%{box-shadow:0 0 0 0 rgba(0,56,168,.45)}
   50%{box-shadow:0 0 0 7px rgba(0,56,168,0)}
 }
+/* The glow color above is the light-theme --brand-turf navy, which reads
+   as basically invisible pulsing against a dark card/background — same
+   navy, barely any contrast. Dark mode gets its own brighter keyframes
+   (matching dark mode's lightened --turf) instead of trying to reuse one
+   hardcoded color for both themes. */
+@keyframes checkin-glow-dark{
+  0%,100%{box-shadow:0 0 0 0 rgba(91,141,239,.6)}
+  50%{box-shadow:0 0 0 7px rgba(91,141,239,0)}
+}
+html[data-theme="dark"] .panel-action-btn.has-waiting{animation-name:checkin-glow-dark}
 @media (prefers-reduced-motion:reduce){
   .panel-action-btn.has-waiting{animation:none;box-shadow:0 0 0 3px rgba(0,56,168,.35)}
+  html[data-theme="dark"] .panel-action-btn.has-waiting{animation:none;box-shadow:0 0 0 3px rgba(91,141,239,.45)}
 }
 .add-form{
   display:flex;flex-wrap:wrap;gap:.5rem;padding:0;margin-bottom:.85rem;
