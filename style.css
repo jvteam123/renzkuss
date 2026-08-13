@@ -2456,7 +2456,14 @@ body.viewer-mode .court-games-footer{margin-top:.5rem;padding-top:.45rem}
    already covers this), so the avatar goes too and a level subtitle
    ("Open Play", etc.) takes its place under the name, mirroring the
    reference's "Name / Unrated" pattern. */
-body.viewer-mode .matchup{margin:0;gap:0;align-items:stretch}
+body.viewer-mode .matchup{gap:0;align-items:stretch}
+/* NOTE: deliberately not touching margin here — the compact-card rule
+   above (body.viewer-mode .matchup{margin:.7rem 0 .6rem}) already sets
+   the spacing above/below the team card list, and this later rule has
+   the same selector specificity, so restating margin here (even as 0)
+   would silently win the cascade and wipe that spacing out again. That's
+   exactly what caused the team cards to sit flush against the court
+   header row with no gap once a court had a live scoreboard. */
 body.viewer-mode .matchup .team{
   padding:0;border-radius:10px;overflow:hidden;background:var(--turf-pale);
   justify-content:flex-start;
