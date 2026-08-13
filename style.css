@@ -2437,10 +2437,25 @@ body.viewer-mode .vs-divider{
   display:flex;align-items:center;justify-content:center;padding:0 .6rem;
 }
 body.viewer-mode .vs-divider::after{
-  position:static;transform:none;background:none;padding:0;
+  position:static;transform:none;background:none;padding:0;border:none;
   font-size:.72rem;font-weight:800;color:var(--slate);
 }
 body.viewer-mode .court-card.playing .vs-divider::after{background:none;color:#7F9FD1}
+
+/* The card's own @container query (below, ~line 761) collapses team
+   columns to a stacked layout under 360px of card width — useful for the
+   host's fuller cards, but it was firing inconsistently between courts
+   here (card width varies slightly with name length), so one court would
+   render side-by-side and another stacked, and the "VS" divider's
+   absolute-positioned ::after text doesn't survive the switch to a static
+   flex layout at all, going invisible. Spectator cards are already
+   compact/narrow by design, so just pin the side-by-side layout at every
+   width instead of reacting to the container query. */
+body.viewer-mode .matchup{flex-direction:row;align-items:stretch}
+body.viewer-mode .matchup .team{flex:1 1 0}
+body.viewer-mode .matchup .team.team-b{align-items:flex-end;text-align:right}
+body.viewer-mode .team-b .player-row{flex-direction:row-reverse}
+body.viewer-mode .vs-divider{height:auto;align-self:stretch}
 
 /* Team 1 / Team 2 — full-width colored header bar, matching the reference
    layout exactly (not just a small corner label). */
