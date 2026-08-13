@@ -3270,9 +3270,15 @@ $('#endgameConfirm').addEventListener('click', async () => {
    here: who's queued up behind whatever's already previewed on the open
    court cards above — the players who'll get called next once a court
    frees up. */
+// "View full schedule" just raises how many upcoming groups this same
+// preview logic computes and renders — same selectMatchEntries /
+// reconcileFixedDuosAcrossGroups calls as always, just a higher cap.
+let upNextExpanded = false;
 function renderUpNext(){
+  const expandBtn = $('#upNextExpandBtn');
   if (state.courts.length === 0){
     historyList.innerHTML = '<div class="ondeck-empty">Add a court to see who plays next.</div>';
+    if (expandBtn) expandBtn.hidden = true;
     updateViewerUpNext();
     return;
   }
@@ -3288,6 +3294,7 @@ function renderUpNext(){
     historyList.innerHTML = state.stack.length === 0
       ? '<div class="ondeck-empty">The stack is empty — add players to fill the next match.</div>'
       : '<div class="ondeck-empty">Everyone waiting is already lined up for an open court.</div>';
+    if (expandBtn) expandBtn.hidden = true;
     updateViewerUpNext();
     return;
   }
@@ -3298,9 +3305,10 @@ function renderUpNext(){
   // claimed by any group. Reconciling afterward, across the whole set,
   // is what lets Marcus (say, in group 1) actually end up with Logan
   // (already locked into group 3) instead of the two staying split.
+  const groupCap = upNextExpanded ? 25 : 3;
   const groups = [];
   let previewStack = onDeck.slice();
-  while (previewStack.length >= gameSize && groups.length < 3){
+  while (previewStack.length >= gameSize && groups.length < groupCap){
     const chosen = selectMatchEntries(gameSize, previewStack);
     const chosenIds = new Set(chosen.map(e => e.id));
     previewStack = previewStack.filter(e => !chosenIds.has(e.id));
@@ -3319,9 +3327,17 @@ function renderUpNext(){
       const [a, b] = splitTeams(names);
       matchup = `<span class="ondeck-team">${a.map(esc).join(' &amp; ')}</span><span class="ondeck-vs">vs</span><span class="ondeck-team">${b.map(esc).join(' &amp; ')}</span>`;
     }
-    rows.push(`<div class="ondeck-row"><span class="ondeck-num">On deck ${groupNum}</span><span class="ondeck-matchup">${matchup}</span></div>`);
+    rows.push(`
+      <div class="ondeck-row">
+        <span class="ondeck-badge-col">
+          <span class="ondeck-badge">On deck</span>
+          <span class="ondeck-index">${groupNum}</span>
+        </span>
+        <span class="ondeck-matchup">${matchup}</span>
+        <span class="ondeck-meta"><svg viewBox="0 0 24 24"><use href="#i-user"/></svg>${chosen.length}</span>
+      </div>`);
   });
-  if (previewStack.length > 0){
+  if (previewStack.length > 0 && !upNextExpanded){
     rows.push(`<div class="ondeck-more">+${previewStack.length} more waiting</div>`);
   }
   if (rows.length === 0){
@@ -3329,7 +3345,20 @@ function renderUpNext(){
     rows.push(`<div class="ondeck-empty">Waiting on ${need} more player${need === 1 ? '' : 's'} for the next match.</div>`);
   }
   historyList.innerHTML = rows.join('');
+  if (expandBtn){
+    expandBtn.hidden = false;
+    expandBtn.textContent = upNextExpanded ? 'Show less' : 'View full schedule';
+  }
   updateViewerUpNext();
+}
+if ($('#upNextExpandBtn')){
+  $('#upNextExpandBtn').addEventListener('click', (e) => {
+    // Lives inside <summary> for layout purposes only — stop it from also
+    // triggering the native details open/close toggle.
+    e.preventDefault(); e.stopPropagation();
+    upNextExpanded = !upNextExpanded;
+    renderUpNext();
+  });
 }
 
 /* Mirrors up to the first 2 "On deck" rows (if any) into the floating
