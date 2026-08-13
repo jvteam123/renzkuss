@@ -1845,7 +1845,13 @@ body.viewer-mode .courts-main{ display:flex !important; flex-direction:column; }
    grid instead of below it, so the very next matchups are visible without
    scrolling. Host layout/order is untouched — this only reorders children
    of .courts-main in viewer mode via flex order. */
-body.viewer-mode .courts-main > h2{ order:0; }
+/* The plain <h2>Courts</h2> page title sat at the very top, directly above
+   the "Up next" panel — right next to the styled .viewer-courts-header
+   "Courts" label that already sits in the correct spot, right above the
+   actual courts grid it names. Two "Courts" headings back to back (one of
+   them labeling the wrong section) was just noise, so drop the plain one
+   for spectators and keep the one that's actually attached to the grid. */
+body.viewer-mode .courts-main > h2{ display:none; }
 body.viewer-mode .viewer-conn-card{ order:1; }
 body.viewer-mode .history{ order:2; display:block !important; margin:0 0 1.1rem; }
 body.viewer-mode .viewer-courts-header{ order:3; }
@@ -2447,6 +2453,17 @@ body.viewer-mode .matchup .team{
   justify-content:flex-start;
 }
 body.viewer-mode .matchup .team.team-b{background:rgba(206,17,38,.1)}
+/* .team-pale/team-b tints above are sized for the light "open" card
+   (dark ink text on a near-white surface). Once a court flips to
+   .playing, the card itself goes dark navy with white player names —
+   but these two rules stay a light theme's pale blue/pink regardless
+   of the active color scheme (light theme's --turf-pale is a near-white
+   #DEE7F7; only dark theme happens to resolve it to a translucent,
+   already-dark tint). White-on-pale-blue is unreadable, so give the
+   playing state its own darker, translucent tints — matching the navy/
+   red hue already used for the header bars just below. */
+body.viewer-mode .court-card.playing .matchup .team{background:rgba(61,111,224,.16)}
+body.viewer-mode .court-card.playing .matchup .team.team-b{background:rgba(224,69,90,.14)}
 body.viewer-mode .matchup .team > .player-col{padding:.5rem .8rem .65rem}
 body.viewer-mode .matchup .team.team-b > .player-col{align-items:flex-end;text-align:right}
 body.viewer-mode .avatar{display:none}
