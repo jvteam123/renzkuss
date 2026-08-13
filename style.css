@@ -260,28 +260,12 @@ button,a,.icon-btn,.panel-action-btn,.btn,select,[role="button"]{
   border-color:var(--turf);color:var(--turf-deep);
   animation:checkin-glow 1.6s ease-in-out infinite;
 }
-/* The has-waiting text color above is meant for the plain/outline "Check
-   In" button — on the solid blue "Add Player" button it would silently
-   swap the label from white to navy-on-blue and make it unreadable, so
-   restore white here once both classes are present. */
-.panel-action-btn.solid.has-waiting{color:#fff}
 @keyframes checkin-glow{
   0%,100%{box-shadow:0 0 0 0 rgba(0,56,168,.45)}
   50%{box-shadow:0 0 0 7px rgba(0,56,168,0)}
 }
-/* The glow color above is the light-theme --brand-turf navy, which reads
-   as basically invisible pulsing against a dark card/background — same
-   navy, barely any contrast. Dark mode gets its own brighter keyframes
-   (matching dark mode's lightened --turf) instead of trying to reuse one
-   hardcoded color for both themes. */
-@keyframes checkin-glow-dark{
-  0%,100%{box-shadow:0 0 0 0 rgba(91,141,239,.6)}
-  50%{box-shadow:0 0 0 7px rgba(91,141,239,0)}
-}
-html[data-theme="dark"] .panel-action-btn.has-waiting{animation-name:checkin-glow-dark}
 @media (prefers-reduced-motion:reduce){
   .panel-action-btn.has-waiting{animation:none;box-shadow:0 0 0 3px rgba(0,56,168,.35)}
-  html[data-theme="dark"] .panel-action-btn.has-waiting{animation:none;box-shadow:0 0 0 3px rgba(91,141,239,.45)}
 }
 .add-form{
   display:flex;flex-wrap:wrap;gap:.5rem;padding:0;margin-bottom:.85rem;
@@ -1749,133 +1733,63 @@ body.cohost-mode .court-name{ pointer-events:none; }
    on-deck matchup to report — see updateViewerUpNext() in script.js. */
 .viewer-upnext-notify{
   max-width:1400px;margin:.75rem auto 0;padding:0 1.1rem;
-  display:flex;align-items:center;flex-wrap:wrap;gap:.6rem 1rem;
-  animation:viewer-upnext-in .32s cubic-bezier(.2,.8,.3,1);
 }
 .viewer-upnext-notify[hidden]{display:none}
-.viewer-upnext-badge{
-  display:inline-flex;align-items:center;gap:.4rem;flex-shrink:0;
-  font-family:var(--font-mono);font-size:.68rem;font-weight:700;letter-spacing:.07em;
-  text-transform:uppercase;color:#fff;
+.viewer-upnext-notify-inner{
+  display:flex;align-items:flex-start;flex-wrap:wrap;gap:.5rem 1rem;
+  /* Fixed brand blue (not the --turf/--turf-deep pair, which get deliberately
+     LIGHTENED in dark mode for on-page text/accent contrast elsewhere) — using
+     the lightened pair here turned this into a glaring pale-blue banner against
+     a dark background. --brand-turf stays a deep navy in both themes, same as
+     the topbar, so this card reads the same (and stays comfortable to look at)
+     whether the spectator's device is in light or dark mode. */
   background:linear-gradient(135deg,var(--brand-turf) 0%,var(--brand-turf-deep) 100%);
-  padding:.45rem .8rem;border-radius:99px;box-shadow:var(--shadow-sm);
+  color:#fff;border-radius:var(--radius);padding:.85rem 1.1rem;
+  box-shadow:var(--shadow-md);
+  animation:viewer-upnext-in .32s cubic-bezier(.2,.8,.3,1);
+}
+.viewer-upnext-badge{
+  display:inline-flex;align-items:center;gap:.4rem;flex-shrink:0;margin-top:.15rem;
+  font-family:var(--font-mono);font-size:.68rem;font-weight:700;letter-spacing:.07em;
+  text-transform:uppercase;background:rgba(255,255,255,.2);color:#fff;
+  padding:.35rem .7rem;border-radius:99px;
 }
 .viewer-upnext-badge svg{width:13px;height:13px;flex-shrink:0}
-/* Up to 2 upcoming matchups, rendered as compact "court card" previews —
-   the same visual language as the host's open-court cards (rounded card,
-   top accent bar, VS divider) so a spectator recognizes it instantly, just
-   small enough to sit side-by-side in this banner. See .viewer-vs-card. */
-.viewer-upnext-cards{
-  flex:1 1 auto;min-width:0;
-  display:flex;align-items:stretch;flex-wrap:wrap;gap:.6rem;
+/* Up to 2 upcoming matchups, stacked — the immediate next match reads large
+   and bold, the one after it smaller and slightly dimmed so the hierarchy
+   is obvious at a glance. */
+.viewer-upnext-body{
+  flex:1 1 auto;min-width:180px;
+  display:flex;flex-direction:column;gap:.4rem;
+}
+.viewer-upnext-item{
+  display:flex;align-items:center;flex-wrap:wrap;gap:.3rem .6rem;
+  font-size:1.02rem;font-weight:800;letter-spacing:-.01em;
+}
+.viewer-upnext-item + .viewer-upnext-item{
+  font-size:.86rem;font-weight:700;opacity:.82;
+  padding-top:.3rem;border-top:1px solid rgba(255,255,255,.18);
+}
+.viewer-upnext-tag{
+  font-family:var(--font-mono);font-size:.58rem;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:rgba(255,255,255,.85);
+  background:rgba(255,255,255,.16);border-radius:5px;padding:.12rem .4rem;flex-shrink:0;
+}
+.viewer-upnext-body .ondeck-team{color:#fff}
+.viewer-upnext-body .ondeck-vs{
+  font-family:var(--font-mono);font-size:.62rem;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:rgba(255,255,255,.8);
+  background:rgba(255,255,255,.16);border-radius:5px;padding:.1rem .4rem;
 }
 @keyframes viewer-upnext-in{
   from{opacity:0;transform:translateY(-8px)}
   to{opacity:1;transform:translateY(0)}
 }
-
-/* ---- Small "court card" style match preview used in the spectator
-   Up-next banner (and nowhere else — the host sees the full-size cards
-   in the courts grid instead). Mirrors .court-card's accent bar + surface
-   styling at a smaller scale, so it reads as "the same app" rather than a
-   bolted-on widget. ---- */
-.viewer-vs-card{
-  position:relative;flex:1 1 240px;min-width:200px;max-width:340px;
-  background:var(--surface);border:1.5px solid var(--line);border-radius:14px;
-  padding:.55rem .7rem .65rem;box-shadow:var(--shadow-sm);overflow:hidden;
-}
-.viewer-vs-card::before{
-  content:'';position:absolute;top:0;left:0;right:0;height:4px;background:var(--turf);
-}
-.viewer-vs-card.viewer-vs-card--then{opacity:.78}
-.viewer-vs-card.viewer-vs-card--then::before{background:var(--slate)}
-.viewer-vs-card-top{display:flex;align-items:center;justify-content:space-between;gap:.4rem;margin-bottom:.4rem}
-.viewer-vs-tag{
-  font-family:var(--font-mono);font-size:.6rem;font-weight:800;letter-spacing:.06em;
-  text-transform:uppercase;color:var(--turf-deep);background:var(--turf-pale);
-  padding:.16rem .5rem;border-radius:99px;white-space:nowrap;
-}
-.viewer-vs-card--then .viewer-vs-tag{color:var(--slate);background:var(--line)}
-.viewer-vs-info-btn{
-  display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
-  width:22px;height:22px;padding:0;border-radius:50%;
-  border:1px solid var(--info-blue-deep);background:var(--info-blue);color:#fff;
-  cursor:pointer;box-shadow:0 1px 2px rgba(10,30,61,.18);
-  transition:background .15s,transform .1s;
-}
-.viewer-vs-info-btn svg{width:12px;height:12px}
-.viewer-vs-info-btn:hover,.viewer-vs-info-btn:focus-visible{background:var(--info-blue-deep)}
-.viewer-vs-info-btn:active{transform:scale(.9)}
-.viewer-vs-matchup{display:flex;align-items:center;gap:.5rem}
-.viewer-vs-team{flex:1;min-width:0;display:flex;flex-direction:column;gap:.15rem}
-.viewer-vs-team.viewer-vs-team-b{align-items:flex-end;text-align:right}
-.viewer-vs-name{
-  font-family:var(--font-display);font-size:.86rem;line-height:1.15;
-  color:var(--ink);word-break:break-word;overflow-wrap:anywhere;
-}
-.viewer-vs-card--then .viewer-vs-name{font-size:.78rem;color:var(--slate)}
-/* ---- The VS badge — a real self-contained icon (not text-with-effects):
-   a jagged starburst with a bold italic "VS" like an arcade fighting-game
-   versus screen. Built as inline SVG with everything — the burst, its
-   rotation, the lettering — drawn INSIDE the viewBox and rotated via SVG
-   transforms (not a CSS transform on the outer element), so the SVG's own
-   viewport clips it cleanly to its box no matter the angle. That's what
-   keeps it from ever bleeding into the team name next to it. ---- */
-.viewer-vs-badge-svg{
-  flex-shrink:0;width:40px;height:40px;
-  filter:drop-shadow(0 2px 3px rgba(0,0,0,.32));
-}
-.viewer-vs-stop-1{stop-color:var(--clay)}
-.viewer-vs-stop-2{stop-color:var(--gold)}
-.viewer-vs-stop-3{stop-color:var(--turf)}
-.viewer-vs-text{
-  font-family:var(--font-display);font-style:italic;font-weight:900;font-size:15px;
-  fill:#fff;stroke:var(--brand-ink);stroke-width:1.3px;paint-order:stroke fill;
-}
-.viewer-vs-card--then .viewer-vs-badge-svg{width:30px;height:30px}
-.viewer-vs-card--then .viewer-vs-text{font-size:13px}
-@media (prefers-reduced-motion:no-preference){
-  .viewer-vs-card:not(.viewer-vs-card--then) .viewer-vs-badge-svg{animation:viewer-vs-pop .5s cubic-bezier(.3,1.6,.5,1) .1s both}
-}
-@keyframes viewer-vs-pop{
-  0%{transform:scale(.4) rotate(-20deg);opacity:0}
-  100%{transform:scale(1) rotate(0deg);opacity:1}
-}
-html[data-theme="dark"] .viewer-vs-name{color:#fff}
-html[data-theme="dark"] .viewer-vs-card--then .viewer-vs-name{color:#8FA0C2}
-html[data-theme="dark"] .viewer-vs-text{stroke:#0A1830}
-
-
-/* ---- Match-info popover, opened from the VS card's info button — lists
-   every player in that matchup with skill level + this session's record,
-   the same facts the host's per-player Info popup shows, just grouped for
-   a whole matchup at once. Shares the dark-chip look of .player-details-pop
-   so it reads as the same UI pattern. ---- */
-.vs-info-pop{
-  position:fixed;z-index:9999;left:0;top:0;transform:translate(-50%,0);
-  background:#0E2748;color:#fff;font-family:var(--font-body);
-  padding:.7rem .8rem;border-radius:12px;box-shadow:var(--shadow-md);
-  width:max-content;max-width:min(88vw,300px);text-align:left;
-  opacity:0;pointer-events:none;transition:opacity .12s ease,transform .12s ease;
-}
-.vs-info-pop::after{
-  content:'';position:absolute;left:50%;bottom:100%;transform:translateX(-50%);
-  border:6px solid transparent;border-bottom-color:#0E2748;
-}
-.vs-info-pop.show{opacity:1;transform:translate(-50%,10px)}
-.vs-info-head{
-  font-family:var(--font-mono);font-size:.62rem;font-weight:700;letter-spacing:.06em;
-  text-transform:uppercase;color:rgba(255,255,255,.7);margin-bottom:.5rem;
-}
-.vs-info-list{display:flex;flex-direction:column;gap:.5rem}
-.vs-info-row{display:flex;align-items:center;gap:.45rem}
-.vs-info-row .avatar{width:26px;height:26px;font-size:.68rem}
-.vs-info-name{flex:1;min-width:0;font-weight:700;font-size:.8rem;overflow-wrap:anywhere}
-.vs-info-row .level-badge{font-size:.6rem;padding:.1rem .4rem}
-.vs-info-stat{font-family:var(--font-mono);font-size:.66rem;color:rgba(255,255,255,.8);white-space:nowrap}
 @media (max-width:520px){
   .viewer-upnext-notify{padding:0 .8rem}
-  .viewer-vs-card{flex:1 1 100%;max-width:none}
+  .viewer-upnext-notify-inner{padding:.7rem .85rem}
+  .viewer-upnext-item{font-size:.9rem}
+  .viewer-upnext-item + .viewer-upnext-item{font-size:.78rem}
 }
 
 /* Read-only mode: hide everything a spectator shouldn't touch, without
@@ -1893,10 +1807,22 @@ body.viewer-mode .player-swap-btn,
 body.viewer-mode .player-sub-btn,
 body.viewer-mode .undo-result-btn,
 body.viewer-mode .sbl-btn,
-body.viewer-mode .history{ display:none !important; } /* redundant with .viewer-upnext-notify above */
+body.viewer-mode .viewer-upnext-notify{ display:none !important; } /* superseded by the full "Up next" panel above the grid, see below */
 body.viewer-mode .court-name{ pointer-events:none; }
 body.viewer-mode .app-shell{ grid-template-columns:1fr; }
-body.viewer-mode .courts-main{ display:block !important; }
+body.viewer-mode .courts-main{ display:flex !important; flex-direction:column; }
+
+/* Spectators get the same rich "Up next" panel a host sees (badges, court
+   numbers, matchups, "View full schedule"), just moved above the courts
+   grid instead of below it, so the very next matchups are visible without
+   scrolling. Host layout/order is untouched — this only reorders children
+   of .courts-main in viewer mode via flex order. */
+body.viewer-mode .courts-main > h2{ order:0; }
+body.viewer-mode .viewer-conn-card{ order:1; }
+body.viewer-mode .history{ order:2; display:block !important; margin:0 0 1.1rem; }
+body.viewer-mode .courts-grid{ order:3; }
+body.viewer-mode .courts-stats-bar{ order:4; }
+body.viewer-mode .viewer-blocks-panel{ order:5; }
 
 .host-auth-tabs{display:flex;gap:.4rem;margin-bottom:.9rem}
 .host-auth-tabs button{
@@ -2131,6 +2057,14 @@ html[data-theme="dark"] .games-chip{color:#66748F;font-size:.68rem;letter-spacin
 html[data-theme="dark"] .player-preview-btn{background:var(--info-blue);border-color:var(--info-blue-deep);box-shadow:none}
 html[data-theme="dark"] .player-swap-btn{background:var(--swap-orange);border-color:var(--swap-orange-deep);box-shadow:none}
 html[data-theme="dark"] .player-sub-btn{background:var(--sub-amber);border-color:var(--sub-amber-deep);color:#241C02;box-shadow:none}
+
+/* Spectators only ever see the INFO button (SWAP/SUB are host-only and get
+   display:none above) — without SWAP/SUB to share the row with, the
+   flex:1 1 0 sizing above stretches INFO into one giant full-width pill.
+   Size it to its label instead, same as any other single button. */
+body.viewer-mode .player-preview-btn{
+  flex:0 0 auto;width:auto;
+}
 
 /* ---- Call Players / Start Game / End game buttons ----
    Reference screenshot: Call Players is a dark outlined pill with a soft
