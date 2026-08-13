@@ -160,10 +160,11 @@ button,a,.icon-btn,.panel-action-btn,.btn,select,[role="button"]{
 .topbar{
   display:flex;align-items:center;gap:.95rem;
   padding:.9rem 1.2rem;
-  background:linear-gradient(120deg, var(--brand-ink) 0%, var(--brand-turf-deep) 65%, var(--brand-turf) 130%);
+  background:#0A0F1A;
   color:#fff;
   position:sticky;top:5px;z-index:40;
-  box-shadow:var(--shadow-sm);
+  box-shadow:none;
+  border-bottom:1px solid #131E33;
   overflow-x:auto;
   scrollbar-width:none;
 }
@@ -177,18 +178,37 @@ button,a,.icon-btn,.panel-action-btn,.btn,select,[role="button"]{
   background:radial-gradient(circle, rgba(252,209,22,.35) 0%, transparent 70%);
 }
 .topbar .logo svg{width:30px;height:38px;color:var(--gold);position:relative}
+.topbar .brand-block{
+  display:flex;flex-direction:column;gap:.05rem;
+  max-width:40vw;overflow:hidden;
+}
 .topbar .session-name{
   font-family:var(--font-display);
   font-size:1.18rem;letter-spacing:.02em;
-  color:#fff;font-weight:700;
-  max-width:40vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  color:#fff;font-weight:800;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+/* "Paddle" stays solid white; "Stack" gets the blue gradient lockup —
+   colors picked to match the reference logo pixel-for-pixel. If JS ever
+   overwrites .session-name's textContent (viewer mode showing a live
+   session's name), these child spans are gone and the plain white
+   color set above is the fallback. */
+.topbar .session-name .brand-white{color:#F3F6FC}
+.topbar .session-name .brand-accent{
+  background:linear-gradient(90deg, #C7DBFB 0%, #6C93F5 45%, #3B66F0 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.topbar-tagline{
+  font-family:var(--font-body);font-size:.72rem;font-weight:500;
+  color:#8996AE;letter-spacing:.01em;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
 
 .topbar .spacer{flex:1}
 .topbar .pill{
   font-family:var(--font-mono);font-size:.78rem;font-weight:600;
-  background:rgba(255,255,255,.1);color:var(--brand-gold-pale);
-  border:1px solid rgba(252,209,22,.35);
+  background:#161F32;color:#B9C6DE;
+  border:1px solid #22314E;
   padding:.38rem .7rem;border-radius:99px;white-space:nowrap;
 }
 .topbar .pill.live-pill{
@@ -201,12 +221,12 @@ button,a,.icon-btn,.panel-action-btn,.btn,select,[role="button"]{
 }
 @keyframes live-pulse{0%,100%{opacity:1}50%{opacity:.6}}
 .icon-btn{
-  width:42px;height:42px;border-radius:11px;border:none;
-  background:rgba(255,255,255,.08);color:#fff;
+  width:42px;height:42px;border-radius:50%;border:1px solid #1E2C48;
+  background:#161F32;color:#fff;
   display:flex;align-items:center;justify-content:center;
   cursor:pointer;transition:background .15s, transform .1s;flex-shrink:0;
 }
-.icon-btn:hover{background:rgba(255,255,255,.18)}
+.icon-btn:hover{background:#1B2A47}
 .icon-btn:active{transform:scale(.94)}
 .icon-btn svg{width:21px;height:21px}
 .icon-btn[hidden]{display:none} /* an author `display` declaration always wins over the browser's
@@ -1513,7 +1533,7 @@ html[data-theme="dark"] .toast-progress{background:#fff}
   color:#fff;background:var(--turf);border-radius:12px;margin:.3rem .35rem;
 }
   .mobile-tabs button svg{width:18px;height:18px}
-  .topbar .session-name{max-width:32vw}
+  .topbar .brand-block{max-width:32vw}
 }
 
 /* ---------- Modals as bottom sheets on phones ----------
@@ -1545,9 +1565,11 @@ html[data-theme="dark"] .toast-progress{background:#fff}
 @media (max-width:480px){
   .topbar{gap:.4rem;padding:.65rem .6rem}
   .topbar .logo{display:none}
-  .topbar .session-name{max-width:26vw;font-size:.95rem}
+  .topbar .brand-block{max-width:52vw}
+  .topbar .session-name{font-size:.95rem}
+  .topbar-tagline{font-size:.66rem}
   .topbar .pill{display:none}
-  .icon-btn{width:36px;height:36px;border-radius:9px}
+  .icon-btn{width:36px;height:36px;border-radius:50%}
   .icon-btn svg{width:17px;height:17px}
   .winner-pick{grid-template-columns:1fr 1fr;gap:.5rem}
 }
@@ -1997,19 +2019,9 @@ body.viewer-mode .viewer-blocks-panel{ order:6; }
    --line, --slate, shadows) now live in the single html[data-theme="dark"]
    block near the top of this file — see the note there. ===================================================================== */
 
-/* ---- Topbar: darker, circular icon chips, tighter brand lockup ---- */
-html[data-theme="dark"] .topbar{
-  background:linear-gradient(180deg,#0B1220 0%,#0A0F1C 100%);
-  border-bottom:1px solid #131E33;
-  box-shadow:none;
-}
-html[data-theme="dark"] .icon-btn{
-  background:#141F35;border:1px solid #1E2C48;border-radius:50%;
-}
-html[data-theme="dark"] .icon-btn:hover{background:#1B2A47}
-html[data-theme="dark"] .topbar .pill{
-  background:#141F35;border-color:#22314E;color:#B9C6DE;border-radius:99px;
-}
+/* ---- Topbar: dark navy lockup is now the fixed base style in both themes
+   (see the main .topbar/.icon-btn/.pill rules above) — nothing theme-specific
+   left to override here. ---- */
 
 /* ---- Court cards ---- */
 html[data-theme="dark"] .court-card{
@@ -2185,9 +2197,6 @@ html[data-theme="dark"] .mobile-tabs button.active{
      stay in the topbar on wider screens, which have no bottom nav. */
   #matchHistoryBtn,#settingsBtn{display:none}
 }
-
-/* ---- Session name lockup, closer to the reference logo treatment ---- */
-html[data-theme="dark"] .topbar .session-name{font-weight:800}
 
 /* =====================================================================
    ---------- Swipeable courts on phones ----------
