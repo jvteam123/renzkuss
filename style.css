@@ -2143,45 +2143,67 @@ html[data-theme="dark"] .topbar .session-name{font-weight:800}
 @media (max-width:880px){
   .courts-grid{
     display:flex;flex-wrap:nowrap;grid-template-columns:none;
-    gap:.7rem;margin:0 -.9rem;padding:0 .9rem;
+    gap:.6rem;margin:0 -.9rem;padding:0 .9rem;
     overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;
     scrollbar-width:none;
   }
   .courts-grid::-webkit-scrollbar{display:none}
   .courts-grid .court-card{
-    flex:0 0 88%;width:88%;scroll-snap-align:center;scroll-snap-stop:always;
+    flex:0 0 50%;width:50%;scroll-snap-align:start;scroll-snap-stop:always;
   }
   .courts-grid:has(.court-card ~ .court-card) .court-card{
-    flex-basis:85%; /* a touch narrower so the next card's edge peeks in as a swipe affordance, only when there's more than one court */
-    width:85%;
+    flex-basis:48%; /* a touch narrower so the next card's edge peeks in as a swipe affordance, only when there's more than one court */
+    width:48%;
   }
   /* Cards were reading oversized on an actual phone screen — trim the
      internal spacing/type scale a notch so more of the card's real
-     content (not just whitespace) is visible without scrolling. Width
-     was right; this pass is about cutting vertical air specifically:
-     tighter row gaps, tighter padding, no gap wasted on hitting some
-     minimum card height. */
-  .court-card{padding:0 .85rem .7rem;min-height:0;border-radius:18px}
-  .court-top{padding-top:.6rem}
-  .last-result{padding:.45rem .6rem;margin-bottom:.4rem;font-size:.7rem}
-  .matchup{margin:.45rem 0 .4rem;min-height:0;gap:.45rem}
-  .matchup .team{gap:.3rem}
-  .player-col{gap:.28rem}
+     content (not just whitespace) is visible without scrolling. At
+     roughly half a 6" phone's width, INFO/SWAP/SUB drop their text
+     label (icon-only, via the container query below) since there's no
+     room for icon+label ×3 side by side at this card width. */
+  .court-card{padding:0 .6rem .55rem;min-height:0;border-radius:16px}
+  .court-top{padding-top:.55rem;gap:.3rem}
+  .court-name{font-size:.82rem}
+  .level-badge{font-size:.54rem;padding:.06rem .38rem}
+  .status-badge{font-size:.54rem;padding:.2rem .42rem}
+  .last-result{padding:.4rem .5rem;margin-bottom:.4rem;font-size:.64rem;gap:.3rem}
+  .last-result svg{width:12px;height:12px}
+  .undo-result-btn{font-size:.56rem;padding:.22rem .45rem}
+  .matchup{margin:.4rem 0 .35rem;min-height:0;gap:.4rem}
+  .matchup .team{gap:.28rem}
+  .player-col{gap:.24rem}
   .player-row{margin-bottom:0}
-  .avatar{width:30px;height:30px;font-size:.75rem}
-  .player-name-txt{font-size:.86rem;line-height:1.1}
-  .player-preview-btn,.player-swap-btn,.player-sub-btn{height:30px;font-size:.6rem}
-  .games-chip{font-size:.62rem}
-  .court-cta-row{gap:.55rem}
-  .court-cta-row .court-cta{min-height:0;padding:.55rem .6rem}
-  .court-cta-row .court-cta .cta-icon{font-size:1rem}
-  html[data-theme="dark"] .court-cta-row .court-cta .cta-title{font-size:.78rem}
-  html[data-theme="dark"] .court-cta-row .court-cta .cta-sub{font-size:.62rem}
-  .timer{font-size:1.35rem;margin-bottom:.5rem}
-  .scoreboard-live{padding:.5rem .55rem;margin-bottom:.5rem}
+  .avatar{width:26px;height:26px;font-size:.66rem}
+  .player-name-txt{font-size:.74rem;line-height:1.1}
+  .games-chip{font-size:.56rem}
+  .court-cta-row{gap:.4rem}
+  .court-cta-row .court-cta{min-height:0;padding:.5rem .4rem}
+  .court-cta-row .court-cta .cta-icon{font-size:.85rem}
+  html[data-theme="dark"] .court-cta-row .court-cta .cta-title{font-size:.66rem}
+  html[data-theme="dark"] .court-cta-row .court-cta .cta-sub{font-size:.56rem}
+  .timer{font-size:1.15rem;margin-bottom:.4rem}
+  .scoreboard-live{padding:.4rem .5rem;margin-bottom:.4rem}
 }
 @container court (max-width:360px){
-  .matchup{gap:.45rem}
+  .matchup{gap:.4rem}
+}
+/* Real half-of-6"-phone card width (~180-195px) can't fit three
+   icon+label pills side by side — go icon-only there. Buttons stay the
+   exact same tap targets and data-act handlers, just smaller and
+   without the text. */
+@container court (max-width:210px){
+  .player-actions-row{gap:.22rem}
+  .player-preview-btn,.player-swap-btn,.player-sub-btn{
+    height:26px;padding:0;border-radius:7px;flex:1 1 0;
+  }
+  .player-preview-btn .action-label,.player-swap-btn .action-label,.player-sub-btn .action-label{
+    display:none;
+  }
+  .player-preview-btn svg,.player-swap-btn svg,.player-sub-btn svg{width:12px;height:12px}
+}
+@container court (min-width:211px) and (max-width:360px){
+  .player-preview-btn,.player-swap-btn,.player-sub-btn{height:28px;padding:0 .4rem;font-size:.56rem}
+  .player-preview-btn svg,.player-swap-btn svg,.player-sub-btn svg{width:11px;height:11px}
 }
 
 
