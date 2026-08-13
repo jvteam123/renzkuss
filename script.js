@@ -1121,6 +1121,17 @@ function renderStack(){
   stackBadge.textContent = state.stack.length;
   stackCountPill.textContent = state.stack.length + ' in stack';
   stackList.innerHTML = '';
+  // Nudge the host toward the one thing that actually gets a session moving:
+  // as long as literally nobody has been added yet — not queued, not on a
+  // court, not sitting in a winners/losers block — pulse "Add Player" the
+  // same way "Check In" pulses once people are waiting to be let in. Once
+  // anyone exists anywhere in the session this turns off on its own.
+  if (addPlayerTabBtn){
+    const onCourtCount = state.courts.reduce((n, c) => n + (c.players ? c.players.length : 0), 0);
+    const noPlayersYet = state.stack.length === 0 && onCourtCount === 0 &&
+      state.winnersBlock.length === 0 && state.losersBlock.length === 0;
+    addPlayerTabBtn.classList.toggle('has-waiting', noPlayersYet && !isSessionEnded());
+  }
   if (state.stack.length === 0){
     stackList.innerHTML = '<div class="stack-empty">The stack is empty.<br>Tap "Add Player" to get the queue going.</div>';
     return;
