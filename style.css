@@ -2408,27 +2408,50 @@ body.viewer-mode .player-col{gap:1px}
 body.viewer-mode .avatar{width:26px;height:26px;font-size:.62rem}
 body.viewer-mode .player-name-txt{font-size:.86rem;-webkit-line-clamp:1}
 body.viewer-mode .player-games-row{display:none}
-body.viewer-mode .player-actions-row{min-height:0;margin-top:1px}
-
-/* Info button collapses to an icon-only dot in the compact layout — same
-   tap target and popover, just no label taking up room next to the name. */
-body.viewer-mode .player-preview-btn{
-  width:22px;height:22px;padding:0;border-radius:50%;justify-content:center;
-}
-body.viewer-mode .player-preview-btn .action-label{display:none}
-body.viewer-mode .player-preview-btn svg{width:11px;height:11px}
+body.viewer-mode .player-actions-row{display:none}
 
 body.viewer-mode .court-games-footer{margin-top:.5rem;padding-top:.45rem}
 
-/* Team 1 / Team 2 labels — blue/orange, matching the reference layout */
+/* Full-width "Team 1"/"Team 2" header bars + tinted column backgrounds,
+   matching the reference layout exactly — not just a small corner label.
+   The Info button is gone in viewer mode (Match Info on the Up Next card
+   already covers this), so the avatar goes too and a level subtitle
+   ("Open Play", etc.) takes its place under the name, mirroring the
+   reference's "Name / Unrated" pattern. */
+body.viewer-mode .matchup{margin:0;gap:0;align-items:stretch}
+body.viewer-mode .matchup .team{
+  padding:0;border-radius:10px;overflow:hidden;background:var(--turf-pale);
+  justify-content:flex-start;
+}
+body.viewer-mode .matchup .team.team-b{background:rgba(206,17,38,.1)}
+body.viewer-mode .matchup .team > .player-col{padding:.5rem .8rem .65rem}
+body.viewer-mode .matchup .team.team-b > .player-col{align-items:flex-end;text-align:right}
+body.viewer-mode .avatar{display:none}
+body.viewer-mode .player-name-txt{font-size:.92rem;font-weight:800}
+body.viewer-mode .viewer-player-level{
+  display:block;font-size:.68rem;font-weight:600;color:var(--slate);margin-top:1px;
+}
+body.viewer-mode .court-card.playing .viewer-player-level{color:#9FB3D6}
+body.viewer-mode .vs-divider{
+  width:auto;background:none;margin:0;flex-shrink:0;align-self:center;
+  display:flex;align-items:center;justify-content:center;padding:0 .6rem;
+}
+body.viewer-mode .vs-divider::after{
+  position:static;transform:none;background:none;padding:0;
+  font-size:.72rem;font-weight:800;color:var(--slate);
+}
+body.viewer-mode .court-card.playing .vs-divider::after{background:none;color:#7F9FD1}
+
+/* Team 1 / Team 2 — full-width colored header bar, matching the reference
+   layout exactly (not just a small corner label). */
 .viewer-team-header{display:none}
 body.viewer-mode .viewer-team-header{
-  display:inline-flex;align-self:flex-start;font-family:var(--font-mono);
-  font-size:.58rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
-  padding:.16rem .5rem;border-radius:6px;margin-bottom:.15rem;color:#fff;
+  display:block;width:100%;font-family:var(--font-display);
+  font-size:.78rem;font-weight:700;letter-spacing:.01em;text-transform:uppercase;
+  padding:.5rem .8rem;color:#fff;text-align:left;
 }
 body.viewer-mode .viewer-team-header-a{background:var(--turf)}
-body.viewer-mode .viewer-team-header-b{background:var(--clay);align-self:flex-end}
+body.viewer-mode .viewer-team-header-b{background:var(--clay);text-align:right}
 body.viewer-mode .court-card.playing .viewer-team-header-a{background:#3D6FE0}
 body.viewer-mode .court-card.playing .viewer-team-header-b{background:#E0455A}
 
