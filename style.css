@@ -895,8 +895,7 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
   padding:.5rem 0;list-style:none;display:flex;align-items:center;gap:.4rem;
 }
 .history summary::-webkit-details-marker{display:none}
-.history summary svg{width:12px;height:12px;transition:transform .15s}
-.history[open] summary svg{transform:rotate(90deg)}
+.history summary svg{width:14px;height:14px;transition:transform .15s;flex-shrink:0}
 .history-list{display:flex;flex-direction:column;gap:.5rem;padding:.3rem 0 0}
 .history-row{
   display:flex;justify-content:space-between;gap:.6rem;font-size:.78rem;color:var(--slate);
@@ -2132,47 +2131,57 @@ html[data-theme="dark"] .mobile-tabs button.active{
 html[data-theme="dark"] .topbar .session-name{font-weight:800}
 
 /* =====================================================================
-   ---------- Compact 2-up court cards on phones ----------
-   Presentation-only: same markup, same data-act handlers. Below ~600px
-   the grid switches to 2 columns and each card's internals (avatar,
-   fonts, action buttons) shrink via a container query keyed off the
-   card's own measured width, so it still looks right regardless of
-   exactly how narrow the phone is.
+   ---------- Swipeable courts on phones ----------
+   Presentation-only: same #courtsGrid, same .court-card markup, same
+   data-act handlers — for host and spectator/viewer alike, since both
+   render through the same renderCourts() into the same element. Below
+   ~880px the grid becomes a horizontal snap-scroller showing one
+   full-size court card at a time (matching the reference screenshot's
+   sizing) instead of a cramped grid; native touch scrolling gives the
+   swipe-left/right navigation with no extra JS needed.
    ===================================================================== */
-@media (max-width:600px){
-  .courts-grid{grid-template-columns:1fr 1fr;gap:.55rem}
-  .courts-main{padding:.8rem .6rem 2.5rem}
-}
-@container court (max-width:230px){
-  .court-card{padding:0 .6rem .6rem;min-height:0;border-radius:14px}
-  .court-top{padding-top:.6rem;gap:.3rem}
-  .court-name{font-size:.78rem}
-  .court-name-wrap svg{width:12px;height:12px}
-  .level-badge{font-size:.52rem;padding:.05rem .35rem}
-  .status-badge{font-size:.52rem;padding:.18rem .4rem}
-  .status-badge::before{width:5px;height:5px}
-  .last-result{font-size:.62rem;padding:.4rem .5rem;gap:.25rem;margin-bottom:.4rem}
-  .last-result svg{width:11px;height:11px}
-  .undo-result-btn{font-size:.52rem;padding:.2rem .4rem}
-  .matchup{margin:.5rem 0 .4rem;min-height:0;gap:.4rem}
-  .player-col{gap:.3rem}
-  .avatar{width:24px;height:24px;font-size:.6rem}
-  .player-name-txt{font-size:.72rem;-webkit-line-clamp:1}
-  .player-row{gap:.3rem}
-  .games-chip{display:none} /* not enough room at this width — Info popup still shows it */
-  .player-actions-row{gap:.25rem}
-  .player-preview-btn,.player-swap-btn,.player-sub-btn{
-    height:26px;padding:0;border-radius:7px;flex:1 1 0;
+@media (max-width:880px){
+  .courts-grid{
+    display:flex;flex-wrap:nowrap;grid-template-columns:none;
+    gap:0;margin:0 -.9rem;padding:0 .9rem;
+    overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
   }
-  .player-preview-btn .action-label,.player-swap-btn .action-label,.player-sub-btn .action-label{
-    display:none; /* icon-only — not enough width for icon+label on 3 buttons at once */
+  .courts-grid::-webkit-scrollbar{display:none}
+  .courts-grid .court-card{
+    flex:0 0 100%;width:100%;scroll-snap-align:center;scroll-snap-stop:always;
   }
-  .player-preview-btn svg,.player-swap-btn svg,.player-sub-btn svg{width:12px;height:12px}
-  .court-cta-row{gap:.35rem;flex-direction:column}
-  .court-cta-row .court-cta{min-height:0;padding:.5rem .5rem;border-radius:10px}
-  .court-cta-row .court-cta .cta-icon{font-size:.85rem}
-  .court-cta-row .court-cta .cta-sub{display:none} /* title alone fits; subtitle would force a taller card */
-  html[data-theme="dark"] .court-cta-row .court-cta .cta-title{font-size:.68rem}
-  .timer{font-size:1.1rem;margin-bottom:.4rem}
-  .timer-chip{font-size:.56rem;padding:.15rem .35rem}
+  .courts-grid:has(.court-card ~ .court-card) .court-card{
+    flex-basis:92%; /* peek the next card's edge as a swipe affordance, only when there's more than one court */
+  }
 }
+
+/* ---------- "Up next" header + rows, matching the reference layout ---------- */
+.history summary{justify-content:flex-start}
+.history-summary-title{flex:1}
+.up-next-expand-btn{
+  border:none;background:none;color:var(--turf);font-weight:700;font-size:.76rem;
+  cursor:pointer;padding:.2rem 0;flex-shrink:0;
+}
+.up-next-expand-btn[hidden]{display:none}
+.up-next-expand-btn:hover{text-decoration:underline}
+.ondeck-row{align-items:stretch;padding-left:0;gap:.7rem}
+.ondeck-badge-col{
+  flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:.2rem;padding:.3rem .5rem .3rem 1.05rem;
+}
+.ondeck-badge{
+  font-family:var(--font-mono);font-size:.56rem;font-weight:700;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--turf-deep);background:var(--turf-pale);
+  padding:.12rem .45rem;border-radius:99px;white-space:nowrap;
+}
+.ondeck-index{font-family:var(--font-display);font-size:1.3rem;line-height:1;color:var(--ink)}
+.ondeck-meta{
+  flex-shrink:0;display:flex;align-items:center;gap:.25rem;align-self:center;
+  font-family:var(--font-mono);font-size:.8rem;font-weight:700;color:var(--slate);
+}
+.ondeck-meta svg{width:14px;height:14px}
+html[data-theme="dark"] .ondeck-badge{background:rgba(47,111,237,.16);color:#8FB3FF}
+html[data-theme="dark"] .ondeck-index{color:#fff}
+html[data-theme="dark"] .ondeck-vs{color:#8FB3FF;background:transparent;font-weight:800}
+html[data-theme="dark"] .up-next-expand-btn{color:var(--info-blue)}
