@@ -188,7 +188,7 @@ function defaultCourts(n){
 
 function freshState(){
   return {
-    session: { name: 'PaddleStack', gameSize: 4, soundOn: true, notifyCallsEnabled: true, status: 'active', targetGamesEnabled: false, targetGamesPerPlayer: 7, avoidRepeatTeammates: false, fixedDuos: [], scoringEnabled: true, winningScore: 11, autoStartEnabled: true, autoStartMinutes: 1, matchingStyle: 'winnersLosers', skillLevelsEnabled: false, cohostPermissions: { allowSwap: true, allowSubstitution: true } }, // status: 'active' | 'ended'; matchingStyle: 'balanced' | 'skillSeparated' | 'winnersLosers'; skillLevelsEnabled: off by default — everyone plays Open Play until turned on; autoStartMinutes: how long an open, ready court waits before auto-starting (default 1 minute); soundOn: on-site voice announcement only; notifyCallsEnabled: phone notifications on call-up, independent of soundOn; cohostPermissions: what a co-host device is allowed to do beyond start/score — both default ON, host can turn either off per-session (see setCohostPermission)
+    session: { name: 'PaddleStack', createdAt: Date.now(), gameSize: 4, soundOn: true, notifyCallsEnabled: true, status: 'active', targetGamesEnabled: false, targetGamesPerPlayer: 7, avoidRepeatTeammates: false, fixedDuos: [], scoringEnabled: true, winningScore: 11, autoStartEnabled: true, autoStartMinutes: 1, matchingStyle: 'winnersLosers', skillLevelsEnabled: false, cohostPermissions: { allowSwap: true, allowSubstitution: true } }, // status: 'active' | 'ended'; matchingStyle: 'balanced' | 'skillSeparated' | 'winnersLosers'; skillLevelsEnabled: off by default — everyone plays Open Play until turned on; autoStartMinutes: how long an open, ready court waits before auto-starting (default 1 minute); soundOn: on-site voice announcement only; notifyCallsEnabled: phone notifications on call-up, independent of soundOn; cohostPermissions: what a co-host device is allowed to do beyond start/score — both default ON, host can turn either off per-session (see setCohostPermission); createdAt: when this session was created, used only for the viewer dashboard's "Session Time" stat — a saved session from before this field existed just won't show an accurate elapsed time, which is harmless
     courts: defaultCourts(2),
     arrivals: [],        // {id, name, addedAt} — added but not yet checked in; not part of the live queue
     stack: [],           // {id, name, joinedAt, tag: 'new'|'queued'}
@@ -359,6 +359,11 @@ function applyTheme(theme){
   if (iconUse) iconUse.setAttribute('href', theme === 'dark' ? '#i-sun' : '#i-moon');
   const btn = $('#themeToggleBtn');
   if (btn) btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+  // Viewer dashboard's own "Theme" quick-action button mirrors the same icon/label.
+  const viewerIconUse = $('#viewerThemeIconUse');
+  if (viewerIconUse) viewerIconUse.setAttribute('href', theme === 'dark' ? '#i-sun' : '#i-moon');
+  const viewerBtn = $('#viewerThemeBtn');
+  if (viewerBtn) viewerBtn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
 }
 applyTheme(preferredTheme());
 const stackList = $('#stackList');
@@ -1121,17 +1126,6 @@ function renderStack(){
   stackBadge.textContent = state.stack.length;
   stackCountPill.textContent = state.stack.length + ' in stack';
   stackList.innerHTML = '';
-  // Nudge the host toward the one thing that actually gets a session moving:
-  // as long as literally nobody has been added yet — not queued, not on a
-  // court, not sitting in a winners/losers block — pulse "Add Player" the
-  // same way "Check In" pulses once people are waiting to be let in. Once
-  // anyone exists anywhere in the session this turns off on its own.
-  if (addPlayerTabBtn){
-    const onCourtCount = state.courts.reduce((n, c) => n + (c.players ? c.players.length : 0), 0);
-    const noPlayersYet = state.stack.length === 0 && onCourtCount === 0 &&
-      state.winnersBlock.length === 0 && state.losersBlock.length === 0;
-    addPlayerTabBtn.classList.toggle('has-waiting', noPlayersYet && !isSessionEnded());
-  }
   if (state.stack.length === 0){
     stackList.innerHTML = '<div class="stack-empty">The stack is empty.<br>Tap "Add Player" to get the queue going.</div>';
     return;
@@ -2771,6 +2765,13 @@ function renderCourts(){
     card.dataset.id = court.id;
 
     const courtIcon = `<svg viewBox="0 0 24 24"><use href="#i-court"/></svg>`;
+    // Spectator-only footer: how many matches have finished on this specific
+    // court this session. Derived from state.history (already synced to
+    // viewers) rather than a new counter field, since every finished game
+    // already records the court name it was played on.
+    const courtGamesFooter = viewerMode
+      ? `<div class="court-games-footer"><svg viewBox="0 0 24 24"><use href="#i-refresh"/></svg>${state.history.filter(h => h.courtName === court.name).length} games played</div>`
+      : '';
 
     if (court.status === 'open'){
       const slot = openQueue.get(court.id) || { taken: null, remaining: state.stack.length };
@@ -2834,6 +2835,7 @@ function renderCourts(){
           <button type="button" class="court-cta call" data-act="call" ${(enough && !ended) ? '' : 'disabled'}><span class="cta-icon">${ended ? '🔒' : '▶'}</span><span class="cta-text"><span class="cta-title">${ended ? 'Session ended' : 'Start Game'}</span><span class="cta-sub">${ended ? 'Locked for new games' : 'Start match on this court'}</span></span></button>
         </div>
         ${autoStartHtml}
+        ${courtGamesFooter}
       `;
     } else {
       // Lazily attach a live score object if scoring was turned on mid-match.
@@ -2878,6 +2880,7 @@ function renderCourts(){
         ${scoreboard}
         ${timerBlock}
         <button type="button" class="court-cta end" data-act="end">End game</button>
+        ${courtGamesFooter}
       `;
     }
     courtsGrid.appendChild(card);
@@ -2949,6 +2952,61 @@ document.addEventListener('click', (e) => {
   hidePlayerDetailsPreview();
 });
 document.addEventListener('scroll', hidePlayerDetailsPreview, true);
+
+/* ---- Match Info (viewer "Up next" cards only) ----
+   Same idea as the player-details popup above, but for a whole upcoming
+   matchup at once — every player's avatar, level, and this session's
+   games/wins in one card, so a spectator doesn't have to tap each name in
+   turn. Read-only, same as everything else in viewer mode. */
+let matchInfoEl = null;
+let matchInfoHideTimer = null;
+function showMatchInfoPreview(btn, names){
+  if (!matchInfoEl){
+    matchInfoEl = document.createElement('div');
+    matchInfoEl.className = 'player-details-pop match-info-pop';
+    document.body.appendChild(matchInfoEl);
+  }
+  matchInfoEl.innerHTML = `<div class="mi-title">Match Info</div>` + names.map(name => {
+    const stats = state.playerStats[name] || {};
+    const games = stats.games || 0;
+    const wins = stats.wins || 0;
+    const level = getPlayerLevel(name);
+    return `
+      <div class="mi-player-row">
+        ${avatarHtml(name)}
+        <span class="mi-player-name">${esc(name)}</span>
+        <span class="level-badge sm ${levelClass(level)}">${esc(levelLabel(level))}</span>
+        <span class="mi-player-stats">${games} ${games === 1 ? 'game' : 'games'} · ${wins} ${wins === 1 ? 'win' : 'wins'}</span>
+      </div>`;
+  }).join('');
+  const r = btn.getBoundingClientRect();
+  const half = Math.min(170, matchInfoEl.offsetWidth / 2 || 150);
+  const x = Math.min(Math.max(half + 8, r.left + r.width / 2), window.innerWidth - half - 8);
+  matchInfoEl.style.left = x + 'px';
+  matchInfoEl.style.top = Math.max(8, r.top - 6) + 'px';
+  matchInfoEl.classList.remove('show');
+  void matchInfoEl.offsetWidth;
+  matchInfoEl.classList.add('show');
+  clearTimeout(matchInfoHideTimer);
+  matchInfoHideTimer = setTimeout(hideMatchInfoPreview, 6000);
+}
+function hideMatchInfoPreview(){
+  if (matchInfoEl) matchInfoEl.classList.remove('show');
+}
+document.addEventListener('click', (e) => {
+  if (!matchInfoEl || !matchInfoEl.classList.contains('show')) return;
+  if (e.target.closest('.ondeck-info-btn')) return;
+  hideMatchInfoPreview();
+});
+document.addEventListener('scroll', hideMatchInfoPreview, true);
+if (historyList){
+  historyList.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-act="match-info"]');
+    if (!btn) return;
+    const names = (btn.dataset.names || '').split('|').filter(Boolean);
+    showMatchInfoPreview(btn, names);
+  });
+}
 
 courtsGrid.addEventListener('click', (e) => {
   const previewBtn = e.target.closest('button[data-act="preview-name"]');
@@ -3285,18 +3343,11 @@ $('#endgameConfirm').addEventListener('click', async () => {
 // preview logic computes and renders — same selectMatchEntries /
 // reconcileFixedDuosAcrossGroups calls as always, just a higher cap.
 let upNextExpanded = false;
-// Full player data (not just rendered names) for the first couple of
-// upcoming groups, captured while renderUpNext() builds the "On deck" list
-// below — the spectator VS cards read from this instead of re-deriving
-// anything from the DOM, so their info popover can show each player's
-// level/games/wins even though that never appears in the on-page rows.
-let upNextViewerGroups = [];
 function renderUpNext(){
   const expandBtn = $('#upNextExpandBtn');
   if (state.courts.length === 0){
     historyList.innerHTML = '<div class="ondeck-empty">Add a court to see who plays next.</div>';
     if (expandBtn) expandBtn.hidden = true;
-    upNextViewerGroups = [];
     updateViewerUpNext();
     return;
   }
@@ -3313,7 +3364,6 @@ function renderUpNext(){
       ? '<div class="ondeck-empty">The stack is empty — add players to fill the next match.</div>'
       : '<div class="ondeck-empty">Everyone waiting is already lined up for an open court.</div>';
     if (expandBtn) expandBtn.hidden = true;
-    upNextViewerGroups = [];
     updateViewerUpNext();
     return;
   }
@@ -3335,34 +3385,53 @@ function renderUpNext(){
   }
   const reconciled = reconcileFixedDuosAcrossGroups(groups, onDeck, gameSize);
 
+  // Spectator wording for the first two upcoming matchups — "Next" / "Then"
+  // reads better on a dashboard someone's glancing at than a numbered "On
+  // deck 1/2/3" list, which stays as-is for the host (who's actively
+  // managing that queue, not just watching it).
+  const viewerTags = ['NEXT', 'THEN'];
   const rows = [];
-  upNextViewerGroups = [];
   reconciled.forEach((chosen, i) => {
     const groupNum = i + 1;
     const names = orderForTeammatePairing(chosen.map(p => p.name));
     let matchup;
-    let teamA, teamB;
-    if (gameSize === 2){
-      teamA = [names[0]]; teamB = [names[1]];
+    if (viewerMode){
+      // Each player on their own line (vs. the host's "&"-joined single
+      // line) to match the reference dashboard's stacked-name layout.
+      if (gameSize === 2){
+        matchup = `<span class="ondeck-team">${esc(names[0])}</span><span class="ondeck-vs">vs</span><span class="ondeck-team">${esc(names[1])}</span>`;
+      } else {
+        const [a, b] = splitTeams(names);
+        matchup = `<span class="ondeck-team">${a.map(esc).join('<br>')}</span><span class="ondeck-vs">vs</span><span class="ondeck-team">${b.map(esc).join('<br>')}</span>`;
+      }
+    } else if (gameSize === 2){
       matchup = `<span class="ondeck-team">${esc(names[0])}</span><span class="ondeck-vs">vs</span><span class="ondeck-team">${esc(names[1])}</span>`;
     } else {
       const [a, b] = splitTeams(names);
-      teamA = a; teamB = b;
       matchup = `<span class="ondeck-team">${a.map(esc).join(' &amp; ')}</span><span class="ondeck-vs">vs</span><span class="ondeck-team">${b.map(esc).join(' &amp; ')}</span>`;
     }
-    // Only the first 2 groups ever surface in the spectator VS cards, but
-    // capturing this here (instead of re-deriving from the on-page rows)
-    // keeps team-split logic in exactly one place.
-    if (i < 2) upNextViewerGroups.push({ teamA, teamB, size: chosen.length });
-    rows.push(`
-      <div class="ondeck-row">
-        <span class="ondeck-badge-col">
-          <span class="ondeck-badge">On deck</span>
-          <span class="ondeck-index">${groupNum}</span>
-        </span>
-        <span class="ondeck-matchup">${matchup}</span>
-        <span class="ondeck-meta"><svg viewBox="0 0 24 24"><use href="#i-user"/></svg>${chosen.length}</span>
-      </div>`);
+    if (viewerMode){
+      const tag = viewerTags[i] || 'ON DECK';
+      const infoBtn = `<button type="button" class="ondeck-info-btn" data-act="match-info" data-names="${esc(names.join('|'))}" aria-label="Match info"><svg viewBox="0 0 24 24"><use href="#i-info"/></svg><span class="action-label">Match Info</span></button>`;
+      rows.push(`
+        <div class="ondeck-row viewer-ondeck-row${i > 0 ? ' viewer-ondeck-row-then' : ''}">
+          <span class="ondeck-badge-col">
+            <span class="ondeck-badge viewer-ondeck-tag${i === 0 ? ' viewer-ondeck-tag-next' : ''}">${tag}</span>
+          </span>
+          <span class="ondeck-matchup">${matchup}</span>
+          ${infoBtn}
+        </div>`);
+    } else {
+      rows.push(`
+        <div class="ondeck-row">
+          <span class="ondeck-badge-col">
+            <span class="ondeck-badge">On deck</span>
+            <span class="ondeck-index">${groupNum}</span>
+          </span>
+          <span class="ondeck-matchup">${matchup}</span>
+          <span class="ondeck-meta"><svg viewBox="0 0 24 24"><use href="#i-user"/></svg>${chosen.length}</span>
+        </div>`);
+    }
   });
   if (previewStack.length > 0 && !upNextExpanded){
     rows.push(`<div class="ondeck-more">+${previewStack.length} more waiting</div>`);
@@ -3388,149 +3457,42 @@ if ($('#upNextExpandBtn')){
   });
 }
 
-/* Mirrors up to the first 2 upcoming groups (captured into
-   upNextViewerGroups above) into the floating spectator notification card
-   that sits above the courts grid — see .viewer-upnext-notify in style.css.
-   Each one renders as a small "court card" style VS matchup, echoing the
-   host's own open-court cards, with a tappable info button that surfaces
-   each player's level/record. Only relevant in viewer mode; a no-op (and
-   hidden) otherwise, since hosts already see the full stack rail. The old
-   collapsed "Up next" panel further down the page is hidden outright in
-   viewer mode (body.viewer-mode .history in style.css) since this card now
-   covers the same ground without making a spectator scroll for it. */
+/* Mirrors up to the first 2 "On deck" rows (if any) into the floating
+   spectator notification card that sits above the courts grid — see
+   .viewer-upnext-notify in style.css. Only relevant in viewer mode; a no-op
+   (and hidden) otherwise, since hosts already see the full stack rail. The
+   old collapsed "Up next" panel further down the page is hidden outright
+   in viewer mode (body.viewer-mode .history in style.css) since this card
+   now covers the same ground without making a spectator scroll for it. */
 let lastViewerUpNextHtml = null;
-function viewerVsTeamHtml(team){
-  return team.map(n => `<span class="viewer-vs-name">${esc(n)}</span>`).join('');
-}
-/* Points for an 8-spike starburst, centered in a 44x44 box, computed once
-   so the polygon never has to be hand-tuned again. Kept inside the SVG's
-   own viewBox with margin to spare — combined with rotating it via an SVG
-   transform (not a CSS transform on the <svg> itself), the viewport clips
-   it cleanly no matter the angle, so it can never bleed onto the team name
-   sitting right next to it. */
-const VS_BURST_POINTS = '22,3 25.1,14.6 35.4,8.6 29.4,18.9 41,22 29.4,25.1 35.4,35.4 25.1,29.4 22,41 18.9,29.4 8.6,35.4 14.6,25.1 3,22 14.6,18.9 8.6,8.6 18.9,14.6';
-function viewerVsBadgeSvg(idx){
-  const gid = `vsGrad-${idx}`;
-  return `
-    <svg class="viewer-vs-badge-svg" viewBox="0 0 44 44" aria-hidden="true">
-      <defs>
-        <linearGradient id="${gid}" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop class="viewer-vs-stop-1" offset="0%"/>
-          <stop class="viewer-vs-stop-2" offset="55%"/>
-          <stop class="viewer-vs-stop-3" offset="100%"/>
-        </linearGradient>
-      </defs>
-      <g transform="rotate(-8 22 22)">
-        <polygon class="viewer-vs-burst" points="${VS_BURST_POINTS}" fill="url(#${gid})"/>
-      </g>
-      <text class="viewer-vs-text" x="22" y="27.5" text-anchor="middle" transform="rotate(-6 22 22)">VS</text>
-    </svg>`;
-}
-function viewerVsCardHtml(group, idx, tag, isNext){
-  return `
-    <div class="viewer-vs-card${isNext ? '' : ' viewer-vs-card--then'}">
-      <div class="viewer-vs-card-top">
-        <span class="viewer-vs-tag">${esc(tag)}</span>
-        <button type="button" class="viewer-vs-info-btn" data-act="vs-info" data-idx="${idx}" aria-label="Matchup details" title="Matchup details">
-          <svg viewBox="0 0 24 24"><use href="#i-info"/></svg>
-        </button>
-      </div>
-      <div class="viewer-vs-matchup">
-        <span class="viewer-vs-team">${viewerVsTeamHtml(group.teamA)}</span>
-        ${viewerVsBadgeSvg(idx)}
-        <span class="viewer-vs-team viewer-vs-team-b">${viewerVsTeamHtml(group.teamB)}</span>
-      </div>
-    </div>`;
-}
 function updateViewerUpNext(){
   const notify = $('#viewerUpNextNotify');
   const body = $('#viewerUpNextBody');
   if (!notify || !body) return;
   if (!viewerMode){ notify.hidden = true; return; }
-  const groups = upNextViewerGroups.slice(0, 2);
-  if (groups.length === 0){
+  const rows = historyList ? Array.from(historyList.querySelectorAll('.ondeck-row')).slice(0, 2) : [];
+  if (rows.length === 0){
     notify.hidden = true;
     lastViewerUpNextHtml = null;
-    hideVsInfoPreview();
     return;
   }
   notify.hidden = false;
   const tags = ['Next', 'Then'];
-  const html = groups.map((g, i) => viewerVsCardHtml(g, i, tags[i] || '', i === 0)).join('');
+  const html = rows.map((row, i) => {
+    const matchupEl = row.querySelector('.ondeck-matchup');
+    const matchupHtml = matchupEl ? matchupEl.innerHTML : '';
+    return `<div class="viewer-upnext-item"><span class="viewer-upnext-tag">${tags[i] || ''}</span>${matchupHtml}</div>`;
+  }).join('');
   if (html !== lastViewerUpNextHtml){
     lastViewerUpNextHtml = html;
     body.innerHTML = html;
-    hideVsInfoPreview();
     // Re-trigger the slide/fade-in so a change in who's up next is visible
     // even if the spectator isn't looking right at the card at that instant.
-    notify.style.animation = 'none';
+    notify.querySelector('.viewer-upnext-notify-inner').style.animation = 'none';
     void notify.offsetWidth;
-    notify.style.animation = '';
+    notify.querySelector('.viewer-upnext-notify-inner').style.animation = '';
   }
 }
-
-/* ---- VS card info popover (spectator "Up next" cards) ----
-   One button per matchup card instead of one per player: pops up every
-   player in that matchup at once, each with skill level + this session's
-   games/wins — the same facts the host's per-player Info button shows,
-   just grouped for a whole matchup. Read-only, so it's safe in viewer mode. */
-let vsInfoEl = null;
-let vsInfoHideTimer = null;
-function vsInfoRowHtml(name){
-  const stats = state.playerStats[name] || {};
-  const games = stats.games || 0;
-  const wins = stats.wins || 0;
-  const level = getPlayerLevel(name);
-  return `
-    <div class="vs-info-row">
-      ${avatarHtml(name)}
-      <span class="vs-info-name">${esc(name)}</span>
-      <span class="level-badge ${levelClass(level)}">${esc(levelLabel(level))}</span>
-      <span class="vs-info-stat">${games}${games === 1 ? ' game' : ' games'} · ${wins}${wins === 1 ? ' win' : ' wins'}</span>
-    </div>`;
-}
-function vsInfoPopupHtml(group){
-  const names = group.teamA.concat(group.teamB);
-  return `<div class="vs-info-head">Matchup details</div><div class="vs-info-list">${names.map(vsInfoRowHtml).join('')}</div>`;
-}
-function showVsInfoPreview(btn, group){
-  if (!vsInfoEl){
-    vsInfoEl = document.createElement('div');
-    vsInfoEl.className = 'vs-info-pop';
-    document.body.appendChild(vsInfoEl);
-  }
-  vsInfoEl.innerHTML = vsInfoPopupHtml(group);
-  const r = btn.getBoundingClientRect();
-  // Measure after content is in place so a wider card (long names, extra
-  // players) still gets clamped fully on-screen rather than overflowing.
-  const half = Math.min(150, vsInfoEl.offsetWidth / 2 || 130);
-  const x = Math.min(Math.max(half + 8, r.left + r.width / 2), window.innerWidth - half - 8);
-  vsInfoEl.style.left = x + 'px';
-  // Opens downward (unlike the per-player popup, which opens upward) since
-  // this button lives near the very top of the page — opening up would
-  // usually run the popover off the top of the viewport.
-  vsInfoEl.style.top = Math.min(window.innerHeight - 8, r.bottom + 6) + 'px';
-  vsInfoEl.classList.remove('show');
-  void vsInfoEl.offsetWidth;
-  vsInfoEl.classList.add('show');
-  clearTimeout(vsInfoHideTimer);
-  vsInfoHideTimer = setTimeout(hideVsInfoPreview, 5500);
-}
-function hideVsInfoPreview(){
-  if (vsInfoEl) vsInfoEl.classList.remove('show');
-}
-document.addEventListener('click', (e) => {
-  if (e.target.closest('.viewer-vs-info-btn')){
-    const btn = e.target.closest('.viewer-vs-info-btn');
-    const idx = Number(btn.dataset.idx);
-    const group = upNextViewerGroups[idx];
-    if (group) showVsInfoPreview(btn, group);
-    return;
-  }
-  if (!vsInfoEl || !vsInfoEl.classList.contains('show')) return;
-  hideVsInfoPreview();
-});
-document.addEventListener('scroll', hideVsInfoPreview, true);
 
 /* ================= Match History modal (full detail + swap log) ================= */
 const matchHistoryOverlay = $('#matchHistoryOverlay');
@@ -3778,6 +3740,54 @@ $('#themeToggleBtn').addEventListener('click', () => {
   const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
   applyTheme(next);
   try{ localStorage.setItem(THEME_KEY, next); }catch(e){}
+});
+
+/* ---- Viewer dashboard quick actions: View / Theme / Sound ----
+   Per-device preferences (this browser only), same pattern as THEME_KEY
+   above — read once at boot, applied immediately, no server round-trip. */
+const VIEWER_LAYOUT_KEY = 'paddleStackViewerLayout'; // 'grid' | 'list'
+const VIEWER_SOUND_MUTED_KEY = 'paddleStackViewerSoundMuted'; // '1' | absent
+function getViewerLayout(){
+  try{ return localStorage.getItem(VIEWER_LAYOUT_KEY) === 'list' ? 'list' : 'grid'; }catch(e){ return 'grid'; }
+}
+function isViewerSoundMuted(){
+  try{ return localStorage.getItem(VIEWER_SOUND_MUTED_KEY) === '1'; }catch(e){ return false; }
+}
+function applyViewerLayout(layout){
+  if (courtsGrid) courtsGrid.classList.toggle('viewer-list-layout', layout === 'list');
+  const iconUse = $('#viewerViewIconUse');
+  if (iconUse) iconUse.setAttribute('href', layout === 'list' ? '#i-bars' : '#i-grid');
+  const label = $('#viewerViewLabel');
+  if (label) label.textContent = layout === 'list' ? 'List' : 'Grid';
+  const btn = $('#viewerViewBtn');
+  if (btn) btn.setAttribute('aria-label', layout === 'list' ? 'Switch to grid layout' : 'Switch to list layout');
+}
+function applyViewerSoundMuted(muted){
+  const btn = $('#viewerSoundBtn');
+  if (btn) btn.classList.toggle('muted', muted);
+  const label = $('#viewerSoundLabel');
+  if (label) label.textContent = muted ? 'Muted' : 'Sound';
+  if (btn) btn.setAttribute('aria-label', muted ? 'Unmute call notification sound' : 'Mute call notification sound');
+}
+applyViewerLayout(getViewerLayout());
+applyViewerSoundMuted(isViewerSoundMuted());
+const viewerViewBtn = $('#viewerViewBtn');
+if (viewerViewBtn) viewerViewBtn.addEventListener('click', () => {
+  const next = getViewerLayout() === 'list' ? 'grid' : 'list';
+  try{ localStorage.setItem(VIEWER_LAYOUT_KEY, next); }catch(e){}
+  applyViewerLayout(next);
+});
+const viewerThemeBtn = $('#viewerThemeBtn');
+if (viewerThemeBtn) viewerThemeBtn.addEventListener('click', () => {
+  const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
+  try{ localStorage.setItem(THEME_KEY, next); }catch(e){}
+});
+const viewerSoundBtn = $('#viewerSoundBtn');
+if (viewerSoundBtn) viewerSoundBtn.addEventListener('click', () => {
+  const next = !isViewerSoundMuted();
+  try{ localStorage.setItem(VIEWER_SOUND_MUTED_KEY, next ? '1' : '0'); }catch(e){}
+  applyViewerSoundMuted(next);
 });
 $('#matchHistoryDone').addEventListener('click', () => { matchHistoryOverlay.hidden = true; });
 
@@ -6628,7 +6638,12 @@ function enterViewerMode(code){
   // Low-level "actually show it" step used by player-call notifications.
   function fireNotification(title, body, opts){
     opts = opts || {};
-    try{ notifySound.currentTime = 0; notifySound.play().catch(() => {}); }catch(e){}
+    // "Sound" quick-action in the viewer dashboard mutes just the audible
+    // chime on this device — the system notification itself (banner/lock
+    // screen) still fires either way, same as muting a phone call ringtone.
+    if (!isViewerSoundMuted()){
+      try{ notifySound.currentTime = 0; notifySound.play().catch(() => {}); }catch(e){}
+    }
     const nOpts = {
       body,
       tag: opts.tag || ('renzku-viewer-' + title + '-' + Date.now()),
@@ -6698,8 +6713,8 @@ function enterViewerMode(code){
     viewerIdentityBadge.hidden = false;
     viewerChangePlayerBtn.hidden = false;
     viewerIdentityBadge.innerHTML = (viewerIdentity.role === 'player')
-      ? `<svg viewBox="0 0 24 24"><use href="#i-bell"/></svg><b>${esc(viewerIdentity.playerName)}</b>`
-      : `<svg viewBox="0 0 24 24"><use href="#i-user"/></svg>Guest`;
+      ? `<svg viewBox="0 0 24 24"><use href="#i-user"/></svg><b>${esc(viewerIdentity.playerName)}</b><svg class="vb-id-chevron" viewBox="0 0 24 24"><use href="#i-chev"/></svg>`
+      : `<svg viewBox="0 0 24 24"><use href="#i-user"/></svg>Guest<svg class="vb-id-chevron" viewBox="0 0 24 24"><use href="#i-chev"/></svg>`;
   }
 
   function openWhosWatching(){
@@ -6784,6 +6799,9 @@ function enterViewerMode(code){
     });
   }
   if (viewerChangePlayerBtn) viewerChangePlayerBtn.addEventListener('click', openWhosWatching);
+  // The name pill itself is also tappable (matches the reference dashboard's
+  // dropdown-style "Chloe ▾" row) — same destination as the gear button.
+  if (viewerIdentityBadge) viewerIdentityBadge.addEventListener('click', openWhosWatching);
   if (whosWatchingOverlay) whosWatchingOverlay.addEventListener('click', (e) => { if (e.target === whosWatchingOverlay && viewerIdentity) closeWhosWatching(); });
   if (playerSelectOverlay) playerSelectOverlay.addEventListener('click', (e) => { if (e.target === playerSelectOverlay && viewerIdentity) closePlayerSelect(); });
 
@@ -7182,8 +7200,31 @@ function renderCourtsStatsBar(){
   const activePlayers = state.stack.length + onCourtCount + state.winnersBlock.length + state.losersBlock.length;
   playersNumEl.textContent = activePlayers;
   $('#statCourtsNum').textContent = state.courts.length;
-  $('#statOnDeckNum').textContent = state.stack.length;
-  $('#statGamesNum').textContent = state.history.length;
+  // Spectators get "Matches Completed" + "Session Time" in the 3rd/4th
+  // slots instead of a host's "On Deck" + "Games Played" — both numbers a
+  // host already sees in full elsewhere (the queue, the Up Next panel),
+  // but a session-elapsed clock and a running match tally read better for
+  // someone just watching. Same two DOM slots, different label/icon/value.
+  const stat3Label = $('#statStat3Label');
+  const stat4Label = $('#statStat4Label');
+  const stat3Icon = $('#statStat3IconUse');
+  const stat4Icon = $('#statStat4IconUse');
+  if (viewerMode){
+    if (stat3Label) stat3Label.textContent = 'Matches Completed';
+    if (stat4Label) stat4Label.textContent = 'Session Time';
+    if (stat3Icon) stat3Icon.setAttribute('href', '#i-trophy');
+    if (stat4Icon) stat4Icon.setAttribute('href', '#i-clock');
+    $('#statOnDeckNum').textContent = state.history.length;
+    const startedAt = state.session.createdAt || Date.now();
+    $('#statGamesNum').textContent = fmtClock(Math.max(0, Date.now() - startedAt));
+  } else {
+    if (stat3Label) stat3Label.textContent = 'On Deck';
+    if (stat4Label) stat4Label.textContent = 'Games Played';
+    if (stat3Icon) stat3Icon.setAttribute('href', '#i-clock');
+    if (stat4Icon) stat4Icon.setAttribute('href', '#i-bars');
+    $('#statOnDeckNum').textContent = state.stack.length;
+    $('#statGamesNum').textContent = state.history.length;
+  }
 }
 
 /* ================= Boot ================= */
