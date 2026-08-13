@@ -417,15 +417,13 @@ function toast(msg, type){
   const kind = type || inferToastType(msg);
   const el = document.createElement('div');
   el.className = 'toast toast-' + kind;
-  el.setAttribute('role', kind === 'error' || kind === 'warning' ? 'alert' : 'status');
-  el.innerHTML = '<span class="toast-message"></span><span class="toast-progress"></span>';
-  el.querySelector('.toast-message').textContent = msg;
+  el.innerHTML = '<span class="toast-progress"></span>';
   toastWrap.appendChild(el);
   requestAnimationFrame(() => el.classList.add('show'));
   setTimeout(() => {
     el.classList.remove('show');
     setTimeout(() => el.remove(), 250);
-  }, 2400);
+  }, 900);
 }
 
 /* ================= Confirm dialog (replaces native confirm()) =================
