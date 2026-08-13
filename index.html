@@ -93,11 +93,15 @@
   </div>
 </div>
 
-<div class="session-banner update-banner" id="updateBanner" hidden>
-  <div class="session-banner-inner">
-    <span class="eyebrow"><svg viewBox="0 0 24 24"><use href="#i-restart"/></svg>Update available</span>
-    <span class="msg">A newer version of PaddleStack is ready \u2014 your session data is safe either way, refresh whenever it's convenient.</span>
-    <button type="button" class="btn solid-turf sm" id="applyUpdateBtn"><svg viewBox="0 0 24 24" style="width:12px;height:12px;vertical-align:-2px"><use href="#i-restart"/></svg> Refresh now</button>
+<div class="overlay update-overlay" id="updateOverlay" hidden>
+  <div class="modal update-modal" role="dialog" aria-modal="true" aria-labelledby="updateModalTitle" aria-describedby="updateModalMsg">
+    <div class="update-modal-icon"><svg viewBox="0 0 24 24"><use href="#i-restart"/></svg></div>
+    <h3 id="updateModalTitle">Update available</h3>
+    <p class="update-modal-msg" id="updateModalMsg">A newer version of PaddleStack is ready. Your session data stays safe either way &mdash; refresh whenever it's convenient.</p>
+    <div class="modal-actions update-modal-actions">
+      <button type="button" class="btn primary" id="applyUpdateBtn"><svg viewBox="0 0 24 24" style="width:13px;height:13px;vertical-align:-2px"><use href="#i-restart"/></svg> Refresh now</button>
+      <button type="button" class="btn ghost" id="dismissUpdateBtn">Later</button>
+    </div>
   </div>
 </div>
 
