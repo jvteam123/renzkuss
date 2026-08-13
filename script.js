@@ -230,11 +230,12 @@ let swWaitingWorker = null; // a new version sitting ready, once the person opts
 // SW-initiated controller change (e.g. sw.js self-activating on its own)
 // can never trigger an unwanted reload loop.
 let userRequestedUpdate = false;
-const updateBanner = $('#updateBanner');
+const updateOverlay = $('#updateOverlay');
 const applyUpdateBtn = $('#applyUpdateBtn');
+const dismissUpdateBtn = $('#dismissUpdateBtn');
 function showUpdateBanner(worker){
   swWaitingWorker = worker;
-  if (updateBanner) updateBanner.hidden = false;
+  if (updateOverlay) updateOverlay.hidden = false;
 }
 if (applyUpdateBtn){
   applyUpdateBtn.addEventListener('click', () => {
@@ -242,6 +243,19 @@ if (applyUpdateBtn){
     applyUpdateBtn.disabled = true;
     userRequestedUpdate = true;
     swWaitingWorker.postMessage('SKIP_WAITING');
+  });
+}
+// "Later" just dismisses the dialog for this page view — the waiting worker
+// stays queued and still takes over (surfacing the dialog again) on the
+// next natural reload/nav, so declining now never loses the update.
+if (dismissUpdateBtn){
+  dismissUpdateBtn.addEventListener('click', () => {
+    if (updateOverlay) updateOverlay.hidden = true;
+  });
+}
+if (updateOverlay){
+  updateOverlay.addEventListener('click', (e) => {
+    if (e.target === updateOverlay) updateOverlay.hidden = true;
   });
 }
 if ('serviceWorker' in navigator){
