@@ -114,10 +114,12 @@
     <span class="msg" id="viewerBannerMsg"></span>
   </div>
   <!-- Quick-action row: View (grid/list toggle), Theme (mirrors the topbar
-       dark-mode toggle), Sound (mutes just this device's call-up chime —
-       not the session-wide "Sound on call-up" setting, which is host-only),
-       History (same match-history modal the host uses). Icon+label buttons
-       to match the reference dashboard layout, all viewer-mode only. -->
+       dark-mode toggle), Notify (turns on/off this device's "it's your
+       turn" call notifications — including the chime — and requests
+       browser notification permission the first time it's switched on;
+       independent of the host-only session-wide "Notify players by phone"
+       setting), History (same match-history modal the host uses). Icon+label
+       buttons to match the reference dashboard layout, all viewer-mode only. -->
   <div class="vb-quick-actions" id="viewerQuickActions">
     <button type="button" class="vb-quick-btn" id="viewerViewBtn" aria-label="Toggle courts layout" title="Switch between grid and list layout">
       <svg viewBox="0 0 24 24"><use href="#i-grid" id="viewerViewIconUse"/></svg><span class="vb-quick-label" id="viewerViewLabel">Grid</span>
@@ -125,8 +127,8 @@
     <button type="button" class="vb-quick-btn" id="viewerThemeBtn" aria-label="Toggle theme" title="Switch light/dark theme">
       <svg viewBox="0 0 24 24"><use href="#i-moon" id="viewerThemeIconUse"/></svg><span class="vb-quick-label">Theme</span>
     </button>
-    <button type="button" class="vb-quick-btn" id="viewerSoundBtn" aria-label="Toggle call notification sound" title="Mute/unmute the chime when you're called">
-      <svg viewBox="0 0 24 24"><use href="#i-bell" id="viewerSoundIconUse"/></svg><span class="vb-quick-label" id="viewerSoundLabel">Sound</span>
+    <button type="button" class="vb-quick-btn" id="viewerNotifyBtn" aria-label="Turn on notifications when the host calls you to play" title="Get notified on this phone when the host calls you to play">
+      <svg viewBox="0 0 24 24"><use href="#i-bell" id="viewerNotifyIconUse"/></svg><span class="vb-quick-label" id="viewerNotifyLabel">Notify</span>
     </button>
     <button type="button" class="vb-quick-btn" id="viewerMatchHistoryBtn" aria-label="Match history" title="Match history">
       <svg viewBox="0 0 24 24"><use href="#i-clock"/></svg><span class="vb-quick-label">History</span>
@@ -687,7 +689,7 @@
       <li><b>Sign in</b> — tap the ☁️ cloud icon and log in or create a free account (needed to host; watching never requires one).</li>
       <li><b>Go live</b> — tap <b>Go live</b> to broadcast your current courts and queue. You'll get a short invite code, a shareable link, and a QR code — share any of the three.</li>
       <li><b>Spectator view</b> — anyone who opens the link or scans the QR sees a live, read‑only view of the courts, "Up next," and the accumulating winners/losers blocks, refreshing every few seconds. If scoring is on, they see the current score too — as a read‑only number, not tappable controls. No account or app needed on their end.</li>
-      <li><b>Notify me</b> — spectators can tap the bell in their banner to get a browser notification when a game ends or the next matchup changes.</li>
+      <li><b>Notify</b> — spectators who've picked their own name can tap the Notify quick-action in their banner to turn on/off a phone notification (and chime) for the moment the host calls them to play.</li>
       <li><b>Daily limit</b> — each account can go live a limited number of times per day (shown in the panel); the count resets daily.</li>
       <li><b>Stop / resume</b> — tap <b>Stop hosting</b> to end the broadcast at any time; you can resume on the exact same code and link afterward, or start fresh.</li>
       <li><b>Watch someone else</b> — got a code from another host? Paste it into the same ☁️ panel's "Match code" field and tap <b>Watch</b> to follow their session live.</li>
