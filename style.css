@@ -553,24 +553,24 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
 .viewer-conn-card-sub{font-size:.82rem;color:var(--slate);margin:0 0 .9rem}
 .viewer-conn-card #viewerConnRetryBtn{margin:0 auto}
 .courts-grid{
-  display:grid;grid-template-columns:repeat(auto-fill, minmax(280px,1fr));
-  gap:1.1rem;
+  display:grid;grid-template-columns:repeat(auto-fill, minmax(340px,1fr));
+  gap:1.35rem;
 }
 .court-card{
   position:relative;background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius);
-  padding:0 1.05rem 1.05rem;box-shadow:var(--shadow-sm);
-  display:flex;flex-direction:column;min-height:268px;overflow:hidden;
+  padding:0 1.3rem 1.3rem;box-shadow:var(--shadow-sm);
+  display:flex;flex-direction:column;min-height:310px;overflow:hidden;
   transition:box-shadow .15s, transform .15s;
   container-type:inline-size;container-name:court;
 }
 .court-card:hover{box-shadow:var(--shadow-md);transform:translateY(-1px)}
 .court-card::before{
-  content:'';display:block;height:6px;margin:0 -1.05rem;background:var(--turf);
+  content:'';display:block;height:7px;margin:0 -1.3rem;background:var(--turf);
 }
 .court-card.playing::before{background:var(--clay)}
 .court-card.playing{border-color:var(--brand-ink);background:#0E2748;color:#fff}
 
-.court-top{display:flex;align-items:center;justify-content:space-between;gap:.5rem .4rem;padding-top:.85rem;flex-wrap:wrap}
+.court-top{display:flex;align-items:center;justify-content:space-between;gap:.5rem .4rem;padding-top:1.05rem;flex-wrap:wrap}
 .court-top-right{display:flex;align-items:center;gap:.4rem;flex-shrink:0}
 .timer-chip{
   font-family:var(--font-mono);font-size:.66rem;font-weight:700;letter-spacing:.02em;
@@ -578,17 +578,17 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
   padding:.25rem .5rem;border-radius:99px;white-space:nowrap;
 }
 .court-name-wrap{display:flex;align-items:center;gap:.4rem;min-width:0}
-.court-name-wrap svg{width:14px;height:14px;color:var(--slate);flex-shrink:0}
+.court-name-wrap svg{width:16px;height:16px;color:var(--slate);flex-shrink:0}
 .court-card.playing .court-name-wrap svg{color:#7F9FD1}
 .court-name{
-  font-family:var(--font-display);font-size:1rem;background:transparent;border:none;
+  font-family:var(--font-display);font-size:1.2rem;background:transparent;border:none;
   color:inherit;max-width:100%;border-bottom:2px solid transparent;padding:1px 0;min-width:0;
 }
 .court-name:hover,.court-name:focus{border-bottom-color:var(--line)}
 .court-card.playing .court-name:hover,.court-card.playing .court-name:focus{border-bottom-color:rgba(255,255,255,.3)}
 .status-badge{
-  font-family:var(--font-mono);font-size:.65rem;font-weight:600;letter-spacing:.05em;
-  padding:.28rem .55rem;border-radius:99px;text-transform:uppercase;white-space:nowrap;flex-shrink:0;
+  font-family:var(--font-mono);font-size:.7rem;font-weight:600;letter-spacing:.05em;
+  padding:.32rem .6rem;border-radius:99px;text-transform:uppercase;white-space:nowrap;flex-shrink:0;
   display:inline-flex;align-items:center;gap:.3rem;
 }
 .status-badge::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}
@@ -597,8 +597,8 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
 
 /* --- Matchup: two team columns with a vs divider, tennis-net style --- */
 .matchup{
-  flex:1;display:flex;align-items:stretch;gap:0;margin:.9rem 0 .7rem;
-  position:relative;min-height:96px;
+  flex:1;display:flex;align-items:stretch;gap:0;margin:1.1rem 0 .9rem;
+  position:relative;min-height:112px;
 }
 .matchup .team{flex:1;display:flex;flex-direction:column;gap:.4rem;justify-content:center;min-width:0}
 .matchup .team.team-b{align-items:flex-end;text-align:right}
@@ -622,12 +622,12 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
 .player-games-row{display:flex}
 .team-b .player-games-row{justify-content:flex-end}
 .avatar{
-  width:26px;height:26px;border-radius:50%;flex-shrink:0;
+  width:36px;height:36px;border-radius:50%;flex-shrink:0;
   display:flex;align-items:center;justify-content:center;
-  font-family:var(--font-mono);font-weight:700;font-size:.68rem;color:#fff;
+  font-family:var(--font-mono);font-weight:700;font-size:.85rem;color:#fff;
 }
 .player-name-txt{
-  font-weight:700;font-size:.95rem;line-height:1.18;
+  font-weight:800;font-size:1.05rem;line-height:1.2;
   /* The name row now only shares space with the avatar (win/preview/swap/sub
      buttons live on their own row below), so it has the full column width
      to wrap into and only clamps beyond two lines as a last resort. */
@@ -1410,7 +1410,7 @@ html[data-theme="dark"] .toast-progress{background:#fff}
    desktop screen. */
 @media (min-width:881px) and (max-width:1180px){
   .app-shell{grid-template-columns:300px 1fr}
-  .courts-grid{grid-template-columns:repeat(auto-fill, minmax(320px,1fr))}
+  .courts-grid{grid-template-columns:repeat(auto-fill, minmax(340px,1fr));gap:1.15rem}
   .courts-main{padding:1rem 1rem 3.5rem}
 }
 
@@ -1471,7 +1471,7 @@ html[data-theme="dark"] .toast-progress{background:#fff}
   .app-shell.show-courts .stack-rail{display:none}
   .stack-list{max-height:none}
   .courts-main{padding:1rem .9rem 2.5rem}
-  .courts-grid{grid-template-columns:repeat(auto-fill, minmax(280px,1fr));gap:.85rem}
+  .courts-grid{grid-template-columns:repeat(auto-fill, minmax(300px,1fr));gap:.85rem}
   .mobile-tabs{
     display:flex;position:fixed;bottom:0;left:0;right:0;background:var(--brand-ink);z-index:50;
     box-shadow:0 -2px 10px rgba(0,0,0,.15);padding-bottom:env(safe-area-inset-bottom);
@@ -1976,7 +1976,7 @@ html[data-theme="dark"] .court-card{
   background:linear-gradient(180deg,#111C30 0%,#0E1728 100%);
   border:1px solid #1C283F;border-radius:20px;
   box-shadow:0 1px 0 rgba(255,255,255,.02) inset,var(--shadow-sm);
-  padding:0 1.1rem 1.1rem;
+  padding:0 1.3rem 1.3rem;
 }
 html[data-theme="dark"] .court-card::before{display:none} /* screenshot's cards have no top accent bar */
 html[data-theme="dark"] .court-card.playing{
@@ -1985,7 +1985,7 @@ html[data-theme="dark"] .court-card.playing{
 }
 html[data-theme="dark"] .court-top{padding-top:1.05rem}
 html[data-theme="dark"] .court-name{
-  font-family:var(--font-display);font-size:1.05rem;letter-spacing:.02em;color:#fff;
+  font-family:var(--font-display);letter-spacing:.02em;color:#fff;
 }
 html[data-theme="dark"] .court-name-wrap svg{color:#5B6B87;width:15px;height:15px}
 html[data-theme="dark"] .status-badge.open{
@@ -2020,9 +2020,9 @@ html[data-theme="dark"] .court-card.playing .vs-divider::after{background:#101B3
    other or the name/games line below. Matched unconditionally here (not
    just on narrow cards) so it looks the same at every card width. */
 html[data-theme="dark"] .avatar{
-  width:40px;height:40px;font-size:.95rem;box-shadow:0 0 0 2px rgba(255,255,255,.06);
+  box-shadow:0 0 0 2px rgba(255,255,255,.06);
 }
-html[data-theme="dark"] .player-name-txt{color:#fff;font-size:1.05rem;font-weight:800;letter-spacing:.01em}
+html[data-theme="dark"] .player-name-txt{color:#fff;letter-spacing:.01em}
 html[data-theme="dark"] .games-chip{color:#66748F;font-size:.68rem;letter-spacing:.03em;text-transform:uppercase;font-weight:700}
 .player-col{width:100%;gap:.5rem}
 .player-row{margin-bottom:.1rem}
@@ -2149,40 +2149,39 @@ html[data-theme="dark"] .topbar .session-name{font-weight:800}
   }
   .courts-grid::-webkit-scrollbar{display:none}
   .courts-grid .court-card{
-    flex:0 0 50%;width:50%;scroll-snap-align:start;scroll-snap-stop:always;
+    flex:0 0 94%;width:94%;scroll-snap-align:start;scroll-snap-stop:always;
   }
   .courts-grid:has(.court-card ~ .court-card) .court-card{
-    flex-basis:48%; /* a touch narrower so the next card's edge peeks in as a swipe affordance, only when there's more than one court */
-    width:48%;
+    flex-basis:90%; /* a touch narrower so the next card's edge peeks in as a swipe affordance, only when there's more than one court */
+    width:90%;
   }
-  /* Cards were reading oversized on an actual phone screen — trim the
-     internal spacing/type scale a notch so more of the card's real
-     content (not just whitespace) is visible without scrolling. At
-     roughly half a 6" phone's width, INFO/SWAP/SUB drop their text
-     label (icon-only, via the container query below) since there's no
-     room for icon+label ×3 side by side at this card width. */
-  .court-card{padding:0 .6rem .55rem;min-height:0;border-radius:16px}
-  .court-top{padding-top:.55rem;gap:.3rem}
-  .court-name{font-size:.82rem}
-  .level-badge{font-size:.54rem;padding:.06rem .38rem}
-  .status-badge{font-size:.54rem;padding:.2rem .42rem}
-  .last-result{padding:.4rem .5rem;margin-bottom:.4rem;font-size:.64rem;gap:.3rem}
-  .last-result svg{width:12px;height:12px}
-  .undo-result-btn{font-size:.56rem;padding:.22rem .45rem}
-  .matchup{margin:.4rem 0 .35rem;min-height:0;gap:.4rem}
-  .matchup .team{gap:.28rem}
-  .player-col{gap:.24rem}
+  /* Cards now show one at (nearly) full phone width per swipe instead of
+     two cramped halves, so the internal spacing/type scale can stay close
+     to the desktop "enterprise" sizing — legible at arm's length, still
+     comfortably clear of the safe-area/tab-bar chrome below. */
+  .court-card{padding:0 1rem .9rem;min-height:0;border-radius:18px}
+  .court-card::before{margin:0 -1rem}
+  .court-top{padding-top:.85rem;gap:.4rem}
+  .court-name{font-size:1.05rem}
+  .level-badge{font-size:.62rem;padding:.14rem .5rem}
+  .status-badge{font-size:.64rem;padding:.28rem .55rem}
+  .last-result{padding:.55rem .65rem;margin-bottom:.55rem;font-size:.74rem;gap:.4rem}
+  .last-result svg{width:14px;height:14px}
+  .undo-result-btn{font-size:.64rem;padding:.28rem .55rem}
+  .matchup{margin:.7rem 0 .6rem;min-height:0;gap:.6rem}
+  .matchup .team{gap:.35rem}
+  .player-col{gap:.3rem}
   .player-row{margin-bottom:0}
-  .avatar{width:26px;height:26px;font-size:.66rem}
-  .player-name-txt{font-size:.74rem;line-height:1.1}
-  .games-chip{font-size:.56rem}
-  .court-cta-row{gap:.4rem}
-  .court-cta-row .court-cta{min-height:0;padding:.5rem .4rem}
-  .court-cta-row .court-cta .cta-icon{font-size:.85rem}
-  html[data-theme="dark"] .court-cta-row .court-cta .cta-title{font-size:.66rem}
-  html[data-theme="dark"] .court-cta-row .court-cta .cta-sub{font-size:.56rem}
-  .timer{font-size:1.15rem;margin-bottom:.4rem}
-  .scoreboard-live{padding:.4rem .5rem;margin-bottom:.4rem}
+  .avatar{width:34px;height:34px;font-size:.8rem}
+  .player-name-txt{font-size:.98rem;line-height:1.16}
+  .games-chip{font-size:.62rem}
+  .court-cta-row{gap:.5rem}
+  .court-cta-row .court-cta{min-height:var(--touch);padding:.6rem .5rem}
+  .court-cta-row .court-cta .cta-icon{font-size:1rem}
+  html[data-theme="dark"] .court-cta-row .court-cta .cta-title{font-size:.76rem}
+  html[data-theme="dark"] .court-cta-row .court-cta .cta-sub{font-size:.64rem}
+  .timer{font-size:1.4rem;margin-bottom:.5rem}
+  .scoreboard-live{padding:.55rem .65rem;margin-bottom:.55rem}
 }
 @container court (max-width:360px){
   .matchup{gap:.4rem}
