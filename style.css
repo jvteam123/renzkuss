@@ -577,6 +577,7 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
   color:#A9C3EA;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);
   padding:.25rem .5rem;border-radius:99px;white-space:nowrap;
 }
+.timer-chip.paused{color:#FFE187;background:rgba(252,209,22,.16);border-color:rgba(252,209,22,.3)}
 .court-name-wrap{display:flex;align-items:center;gap:.4rem;min-width:0}
 .court-name-wrap svg{width:16px;height:16px;color:var(--slate);flex-shrink:0}
 .court-card.playing .court-name-wrap svg{color:#7F9FD1}
@@ -594,6 +595,7 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
 .status-badge::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}
 .status-badge.open{background:var(--turf-pale);color:var(--turf-deep)}
 .status-badge.playing{background:rgba(206,17,38,.18);color:#FF97A0}
+.status-badge.playing.paused{background:rgba(252,209,22,.22);color:#FFE187}
 
 /* --- Matchup: two team columns with a vs divider, tennis-net style --- */
 .matchup{
@@ -800,6 +802,7 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
   font-family:var(--font-mono);font-size:1.6rem;font-weight:600;letter-spacing:.02em;
   text-align:center;margin-bottom:.7rem;
 }
+.timer.paused{color:#FFE187}
 
 /* --- Live scoreboard (Settings > Enable Scoring) --- */
 .scoreboard-live{
@@ -859,6 +862,8 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
 .court-cta.call:disabled{background:var(--line);color:var(--slate);cursor:not-allowed}
 .court-cta.end{background:rgba(255,255,255,.12);color:#fff}
 .court-cta.end:hover{background:rgba(255,255,255,.22)}
+.court-cta.pause{background:rgba(252,209,22,.22);color:#FFE187}
+.court-cta.pause:hover{background:rgba(252,209,22,.34)}
 .court-cta:active:not(:disabled){transform:scale(.98)}
 
 .court-cta-row{display:flex;gap:.5rem;margin-top:auto}
@@ -2103,6 +2108,7 @@ html[data-theme="dark"] .court-cta.call-players:hover:not(:disabled){background:
 html[data-theme="dark"] .court-cta.call-players:disabled{border-color:#1E2A42;color:#4B5A78;background:transparent}
 html[data-theme="dark"] .court-cta.end{background:rgba(255,255,255,.08);border:1px solid #26385C}
 html[data-theme="dark"] .court-cta.end:hover{background:rgba(255,255,255,.14)}
+html[data-theme="dark"] .court-cta.pause{border:1px solid rgba(252,209,22,.35)}
 
 /* ---- "Up next" schedule list ---- */
 html[data-theme="dark"] .history summary{color:#B9C6DE;font-family:var(--font-display);font-size:.82rem}
