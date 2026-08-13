@@ -59,7 +59,16 @@
    a literal white or pale color instead of a variable get their own
    override underneath. */
 html[data-theme="dark"]{
-  --court:#0B1220;
+  /* This used to be two separate blocks: this base palette, plus a second
+     re-declaration further down (in the "Courts view" visual-refresh
+     section) that overrode --court/--surface/--line/--slate/shadows a
+     second time with slightly different values. Since custom properties
+     just cascade like any other declaration, the second block quietly
+     won for every component in the app (not just Courts) — which was
+     harmless by luck, but confusing to maintain and easy to break. Merged
+     into one definitive set of dark tokens here so there's a single
+     source of truth for what "dark mode" means everywhere. */
+  --court:#080D18;
   --ink:#E8ECF5;
   --turf:#5B8DEF;
   --turf-deep:#9CBEFF;
@@ -70,40 +79,30 @@ html[data-theme="dark"]{
   --gold-deep:#FFDE70;
   --gold-pale:rgba(252,209,22,.14);
   --gold-ink:#FFDE70; /* dark theme's pale gold sits on a dark surface, so the light --gold-deep already reads fine as text */
-  --slate:#8FA0B8;
-  --line:#263242;
-  --surface:#141D2B;
+  --slate:#7C8AA5;
+  --line:#1E2A42;
+  --surface:#101A2C;
   --danger:#FF6B75;
   --danger-pale:rgba(255,107,117,.15);
-  --shadow-sm:0 1px 3px rgba(0,0,0,.45), 0 1px 2px rgba(0,0,0,.35);
-  --shadow-md:0 10px 30px rgba(0,0,0,.55);
+  --shadow-sm:0 1px 2px rgba(0,0,0,.5);
+  --shadow-md:0 12px 32px rgba(0,0,0,.6);
   color-scheme:dark;
 }
-html[data-theme="dark"] body{background:var(--court);color:var(--ink)}
-/* Surfaces that were hardcoded to a literal white/pale color instead of
-   a variable, so the blanket redefinition above can't reach them. */
-html[data-theme="dark"] .panel-action-btn,
-html[data-theme="dark"] .add-form input:focus,
-html[data-theme="dark"] .bulk-add-body textarea,
-html[data-theme="dark"] .quick-add-chip,
-html[data-theme="dark"] .modal,
-html[data-theme="dark"] .field input:focus,
-html[data-theme="dark"] .field select:focus,
-html[data-theme="dark"] .watch-code-row input:focus,
-html[data-theme="dark"] .stepper button,
-html[data-theme="dark"] .fixed-duo-add-row select,
-html[data-theme="dark"] .fixed-duo-row,
-html[data-theme="dark"] .roster-manage-search input:focus,
-html[data-theme="dark"] .match-history-search input:focus,
-html[data-theme="dark"] .endgame-row .choice button,
-html[data-theme="dark"] .endgame-row .choice button:disabled:hover,
-html[data-theme="dark"] .winner-card .score-input,
-html[data-theme="dark"] .modal-icon-btn,
-html[data-theme="dark"] .modal-icon-btn:disabled,
-html[data-theme="dark"] .rankings-toolbar:focus-within,
-html[data-theme="dark"] .rank-row{
-  background:var(--surface);
-}
+html[data-theme="dark"] body{background:radial-gradient(120% 60% at 50% -10%, #0E1A2E 0%, #080D18 55%) fixed}
+/* NOTE: previously this spot had a long list of selectors re-pointing
+   ~20 components (buttons, inputs, the modal, rank rows, etc.) from a
+   literal white background to var(--surface), because those components
+   had "background:#fff" hardcoded instead of using the variable. That
+   list is gone now — every one of those components has been fixed at
+   its own rule to use background:var(--surface) directly, so they track
+   the theme automatically and no longer need a dark-mode-only patch.
+   That old list was also a real bug: several components have a
+   highlighted *state* on top of the base style (.rank-row.top1's gold
+   tint, .modal-icon-btn.active, .panel-action-btn.solid) using a
+   two-class selector, which is LOWER CSS specificity than
+   "html[data-theme=dark] .the-base-class" — so in dark mode those
+   highlighted states were silently losing to the plain surface color.
+   Fixing the base color removes the patch and the bug along with it. */
 html[data-theme="dark"] .session-banner{background:rgba(255,107,117,.1)}
 html[data-theme="dark"] .session-banner .eyebrow{background:var(--surface)}
 html[data-theme="dark"] .session-banner .msg{color:var(--clay-deep)}
@@ -247,7 +246,7 @@ button,a,.icon-btn,.panel-action-btn,.btn,select,[role="button"]{
 .count-badge.sm{font-size:.7rem;padding:.1rem .42rem}
 .panel-action-btn{
   display:flex;align-items:center;gap:.4rem;
-  border:1.5px solid var(--line);background:#fff;color:var(--ink);
+  border:1.5px solid var(--line);background:var(--surface);color:var(--ink);
   font-weight:700;font-size:.85rem;padding:.55rem .9rem;border-radius:99px;cursor:pointer;
   transition:border-color .15s,background .15s,color .15s;
 }
@@ -274,7 +273,7 @@ button,a,.icon-btn,.panel-action-btn,.btn,select,[role="button"]{
   flex:1;min-width:120px;border:1.5px solid var(--line);border-radius:var(--radius-sm);
   padding:.72rem .85rem;font-size:.95rem;background:var(--court);color:var(--ink);
 }
-.add-form input:focus{border-color:var(--turf);background:#fff}
+.add-form input:focus{border-color:var(--turf);background:var(--surface)}
 .add-form select{
   flex-shrink:0;border:1.5px solid var(--line);border-radius:var(--radius-sm);
   padding:.72rem .6rem;font-size:.84rem;background:var(--court);color:var(--ink);
@@ -293,7 +292,7 @@ button,a,.icon-btn,.panel-action-btn,.btn,select,[role="button"]{
 .bulk-add-toggle::-webkit-details-marker{display:none}
 .bulk-add-toggle:hover{background:var(--court)}
 .bulk-add-body{padding:.6rem .85rem .85rem;display:flex;flex-direction:column;gap:.5rem;border-top:1.5px solid var(--line)}
-.bulk-add-body textarea{width:100%;resize:vertical;border:1.5px solid var(--line);border-radius:8px;padding:.55rem .7rem;font-size:.88rem;font-family:inherit;min-height:90px;background:#fff}
+.bulk-add-body textarea{width:100%;resize:vertical;border:1.5px solid var(--line);border-radius:8px;padding:.55rem .7rem;font-size:.88rem;font-family:inherit;min-height:90px;background:var(--surface)}
 .bulk-add-body textarea:focus{outline:none;border-color:var(--turf)}
 .bulk-add-body button{align-self:flex-end;padding:.5rem 1.1rem;background:var(--turf);color:#fff;border:none;border-radius:8px;font-size:.88rem;font-weight:700;cursor:pointer}
 .bulk-add-body button:hover{background:var(--turf-deep)}
@@ -319,7 +318,7 @@ button,a,.icon-btn,.panel-action-btn,.btn,select,[role="button"]{
 .quick-add-chips{display:flex;flex-wrap:wrap;gap:.4rem}
 .quick-add-chip{
   display:flex;align-items:center;gap:.3rem;
-  border:1.5px solid var(--turf);background:#fff;color:var(--turf-deep);
+  border:1.5px solid var(--turf);background:var(--surface);color:var(--turf-deep);
   font-size:.78rem;font-weight:600;padding:.28rem .55rem;border-radius:99px;cursor:pointer;
   transition:background .15s,color .15s;
 }
@@ -433,7 +432,7 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
   padding:.7rem .85rem;font-size:.9rem;font-weight:700;color:var(--ink);cursor:pointer;
   text-align:left;transition:border-color .15s,background .15s;
 }
-.level-picker-option:hover{border-color:var(--turf);background:#fff}
+.level-picker-option:hover{border-color:var(--turf);background:var(--surface)}
 .level-picker-option.current{border-color:var(--turf);background:var(--turf-pale)}
 .level-picker-option .level-picker-check{color:var(--turf-deep);display:none}
 .level-picker-option.current .level-picker-check{display:inline-flex}
@@ -986,7 +985,7 @@ body.viewer-mode .up-next-expand-chevron{display:block;width:13px;height:13px;fl
   width:100%;border:1.5px solid var(--line);border-radius:var(--radius-sm);
   padding:.55rem .7rem;font-size:.82rem;background:var(--court);color:var(--ink);margin-bottom:.5rem;
 }
-.match-history-search input:focus{border-color:var(--turf);background:#fff}
+.match-history-search input:focus{border-color:var(--turf);background:var(--surface)}
 .match-history-filter-row{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center}
 .match-history-filter-row .mh-filter-select{flex:1 1 auto;min-width:110px}
 .match-history-filter-row .mh-filter-select .custom-select-trigger{
@@ -1026,7 +1025,7 @@ body.viewer-mode .up-next-expand-chevron{display:block;width:13px;height:13px;fl
 }
 .overlay[hidden]{display:none}
 .modal{
-  background:#fff;border-radius:18px;max-width:480px;width:100%;
+  background:var(--surface);border-radius:18px;max-width:480px;width:100%;
   max-height:calc(100vh - 2.4rem);overflow-y:auto;box-shadow:var(--shadow-md);
   padding:1.9rem 1.7rem 2.1rem;margin:auto;
 }
@@ -1039,7 +1038,7 @@ body.viewer-mode .up-next-expand-chevron{display:block;width:13px;height:13px;fl
   width:100%;border:1.5px solid var(--line);border-radius:var(--radius-sm);
   padding:.72rem .85rem;font-size:.95rem;background:var(--court);color:var(--ink);
 }
-.field input:focus,.field select:focus{border-color:var(--turf);background:#fff}
+.field input:focus,.field select:focus{border-color:var(--turf);background:var(--surface)}
 /* ---------- Custom dropdown (e.g. "Call out a player" > court picker) ----------
    Replaces a plain <select> so the open list is themed like the rest of the
    app instead of falling back to the OS's own popup, and so background
@@ -1053,7 +1052,7 @@ body.viewer-mode .up-next-expand-chevron{display:block;width:13px;height:13px;fl
   cursor:pointer;text-align:left;font-family:inherit;
 }
 .custom-select-trigger:hover{border-color:var(--turf)}
-.custom-select-trigger[aria-expanded="true"]{border-color:var(--turf);background:#fff}
+.custom-select-trigger[aria-expanded="true"]{border-color:var(--turf);background:var(--surface)}
 .custom-select-trigger:focus-visible{outline:2px solid var(--turf);outline-offset:2px}
 .custom-select-chevron{width:17px;height:17px;flex-shrink:0;color:var(--slate);transform:rotate(90deg);transition:transform .15s ease}
 .custom-select-trigger[aria-expanded="true"] .custom-select-chevron{transform:rotate(-90deg)}
@@ -1080,7 +1079,7 @@ html[data-theme="dark"] .custom-select-trigger{background:var(--surface)}
 .seg button.active{background:var(--turf);color:#fff}
 .stepper{display:flex;align-items:center;gap:.8rem}
 .stepper button{
-  width:40px;height:40px;border-radius:10px;border:1.5px solid var(--line);background:#fff;
+  width:40px;height:40px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);
   font-size:1.2rem;font-weight:700;cursor:pointer;color:var(--ink);
 }
 .stepper button:hover{border-color:var(--turf);color:var(--turf-deep)}
@@ -1129,13 +1128,13 @@ body:not(.levels-on) .court-level-select{
 .target-sub input[type=number]{max-width:100px}
 .fixed-duo-add-row{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
 .fixed-duo-add-row select{
-  flex:1;min-width:0;padding:.6rem .7rem;border:1.5px solid var(--line);border-radius:8px;background:#fff;
+  flex:1;min-width:0;padding:.6rem .7rem;border:1.5px solid var(--line);border-radius:8px;background:var(--surface);
   font-size:.88rem;color:var(--ink);
 }
 .fixed-duo-add-row select:focus{border-color:var(--turf)}
 .fixed-duo-list{display:flex;flex-direction:column;gap:.5rem;margin-top:.7rem}
 .fixed-duo-row{
-  display:flex;align-items:center;gap:.6rem;background:#fff;border:1px solid var(--line);
+  display:flex;align-items:center;gap:.6rem;background:var(--surface);border:1px solid var(--line);
   border-radius:9px;padding:.55rem .7rem;
 }
 .fixed-duo-row .fd-names{flex:1;min-width:0;font-size:.86rem;font-weight:700;color:var(--turf-deep);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1184,7 +1183,7 @@ body:not(.levels-on) .court-level-select{
   width:100%;border:1.5px solid var(--line);border-radius:var(--radius-sm);
   padding:.55rem .7rem;font-size:.82rem;background:var(--court);color:var(--ink);margin-bottom:.5rem;
 }
-.roster-manage-search input:focus{border-color:var(--turf);background:#fff}
+.roster-manage-search input:focus{border-color:var(--turf);background:var(--surface)}
 .roster-manage-list{
   display:flex;flex-direction:column;gap:.2rem;max-height:190px;overflow-y:auto;
   border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:.35rem;
@@ -1250,14 +1249,14 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn{
   opacity:.35;pointer-events:none;
 }
 .endgame-row .choice button:disabled{opacity:.4;cursor:not-allowed}
-.endgame-row .choice button:disabled:hover{background:#fff;border-color:var(--line);color:var(--slate)}
+.endgame-row .choice button:disabled:hover{background:var(--surface);border-color:var(--line);color:var(--slate)}
 
 .endgame-list{display:flex;flex-direction:column;gap:.5rem;margin-bottom:.4rem}
 .endgame-row{display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:.55rem .7rem;border:1.5px solid var(--line);border-radius:var(--radius-sm)}
 .endgame-row .who{font-weight:700;font-size:.88rem}
 .endgame-row .choice{display:flex;gap:.3rem}
 .endgame-row .choice button{
-  border:1.5px solid var(--line);background:#fff;border-radius:7px;padding:.3rem .55rem;font-size:.72rem;font-weight:700;cursor:pointer;color:var(--slate);
+  border:1.5px solid var(--line);background:var(--surface);border-radius:7px;padding:.3rem .55rem;font-size:.72rem;font-weight:700;cursor:pointer;color:var(--slate);
 }
 .endgame-row .choice button.sel-requeue.active{background:var(--turf-pale);border-color:var(--turf);color:var(--turf-deep)}
 .endgame-row .choice button.sel-done.active{background:var(--danger-pale);border-color:var(--danger);color:var(--danger)}
@@ -1275,7 +1274,7 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn{
 .winner-card .team-names{font-weight:700;font-size:.85rem;line-height:1.3;margin-bottom:.55rem}
 .winner-card .score-input{
   width:100%;max-width:64px;margin:0 auto;display:block;text-align:center;
-  border:1.5px solid var(--line);border-radius:var(--radius-sm);background:#fff;
+  border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--surface);
   font-family:var(--font-mono);font-weight:700;font-size:1.05rem;color:var(--ink);
   padding:.3rem .2rem;cursor:text;
 }
@@ -1297,13 +1296,13 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn{
 .rankings-modal-head h3{margin:0}
 .rankings-head-actions{display:flex;gap:.4rem;flex-shrink:0}
 .modal-icon-btn{
-  width:32px;height:32px;border-radius:8px;border:1.5px solid var(--line);background:#fff;color:var(--slate);
+  width:32px;height:32px;border-radius:8px;border:1.5px solid var(--line);background:var(--surface);color:var(--slate);
   display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;
   transition:background .15s,border-color .15s,color .15s;
 }
 .modal-icon-btn svg{width:15px;height:15px}
 .modal-icon-btn:hover{border-color:var(--turf);color:var(--turf-deep);background:var(--turf-pale)}
-.modal-icon-btn:disabled{opacity:.5;cursor:not-allowed;border-color:var(--line);color:var(--slate);background:#fff}
+.modal-icon-btn:disabled{opacity:.5;cursor:not-allowed;border-color:var(--line);color:var(--slate);background:var(--surface)}
 .modal-icon-btn.active{border-color:var(--turf);color:var(--turf-deep);background:var(--turf-pale)}
 .modal-icon-btn.spinning svg{animation:rankings-spin .8s linear infinite}
 @keyframes rankings-spin{to{transform:rotate(360deg)}}
@@ -1318,7 +1317,7 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn{
   flex:1;min-width:0;border:none;background:none;font-size:.85rem;color:var(--ink);padding:0;
 }
 .rankings-toolbar input:focus{outline:none}
-.rankings-toolbar:focus-within{border-color:var(--turf);background:#fff}
+.rankings-toolbar:focus-within{border-color:var(--turf);background:var(--surface)}
 
 .rankings-summary{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.7rem}
 .rankings-summary .stat-chip{
@@ -1335,7 +1334,7 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn{
 .rank-row{
   display:flex;align-items:center;gap:.7rem;
   border:1.5px solid var(--line);border-radius:var(--radius-sm);
-  padding:.55rem .7rem;background:#fff;
+  padding:.55rem .7rem;background:var(--surface);
   transition:border-color .15s,background .15s;
 }
 .rank-row:hover{border-color:var(--turf)}
@@ -1552,7 +1551,7 @@ html[data-theme="dark"] .toast-progress{background:#fff}
   padding:.6rem .7rem;font-size:.95rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
   background:var(--court);color:var(--ink);
 }
-.watch-code-row input:focus{border-color:var(--turf);background:#fff}
+.watch-code-row input:focus{border-color:var(--turf);background:var(--surface)}
 .watch-code-row .btn{flex-shrink:0}
 .watch-code-error{color:var(--danger);font-size:.78rem;font-weight:600;margin:.4rem 0 0}
 .modal-divider{display:flex;align-items:center;gap:.6rem;margin:1rem 0;color:var(--slate);font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
@@ -1974,16 +1973,9 @@ body.viewer-mode .viewer-blocks-panel{ order:6; }
    only restyles the existing markup to match the reference screenshot.
    Scoped to dark mode (the app's default theme) so the light "flag"
    theme is untouched. Placed last so it wins the cascade without !important.
-   ===================================================================== */
-html[data-theme="dark"]{
-  --court:#080D18;
-  --surface:#101A2C;
-  --line:#1E2A42;
-  --slate:#7C8AA5;
-  --shadow-sm:0 1px 2px rgba(0,0,0,.5);
-  --shadow-md:0 12px 32px rgba(0,0,0,.6);
-}
-html[data-theme="dark"] body{background:radial-gradient(120% 60% at 50% -10%, #0E1A2E 0%, #080D18 55%) fixed}
+   The dark token values these components lean on (--court, --surface,
+   --line, --slate, shadows) now live in the single html[data-theme="dark"]
+   block near the top of this file — see the note there. ===================================================================== */
 
 /* ---- Topbar: darker, circular icon chips, tighter brand lockup ---- */
 html[data-theme="dark"] .topbar{
