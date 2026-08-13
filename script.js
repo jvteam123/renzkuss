@@ -1899,15 +1899,23 @@ function playerRowHtml(name, swap, sub){
   const subBtn = (sub && subPermitted)
     ? `<button type="button" class="player-sub-btn action-sub" data-act="sub-player" data-idx="${sub.idx}" aria-label="Substitute ${esc(name)}" title="Sub in a replacement for ${esc(name)}"><svg viewBox="0 0 24 24"><use href="#i-sub"/></svg><span class="action-label">Sub</span></button>`
     : '';
-  const previewBtn = `<button type="button" class="player-preview-btn action-info" data-act="preview-name" data-name="${esc(name)}" aria-label="View player details for ${esc(name)}" title="Player details"><svg viewBox="0 0 24 24"><use href="#i-info"/></svg><span class="action-label">Info</span></button>`;
+  const previewBtn = viewerMode ? '' : `<button type="button" class="player-preview-btn action-info" data-act="preview-name" data-name="${esc(name)}" aria-label="View player details for ${esc(name)}" title="Player details"><svg viewBox="0 0 24 24"><use href="#i-info"/></svg><span class="action-label">Info</span></button>`;
   // Name gets its own row with just the avatar, so it has the full column
   // width to wrap into instead of fighting the preview/swap/sub buttons for
   // space — those move to a compact row underneath. Wins used to get their
   // own trophy chip here too, but that's redundant now that the Info
   // button's popup already surfaces games played, wins, and win rate —
   // one less thing crowding this row on narrow cards.
+  // Viewers don't get the Info button at all (Match Info on the Up Next
+  // card already covers this, and there's nothing else to tap through to
+  // on a read-only screen) — instead they get a level subtitle under the
+  // name, matching the reference dashboard's "Name / Unrated" pattern.
+  const viewerLevelSubtitle = viewerMode
+    ? `<span class="viewer-player-level">${esc(levelLabel(getPlayerLevel(name)))}</span>`
+    : '';
   return `<span class="player-col">
     <span class="player-row">${avatarHtml(name)}<span class="player-name-txt" title="${esc(name)}">${esc(courtCardName(name))}</span></span>
+    ${viewerLevelSubtitle}
     <span class="player-actions-row">${previewBtn}${swapBtn}${subBtn}</span>
     <span class="player-games-row">${gamesChip}</span>
   </span>`;
