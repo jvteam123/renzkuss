@@ -3800,16 +3800,25 @@ $('#themeToggleBtn').addEventListener('click', () => {
   try{ localStorage.setItem(THEME_KEY, next); }catch(e){}
 });
 
-/* ---- Viewer dashboard quick actions: View / Theme / Sound ----
+/* ---- Viewer dashboard quick actions: View / Theme / Notify ----
    Per-device preferences (this browser only), same pattern as THEME_KEY
    above — read once at boot, applied immediately, no server round-trip. */
 const VIEWER_LAYOUT_KEY = 'paddleStackViewerLayout'; // 'grid' | 'list'
-const VIEWER_SOUND_MUTED_KEY = 'paddleStackViewerSoundMuted'; // '1' | absent
+const VIEWER_NOTIFY_KEY = 'paddleStackViewerNotifyEnabled'; // '1' | '0' | absent
 function getViewerLayout(){
   try{ return localStorage.getItem(VIEWER_LAYOUT_KEY) === 'list' ? 'list' : 'grid'; }catch(e){ return 'grid'; }
 }
-function isViewerSoundMuted(){
-  try{ return localStorage.getItem(VIEWER_SOUND_MUTED_KEY) === '1'; }catch(e){ return false; }
+function isViewerNotifyEnabled(){
+  try{
+    const v = localStorage.getItem(VIEWER_NOTIFY_KEY);
+    if (v === '1') return true;
+    if (v === '0') return false;
+  }catch(e){}
+  // No explicit choice made on this device yet — mirror whatever the
+  // browser permission already is, so someone who granted it earlier via
+  // the "Who's watching" player pick doesn't have to separately flip this
+  // toggle on too.
+  return ('Notification' in window) && Notification.permission === 'granted';
 }
 function applyViewerLayout(layout){
   if (courtsGrid) courtsGrid.classList.toggle('viewer-list-layout', layout === 'list');
@@ -3820,15 +3829,17 @@ function applyViewerLayout(layout){
   const btn = $('#viewerViewBtn');
   if (btn) btn.setAttribute('aria-label', layout === 'list' ? 'Switch to grid layout' : 'Switch to list layout');
 }
-function applyViewerSoundMuted(muted){
-  const btn = $('#viewerSoundBtn');
-  if (btn) btn.classList.toggle('muted', muted);
-  const label = $('#viewerSoundLabel');
-  if (label) label.textContent = muted ? 'Muted' : 'Sound';
-  if (btn) btn.setAttribute('aria-label', muted ? 'Unmute call notification sound' : 'Mute call notification sound');
+function applyViewerNotifyUI(enabled){
+  const btn = $('#viewerNotifyBtn');
+  if (btn) btn.classList.toggle('muted', !enabled);
+  const label = $('#viewerNotifyLabel');
+  if (label) label.textContent = enabled ? 'Notify' : 'Off';
+  if (btn) btn.setAttribute('aria-label', enabled
+    ? "Turn off notifications when the host calls you to play"
+    : "Turn on notifications when the host calls you to play");
 }
 applyViewerLayout(getViewerLayout());
-applyViewerSoundMuted(isViewerSoundMuted());
+applyViewerNotifyUI(isViewerNotifyEnabled());
 const viewerViewBtn = $('#viewerViewBtn');
 if (viewerViewBtn) viewerViewBtn.addEventListener('click', () => {
   const next = getViewerLayout() === 'list' ? 'grid' : 'list';
@@ -3841,11 +3852,34 @@ if (viewerThemeBtn) viewerThemeBtn.addEventListener('click', () => {
   applyTheme(next);
   try{ localStorage.setItem(THEME_KEY, next); }catch(e){}
 });
-const viewerSoundBtn = $('#viewerSoundBtn');
-if (viewerSoundBtn) viewerSoundBtn.addEventListener('click', () => {
-  const next = !isViewerSoundMuted();
-  try{ localStorage.setItem(VIEWER_SOUND_MUTED_KEY, next ? '1' : '0'); }catch(e){}
-  applyViewerSoundMuted(next);
+// Standalone permission request helper — deliberately not sharing the
+// near-identical one declared inside enterViewerMode() below, since that
+// one lives in a closure only created once a spectator link is actually
+// opened, while this button (and its click handler) exists on every page
+// load. Both just wrap the standard Notification API, so keeping two tiny
+// copies is simpler and safer than plumbing one across that boundary.
+async function requestBrowserNotifyPermission(){
+  if (!('Notification' in window)) return false;
+  if (Notification.permission === 'granted') return true;
+  if (Notification.permission === 'denied') return false;
+  try{ return (await Notification.requestPermission()) === 'granted'; }
+  catch(e){ return false; }
+}
+const viewerNotifyBtn = $('#viewerNotifyBtn');
+if (viewerNotifyBtn) viewerNotifyBtn.addEventListener('click', async () => {
+  const turningOn = !isViewerNotifyEnabled();
+  if (turningOn){
+    const granted = await requestBrowserNotifyPermission();
+    if (!granted){
+      // Blocked/denied at the browser level — flipping the in-app toggle
+      // on wouldn't actually deliver anything, so leave it off and point
+      // the person at their browser's site settings instead.
+      alert("Notifications are blocked for this site. Enable them in your browser's site settings, then try again.");
+      return;
+    }
+  }
+  try{ localStorage.setItem(VIEWER_NOTIFY_KEY, turningOn ? '1' : '0'); }catch(e){}
+  applyViewerNotifyUI(turningOn);
 });
 $('#matchHistoryDone').addEventListener('click', () => { matchHistoryOverlay.hidden = true; });
 
@@ -6696,10 +6730,13 @@ function enterViewerMode(code){
   // Low-level "actually show it" step used by player-call notifications.
   function fireNotification(title, body, opts){
     opts = opts || {};
-    // "Sound" quick-action in the viewer dashboard mutes just the audible
-    // chime on this device — the system notification itself (banner/lock
-    // screen) still fires either way, same as muting a phone call ringtone.
-    if (!isViewerSoundMuted()){
+    // The "Notify" quick-action in the viewer dashboard is the single
+    // on/off switch for this device's call notifications now — chime and
+    // system banner together, not just the sound. See notifyPlayerCall()
+    // below for the actual "it's your turn" gate; this one-off confirmation
+    // call from choosePlayer() still plays the chime here since it fires
+    // at the exact moment permission was just granted.
+    if (isViewerNotifyEnabled()){
       try{ notifySound.currentTime = 0; notifySound.play().catch(() => {}); }catch(e){}
     }
     const nOpts = {
@@ -6841,6 +6878,10 @@ function enterViewerMode(code){
     if (granted){
       fireNotification(`You're set as ${name}`, "We'll notify this phone when it's your turn.");
     }
+    // Reflect the (now possibly just-granted) permission in the "Notify"
+    // quick-action button immediately, so the person doesn't have to also
+    // find and tap that toggle separately right after this.
+    applyViewerNotifyUI(isViewerNotifyEnabled());
     startPresenceHeartbeat();
   }
 
@@ -6914,8 +6955,10 @@ function enterViewerMode(code){
 
   // Fires the actual "it's your turn" phone notification for a matched
   // player call. This is the only notification a spectator device ever
-  // receives — picking a player name is itself the opt-in for it.
+  // receives — picking a player name is itself the opt-in for it, and the
+  // "Notify" quick-action toggle is the on/off switch on top of that.
   function notifyPlayerCall(call){
+    if (!isViewerNotifyEnabled()) return;
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
     fireNotification(call.title, call.body, { tag: 'renzku-call-' + call.id, requireInteraction: true, vibrate: [200, 100, 200] });
   }
