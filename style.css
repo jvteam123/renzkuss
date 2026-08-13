@@ -2143,18 +2143,35 @@ html[data-theme="dark"] .topbar .session-name{font-weight:800}
 @media (max-width:880px){
   .courts-grid{
     display:flex;flex-wrap:nowrap;grid-template-columns:none;
-    gap:0;margin:0 -.9rem;padding:0 .9rem;
+    gap:.7rem;margin:0 -.9rem;padding:0 .9rem;
     overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;
     scrollbar-width:none;
   }
   .courts-grid::-webkit-scrollbar{display:none}
   .courts-grid .court-card{
-    flex:0 0 100%;width:100%;scroll-snap-align:center;scroll-snap-stop:always;
+    flex:0 0 88%;width:88%;scroll-snap-align:center;scroll-snap-stop:always;
   }
   .courts-grid:has(.court-card ~ .court-card) .court-card{
-    flex-basis:92%; /* peek the next card's edge as a swipe affordance, only when there's more than one court */
+    flex-basis:85%; /* a touch narrower so the next card's edge peeks in as a swipe affordance, only when there's more than one court */
+    width:85%;
   }
+  /* Cards were reading oversized on an actual phone screen — trim the
+     internal spacing/type scale a notch so more of the card's real
+     content (not just whitespace) is visible without scrolling. */
+  .court-card{padding:0 .85rem .85rem;min-height:0;border-radius:18px}
+  .court-top{padding-top:.7rem}
+  .last-result{padding:.5rem .65rem;margin-bottom:.5rem;font-size:.72rem}
+  .matchup{margin:.6rem 0 .55rem;min-height:0;gap:.55rem}
+  .player-col{gap:.4rem}
+  .avatar{width:32px;height:32px;font-size:.78rem}
+  .player-name-txt{font-size:.88rem}
+  .player-preview-btn,.player-swap-btn,.player-sub-btn{height:32px;font-size:.62rem}
+  .court-cta-row .court-cta{min-height:0;padding:.6rem .6rem}
+  .court-cta-row .court-cta .cta-icon{font-size:1rem}
+  html[data-theme="dark"] .court-cta-row .court-cta .cta-title{font-size:.78rem}
+  html[data-theme="dark"] .court-cta-row .court-cta .cta-sub{font-size:.62rem}
 }
+
 
 /* ---------- "Up next" header + rows, matching the reference layout ---------- */
 .history summary{justify-content:flex-start}
