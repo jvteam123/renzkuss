@@ -259,7 +259,11 @@ if (updateOverlay){
   });
 }
 if ('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js').then(reg => {
+  // updateViaCache:'none' stops the browser from serving a stale sw.js out of
+  // its own HTTP cache — without this, a plain (non-incognito) tab can keep
+  // "seeing" an old service worker for up to 24h even though a new one was
+  // deployed, which is exactly what made changes only show up in incognito.
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
     swRegistration = reg;
     // A worker already sitting in "waiting" (installed while no tab was
     // open, or from a previous visit that never got refreshed) — surface
@@ -299,6 +303,38 @@ if ('serviceWorker' in navigator){
     if (reloadedForUpdate || !userRequestedUpdate) return;
     reloadedForUpdate = true;
     location.reload();
+  });
+}
+
+// Manual "Check for updates" button — the browser normally only checks for a
+// new sw.js on navigation, and can space those checks out, so this lets
+// someone force an immediate check instead of waiting or reaching for
+// incognito. reg.update() itself always hits the network for sw.js
+// (regardless of updateViaCache), so this check is never served stale.
+const syncUpdateBtn = $('#syncUpdateBtn');
+if (syncUpdateBtn){
+  syncUpdateBtn.addEventListener('click', async () => {
+    if (!('serviceWorker' in navigator)){
+      toast('Offline mode isn\u2019t supported in this browser.', 'warning');
+      return;
+    }
+    syncUpdateBtn.disabled = true;
+    syncUpdateBtn.classList.add('spin');
+    try {
+      const reg = swRegistration || await navigator.serviceWorker.getRegistration();
+      if (!reg){ toast('Nothing to sync yet \u2014 try again in a moment.', 'warning'); return; }
+      await reg.update();
+      if (reg.waiting){
+        showUpdateBanner(reg.waiting);
+      } else {
+        toast('You\u2019re on the latest version.', 'success');
+      }
+    } catch {
+      toast('Couldn\u2019t check for updates \u2014 check your connection.', 'warning');
+    } finally {
+      syncUpdateBtn.disabled = false;
+      syncUpdateBtn.classList.remove('spin');
+    }
   });
 }
 
