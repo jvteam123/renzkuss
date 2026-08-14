@@ -3507,53 +3507,32 @@ function renderUpNext(){
   }
   const reconciled = reconcileFixedDuosAcrossGroups(groups, onDeck, gameSize);
 
-  // Spectator wording for the first two upcoming matchups — "Next" / "Then"
-  // reads better on a dashboard someone's glancing at than a numbered "On
-  // deck 1/2/3" list, which stays as-is for the host (who's actively
-  // managing that queue, not just watching it).
+  // "Next" / "Then" reads better on a glanceable dashboard than a numbered
+  // "On deck 1/2/3" list, so both the host and spectator views share this
+  // same stacked-name, tagged-row layout with a Match Info button.
   const viewerTags = ['NEXT', 'THEN'];
   const rows = [];
   reconciled.forEach((chosen, i) => {
-    const groupNum = i + 1;
     const names = orderForTeammatePairing(chosen.map(p => p.name));
     let matchup;
-    if (viewerMode){
-      // Each player on their own line (vs. the host's "&"-joined single
-      // line) to match the reference dashboard's stacked-name layout.
-      if (gameSize === 2){
-        matchup = `<span class="ondeck-team">${esc(names[0])}</span><span class="ondeck-vs">vs</span><span class="ondeck-team">${esc(names[1])}</span>`;
-      } else {
-        const [a, b] = splitTeams(names);
-        matchup = `<span class="ondeck-team">${a.map(esc).join('<br>')}</span><span class="ondeck-vs">vs</span><span class="ondeck-team">${b.map(esc).join('<br>')}</span>`;
-      }
-    } else if (gameSize === 2){
+    // Each player on their own line (rather than an "&"-joined single line)
+    // to match the shared dashboard's stacked-name layout.
+    if (gameSize === 2){
       matchup = `<span class="ondeck-team">${esc(names[0])}</span><span class="ondeck-vs">vs</span><span class="ondeck-team">${esc(names[1])}</span>`;
     } else {
       const [a, b] = splitTeams(names);
-      matchup = `<span class="ondeck-team">${a.map(esc).join(' &amp; ')}</span><span class="ondeck-vs">vs</span><span class="ondeck-team">${b.map(esc).join(' &amp; ')}</span>`;
+      matchup = `<span class="ondeck-team">${a.map(esc).join('<br>')}</span><span class="ondeck-vs">vs</span><span class="ondeck-team">${b.map(esc).join('<br>')}</span>`;
     }
-    if (viewerMode){
-      const tag = viewerTags[i] || 'ON DECK';
-      const infoBtn = `<button type="button" class="ondeck-info-btn" data-act="match-info" data-names="${esc(names.join('|'))}" aria-label="Match info"><svg viewBox="0 0 24 24"><use href="#i-info"/></svg><span class="action-label">Match Info</span></button>`;
-      rows.push(`
-        <div class="ondeck-row viewer-ondeck-row${i > 0 ? ' viewer-ondeck-row-then' : ''}">
-          <span class="ondeck-badge-col">
-            <span class="ondeck-badge viewer-ondeck-tag${i === 0 ? ' viewer-ondeck-tag-next' : ''}">${tag}</span>
-          </span>
-          <span class="ondeck-matchup">${matchup}</span>
-          ${infoBtn}
-        </div>`);
-    } else {
-      rows.push(`
-        <div class="ondeck-row">
-          <span class="ondeck-badge-col">
-            <span class="ondeck-badge">On deck</span>
-            <span class="ondeck-index">${groupNum}</span>
-          </span>
-          <span class="ondeck-matchup">${matchup}</span>
-          <span class="ondeck-meta"><svg viewBox="0 0 24 24"><use href="#i-user"/></svg>${chosen.length}</span>
-        </div>`);
-    }
+    const tag = viewerTags[i] || 'ON DECK';
+    const infoBtn = `<button type="button" class="ondeck-info-btn" data-act="match-info" data-names="${esc(names.join('|'))}" aria-label="Match info"><svg viewBox="0 0 24 24"><use href="#i-info"/></svg><span class="action-label">Match Info</span></button>`;
+    rows.push(`
+      <div class="ondeck-row viewer-ondeck-row${i > 0 ? ' viewer-ondeck-row-then' : ''}">
+        <span class="ondeck-badge-col">
+          <span class="ondeck-badge viewer-ondeck-tag${i === 0 ? ' viewer-ondeck-tag-next' : ''}">${tag}</span>
+        </span>
+        <span class="ondeck-matchup">${matchup}</span>
+        ${infoBtn}
+      </div>`);
   });
   if (previewStack.length > 0 && !upNextExpanded){
     rows.push(`<div class="ondeck-more">+${previewStack.length} more waiting</div>`);
