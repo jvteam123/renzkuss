@@ -6733,8 +6733,9 @@ function enterViewerMode(code){
       console.log('[Viewer] rendering snapshot', cachedSnap.cached_at);
       state = cachedSnap.state;
       hasRenderableSnapshot = true;
-      const nameEl0 = $('.session-name');
-      if (nameEl0) nameEl0.textContent = (cachedSnap.session_name || 'Live match') + ' \u00b7 Live';
+      // Title stays the default styled "PaddleStack" brand — same as the
+      // host side — instead of being overwritten with the session name
+      // and a "· Live" suffix.
       renderAll();
     }catch(e){
       console.error('[Viewer] failed to render cached snapshot \u2014 discarding it and continuing to poll', e);
@@ -7149,8 +7150,9 @@ function enterViewerMode(code){
       state = row.state;
       hasRenderableSnapshot = true;
       hideConnCard();
-      const nameEl = $('.session-name');
-      if (nameEl) nameEl.textContent = (row.session_name || 'Live match') + ' \u00b7 Live';
+      // Title stays the default styled "PaddleStack" brand — same as the
+      // host side — instead of being overwritten with the session name
+      // and a "· Live" suffix.
       setMsg('Updated ' + new Date(row.updated_at).toLocaleTimeString());
       renderAll();
       saveViewerSnapshotFor(code, {
