@@ -3507,31 +3507,27 @@ function renderUpNext(){
   }
   const reconciled = reconcileFixedDuosAcrossGroups(groups, onDeck, gameSize);
 
-  // "Next" / "Then" reads better on a glanceable dashboard than a numbered
-  // "On deck 1/2/3" list, so both the host and spectator views share this
-  // same stacked-name, tagged-row layout with a Match Info button.
-  const viewerTags = ['NEXT', 'THEN'];
+  // Numbered "ON DECK 1/2/3" rows with "&"-joined team names on one line
+  // and a player-count icon — same layout for host and spectator alike.
   const rows = [];
   reconciled.forEach((chosen, i) => {
+    const groupNum = i + 1;
     const names = orderForTeammatePairing(chosen.map(p => p.name));
     let matchup;
-    // Each player on their own line (rather than an "&"-joined single line)
-    // to match the shared dashboard's stacked-name layout.
     if (gameSize === 2){
       matchup = `<span class="ondeck-team">${esc(names[0])}</span><span class="ondeck-vs">vs</span><span class="ondeck-team">${esc(names[1])}</span>`;
     } else {
       const [a, b] = splitTeams(names);
-      matchup = `<span class="ondeck-team">${a.map(esc).join('<br>')}</span><span class="ondeck-vs">vs</span><span class="ondeck-team">${b.map(esc).join('<br>')}</span>`;
+      matchup = `<span class="ondeck-team">${a.map(esc).join(' &amp; ')}</span><span class="ondeck-vs">vs</span><span class="ondeck-team">${b.map(esc).join(' &amp; ')}</span>`;
     }
-    const tag = viewerTags[i] || 'ON DECK';
-    const infoBtn = `<button type="button" class="ondeck-info-btn" data-act="match-info" data-names="${esc(names.join('|'))}" aria-label="Match info"><svg viewBox="0 0 24 24"><use href="#i-info"/></svg><span class="action-label">Match Info</span></button>`;
     rows.push(`
-      <div class="ondeck-row viewer-ondeck-row${i > 0 ? ' viewer-ondeck-row-then' : ''}">
+      <div class="ondeck-row">
         <span class="ondeck-badge-col">
-          <span class="ondeck-badge viewer-ondeck-tag${i === 0 ? ' viewer-ondeck-tag-next' : ''}">${tag}</span>
+          <span class="ondeck-badge">On deck</span>
+          <span class="ondeck-index">${groupNum}</span>
         </span>
         <span class="ondeck-matchup">${matchup}</span>
-        ${infoBtn}
+        <span class="ondeck-meta"><svg viewBox="0 0 24 24"><use href="#i-user"/></svg>${chosen.length}</span>
       </div>`);
   });
   if (previewStack.length > 0 && !upNextExpanded){
