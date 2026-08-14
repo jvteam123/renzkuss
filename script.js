@@ -1212,7 +1212,7 @@ function renderStack(){
       const levelBadge = `<button type="button" class="level-badge ${levelClass(getPlayerLevel(entry.name))}" data-act="cycle-level" data-name="${esc(entry.name)}" title="Change skill level">${esc(levelLabel(getPlayerLevel(entry.name)))}</button>`;
       row.innerHTML = `
         <span class="pos">${idx+1}</span>
-        <svg class="glyph" viewBox="0 0 20 28"><use href="#i-paddle"/></svg>
+        ${avatarHtml(entry.name)}
         <span class="name-col">
           <span class="name">${esc(entry.name)}${winChip}</span>
           <span class="sub-row">${tag}${levelBadge}${gamesChip}</span>
