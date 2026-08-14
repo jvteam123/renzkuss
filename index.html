@@ -113,33 +113,11 @@
     <span class="vb-live-badge"><span class="vb-live-dot"></span>Live</span>
     <span class="msg" id="viewerBannerMsg"></span>
   </div>
-  <!-- Quick-action row: View (grid/list toggle), Theme (mirrors the topbar
-       dark-mode toggle), Notify (turns on/off this device's "it's your
-       turn" call notifications — including the chime — and requests
-       browser notification permission the first time it's switched on;
-       independent of the host-only session-wide "Notify players by phone"
-       setting), History (same match-history modal the host uses). Icon+label
-       buttons to match the reference dashboard layout, all viewer-mode only. -->
-  <div class="vb-quick-actions" id="viewerQuickActions">
-    <button type="button" class="vb-quick-btn" id="viewerViewBtn" aria-label="Toggle courts layout" title="Switch between grid and list layout">
-      <svg viewBox="0 0 24 24"><use href="#i-grid" id="viewerViewIconUse"/></svg><span class="vb-quick-label" id="viewerViewLabel">Grid</span>
-    </button>
-    <button type="button" class="vb-quick-btn" id="viewerThemeBtn" aria-label="Toggle theme" title="Switch light/dark theme">
-      <svg viewBox="0 0 24 24"><use href="#i-moon" id="viewerThemeIconUse"/></svg><span class="vb-quick-label">Theme</span>
-    </button>
-    <button type="button" class="vb-quick-btn" id="viewerNotifyBtn" aria-label="Turn on notifications when the host calls you to play" title="Get notified on this phone when the host calls you to play">
-      <svg viewBox="0 0 24 24"><use href="#i-bell" id="viewerNotifyIconUse"/></svg><span class="vb-quick-label" id="viewerNotifyLabel">Notify</span>
-    </button>
-    <button type="button" class="vb-quick-btn" id="viewerMatchHistoryBtn" aria-label="Match history" title="Match history">
-      <svg viewBox="0 0 24 24"><use href="#i-clock"/></svg><span class="vb-quick-label">History</span>
-    </button>
-  </div>
-  <div class="vb-identity-row">
-    <div class="viewer-identity-group">
-      <button type="button" class="viewer-identity-badge" id="viewerIdentityBadge" hidden></button>
-    </div>
-    <button type="button" class="viewer-change-btn" id="viewerChangePlayerBtn" hidden title="Change who's watching" aria-label="Change who's watching"><svg viewBox="0 0 24 24"><use href="#i-gear"/></svg></button>
-  </div>
+  <!-- Quick-action row (View/Theme/Notify/History) and the identity badge
+       row have been removed from the spectator banner per design update.
+       The button ids they used to contain ($('#viewerViewBtn') etc. in
+       script.js) are all null-guarded, so removing them outright is safe —
+       no dead/hidden markup left behind. -->
 </div>
 
 <!-- Co-host banner: shown on a device that accepted a co-host link. Full
