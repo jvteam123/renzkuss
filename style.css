@@ -2460,14 +2460,21 @@ html[data-theme="dark"] .viewer-ondeck-row-then .ondeck-info-btn:hover{backgroun
 .level-badge.sm{font-size:.56rem;padding:.06rem .38rem;flex-shrink:0}
 
 /* ---- Court card footer: per-court games-played counter (viewer only) ---- */
+/* ---- Live court status footer ---- */
 .court-games-footer{
-  display:flex;align-items:center;gap:.35rem;margin-top:.7rem;padding-top:.6rem;
-  border-top:1px dashed var(--line);font-size:.68rem;font-weight:700;letter-spacing:.02em;
+  display:flex;align-items:center;gap:.42rem;margin-top:.7rem;padding-top:.6rem;
+  border-top:1px dashed var(--line);font-size:.68rem;font-weight:800;letter-spacing:.03em;
   text-transform:uppercase;color:var(--slate);
 }
-.court-games-footer svg{width:13px;height:13px;flex-shrink:0}
-.court-card.playing .court-games-footer{border-top-color:rgba(255,255,255,.18);color:#9FB3D6}
-html[data-theme="dark"] .court-games-footer{border-top-color:#1E2A42;color:#7C8AA5}
+.court-games-footer svg{width:14px;height:14px;flex-shrink:0}
+.court-status-footer.started{color:#55D99A}
+.court-status-footer.paused{color:#FFD76A}
+.court-status-footer.ended{color:#9FB3D6}
+.court-card.playing .court-games-footer{border-top-color:rgba(255,255,255,.18)}
+html[data-theme="dark"] .court-games-footer{border-top-color:#1E2A42}
+html[data-theme="dark"] .court-status-footer.started{color:#55D99A}
+html[data-theme="dark"] .court-status-footer.paused{color:#FFD76A}
+html[data-theme="dark"] .court-status-footer.ended{color:#9FB3D6}
 
 /* ---- Grid/List layout toggle (viewer "View" quick action) ---- */
 body.viewer-mode .courts-grid.viewer-list-layout{
@@ -2496,6 +2503,19 @@ body.viewer-mode .player-games-row{display:none}
 body.viewer-mode .player-actions-row{display:none}
 
 body.viewer-mode .court-games-footer{margin-top:.5rem;padding-top:.45rem}
+
+body.viewer-mode .court-status-footer{
+  margin-top:.55rem;
+  padding-top:.58rem;
+  min-height:24px;
+}
+body.viewer-mode .court-status-footer svg{
+  width:15px;height:15px;
+}
+body.viewer-mode .court-status-footer span{
+  line-height:1;
+}
+
 
 /* Full-width "Team 1"/"Team 2" header bars + tinted column backgrounds,
    matching the reference layout exactly — not just a small corner label.
@@ -2582,4 +2602,97 @@ body.viewer-mode .court-card.playing .viewer-team-header-b{background:#E0455A}
 @media (max-width:520px){
   body.viewer-mode .avatar{width:24px;height:24px;font-size:.58rem}
   body.viewer-mode .player-name-txt{font-size:.8rem}
+}
+
+
+
+/* ===== PaddleStack Spectator Live — Compact Enterprise Layer ===== */
+body.spectator-mode .session-stats,
+body.viewer-mode .session-stats,
+.viewer-page .session-stats,
+.spectator-page .session-stats,
+body.spectator-mode .stats-grid,
+body.viewer-mode .stats-grid{
+  min-height:42px!important;padding:7px 12px!important;margin:8px 0 12px!important;border-radius:12px!important;
+}
+body.spectator-mode .section-header,
+body.viewer-mode .section-header,
+.viewer-page .section-header,
+.spectator-page .section-header{margin:10px 0 7px!important}
+body.spectator-mode .section-header h2,
+body.viewer-mode .section-header h2,
+.viewer-page .section-header h2,
+.spectator-page .section-header h2{
+  font-size:.86rem!important;letter-spacing:.055em!important;text-transform:uppercase;
+}
+/* Compact Up Next only; Court cards are deliberately untouched. */
+body.spectator-mode .up-next .match-card,
+body.viewer-mode .up-next .match-card,
+.viewer-page .up-next .match-card,
+.spectator-page .up-next .match-card{
+  min-height:56px!important;padding:8px 11px!important;margin-bottom:6px!important;
+  border-radius:11px!important;box-shadow:0 3px 10px rgba(8,30,61,.055)!important;
+}
+body.spectator-mode .up-next .player-name,
+body.viewer-mode .up-next .player-name,
+.viewer-page .up-next .player-name,
+.spectator-page .up-next .player-name{
+  font-size:.76rem!important;line-height:1.05!important;overflow-wrap:anywhere;word-break:break-word;
+}
+body.spectator-mode .up-next .meta,
+body.viewer-mode .up-next .meta,
+.viewer-page .up-next .meta,
+.spectator-page .up-next .meta{font-size:.62rem!important}
+body.spectator-mode .up-next .badge,
+body.viewer-mode .up-next .badge,
+.viewer-page .up-next .badge,
+.spectator-page .up-next .badge{font-size:.55rem!important;padding:4px 7px!important}
+body.spectator-mode .up-next .match-info,
+body.viewer-mode .up-next .match-info,
+.viewer-page .up-next .match-info,
+.spectator-page .up-next .match-info{
+  min-height:34px!important;padding:0 9px!important;font-size:.60rem!important;border-radius:8px!important;flex:0 0 auto;
+}
+body.spectator-mode .queue-more,
+body.viewer-mode .queue-more,
+.viewer-page .queue-more,
+.spectator-page .queue-more,
+body.spectator-mode .more-waiting,
+body.viewer-mode .more-waiting{
+  min-height:38px!important;padding:7px 11px!important;margin-top:5px!important;border-radius:10px!important;font-size:.65rem!important;
+}
+/* Preserve existing Court card UI; only reduce external vertical gaps. */
+body.spectator-mode .courts-section,
+body.viewer-mode .courts-section,
+.viewer-page .courts-section,
+.spectator-page .courts-section{margin-top:12px!important}
+body.spectator-mode .court-card,
+body.viewer-mode .court-card,
+.viewer-page .court-card,
+.spectator-page .court-card{margin-bottom:9px!important}
+body.spectator-mode .court-status-footer,
+body.viewer-mode .court-status-footer,
+.viewer-page .court-status-footer,
+.spectator-page .court-status-footer{
+  min-height:25px!important;padding-top:5px!important;margin-top:5px!important;font-size:.60rem!important;
+}
+@media(max-width:700px){
+  body.spectator-mode main,body.viewer-mode main,.viewer-page main,.spectator-page main{padding-bottom:58px!important}
+  body.spectator-mode .session-stats,body.viewer-mode .session-stats,.viewer-page .session-stats,.spectator-page .session-stats{
+    overflow-x:auto;scrollbar-width:none;white-space:nowrap
+  }
+  body.spectator-mode .session-stats::-webkit-scrollbar,body.viewer-mode .session-stats::-webkit-scrollbar{display:none}
+  body.spectator-mode .up-next .match-card,body.viewer-mode .up-next .match-card,.viewer-page .up-next .match-card,.spectator-page .up-next .match-card{
+    grid-template-columns:66px minmax(0,1fr) 82px!important;gap:7px!important
+  }
+  body.spectator-mode .up-next .player-name,body.viewer-mode .up-next .player-name,.viewer-page .up-next .player-name,.spectator-page .up-next .player-name{font-size:.71rem!important}
+  body.spectator-mode .up-next .vs,body.viewer-mode .up-next .vs,.viewer-page .up-next .vs,.spectator-page .up-next .vs{font-size:.72rem!important}
+}
+@media(max-width:430px){
+  body.spectator-mode .up-next .match-card,body.viewer-mode .up-next .match-card,.viewer-page .up-next .match-card,.spectator-page .up-next .match-card{
+    grid-template-columns:58px minmax(0,1fr) 74px!important;padding:7px 8px!important
+  }
+  body.spectator-mode .up-next .match-info,body.viewer-mode .up-next .match-info,.viewer-page .up-next .match-info,.spectator-page .up-next .match-info{
+    min-width:0!important;font-size:.55rem!important
+  }
 }
