@@ -1193,6 +1193,44 @@ body:not(.levels-on) .court-level-select{
 .btn.solid-turf:hover{background:var(--turf-deep)}
 .btn.sm{padding:.5rem .85rem;font-size:.82rem;flex-shrink:0}
 .divider{border:none;border-top:1px solid var(--line);margin:1.3rem 0}
+
+/* ---------- Settings: court-themed section cards ----------
+   Mirrors the court-card language (colored top stripe + rounded surface)
+   so the settings modal reads as part of the same app instead of a plain
+   generic form. Default accent is turf/blue; .accent-gold and .accent-clay
+   swap in the flag's other colors for sections that call for it. */
+.settings-card{
+  position:relative;background:var(--court);border:1.5px solid var(--line);
+  border-radius:var(--radius);padding:1.4rem 1.1rem 1.1rem;overflow:hidden;
+  box-shadow:var(--shadow-sm);
+}
+.settings-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:5px;background:var(--turf);
+}
+.settings-card.accent-gold::before{background:var(--gold)}
+.settings-card.accent-clay::before{background:var(--clay)}
+.settings-card-head{display:flex;align-items:flex-start;gap:.65rem;margin-bottom:.75rem}
+.settings-card-head:last-child{margin-bottom:0}
+.settings-card-icon{
+  width:32px;height:32px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--turf-pale);color:var(--turf-deep);
+}
+.settings-card.accent-gold .settings-card-icon{background:var(--gold-pale);color:var(--gold-ink)}
+.settings-card.accent-clay .settings-card-icon{background:var(--danger-pale);color:var(--clay-deep)}
+.settings-card-icon svg{width:16px;height:16px}
+.settings-card-head-text{min-width:0}
+.settings-card-head-text label{margin:0 0 .2rem !important}
+.settings-card-head-text .add-hint{padding:0;margin:0}
+.settings-card + .settings-card{margin-top:1rem}
+
+/* Pill-shaped action buttons, echoing the Info/Swap/Sub buttons on court
+   cards, for the session-controls / danger-zone actions. */
+.btn.pill{
+  border-radius:999px;box-shadow:0 1px 2px rgba(10,30,61,.12);
+  display:inline-flex;align-items:center;justify-content:center;gap:.4rem;
+}
+.btn.pill svg{margin:0 !important}
 .danger-zone h4{font-size:.82rem;text-transform:uppercase;letter-spacing:.03em;color:var(--slate);margin:0 0 .55rem}
 .file-row{display:flex;gap:.55rem;flex-wrap:wrap}
 .field-head-row{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:.4rem}
