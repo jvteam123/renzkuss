@@ -1895,7 +1895,6 @@ body.cohost-mode .court-name{ pointer-events:none; }
 body.viewer-mode .stack-rail,
 body.viewer-mode .mobile-tabs,
 body.viewer-mode #hostOnlineBtn,
-body.viewer-mode #matchHistoryBtn,
 body.viewer-mode #settingsBtn,
 body.viewer-mode #callOutTopBtn,
 body.viewer-mode .session-banner,
