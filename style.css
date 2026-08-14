@@ -1925,8 +1925,8 @@ body.viewer-mode .viewer-conn-card{ order:1; }
 body.viewer-mode .history{ order:2; display:block !important; margin:0 0 1.1rem; }
 body.viewer-mode .viewer-courts-header{ order:3; }
 body.viewer-mode .courts-grid{ order:4; }
-body.viewer-mode .courts-stats-bar{ order:5; }
-body.viewer-mode .viewer-blocks-panel{ order:6; }
+body.viewer-mode .viewer-blocks-panel{ order:5; }
+body.viewer-mode .courts-stats-bar{ order:6; }
 
 .host-auth-tabs{display:flex;gap:.4rem;margin-bottom:.9rem}
 .host-auth-tabs button{
