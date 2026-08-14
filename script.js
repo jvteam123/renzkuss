@@ -2833,8 +2833,36 @@ function renderCourts(){
     // court this session. Derived from state.history (already synced to
     // viewers) rather than a new counter field, since every finished game
     // already records the court name it was played on.
+    // Live court status footer: show the actual state of the current court
+    // instead of a static "games played" counter. This is especially useful
+    // in spectator/viewer mode where there are no court controls.
     const courtGamesFooter = viewerMode
-      ? `<div class="court-games-footer"><svg viewBox="0 0 24 24"><use href="#i-refresh"/></svg>${state.history.filter(h => h.courtName === court.name).length} games played</div>`
+      ? (() => {
+          let status = 'ended';
+          let label = 'Game Ended';
+          let icon = '#i-check';
+          if (court.status === 'playing') {
+            if (court.pauseStart) {
+              status = 'paused';
+              label = 'Game Paused';
+              icon = '#i-clock';
+            } else {
+              status = 'started';
+              label = 'Game Started';
+              icon = '#i-play';
+            }
+          } else if (!court.lastResult) {
+            // No active match and no previous result means this court is
+            // simply waiting for its next game; keep the requested status
+            // vocabulary without falsely claiming a finished match.
+            status = 'ended';
+            label = 'Game Ended';
+          }
+          return `<div class="court-games-footer court-status-footer ${status}" aria-label="${label}">
+            <svg viewBox="0 0 24 24"><use href="${icon}"/></svg>
+            <span>${label}</span>
+          </div>`;
+        })()
       : '';
 
     if (court.status === 'open'){
