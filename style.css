@@ -425,12 +425,8 @@ body.session-locked .quick-add-panel{opacity:.55;pointer-events:none}
   font-family:var(--font-mono);font-weight:600;font-size:1.02rem;
   color:var(--clay-deep);width:26px;text-align:center;flex-shrink:0;
 }
-.paddle .glyph{
-  width:30px;height:30px;flex-shrink:0;color:var(--turf-deep);
-  background:var(--turf-pale);border-radius:50%;box-sizing:border-box;
-  padding:5px;
-}
-.paddle.next-up .glyph{background:var(--turf);color:#fff}
+.paddle .avatar{flex-shrink:0}
+.paddle.next-up .avatar{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--turf)}
 .paddle .name-col{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .paddle .sub-row{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
 .paddle .name{font-weight:700;font-size:.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:.3rem}
@@ -1550,10 +1546,10 @@ html[data-theme="dark"] .toast-progress{background:#fff}
 .paddle .name-col{flex:1 1 auto;min-width:0}
 .paddle .pos{width:20px}
 @media (max-width:1180px){
-  /* The paddle icon is purely decorative — dropping it frees enough room
-     to keep the name readable without losing the up/down reorder buttons
-     (which, unlike drag-and-drop, work reliably even mid-scroll). */
-  .paddle .glyph{display:none}
+  /* The avatar carries real identity (initials/color), unlike the old
+     decorative paddle icon it replaced, so shrink it here to save room
+     for the name and reorder controls instead of hiding it outright. */
+  .paddle .avatar{width:26px;height:26px;font-size:.62rem}
 }
 
 /* ---------- Mobile / narrow tablet portrait ---------- */
