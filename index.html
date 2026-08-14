@@ -82,7 +82,6 @@
   <button class="icon-btn" id="hostOnlineBtn" aria-label="Host or watch a live match online"><svg viewBox="0 0 24 24"><use href="#i-cloud"/></svg></button>
   <button class="icon-btn" id="callOutTopBtn" aria-label="Call a player"><svg viewBox="0 0 24 24"><use href="#i-bell"/></svg></button>
   <button class="icon-btn" id="rankingsBtn" aria-label="Rankings"><svg viewBox="0 0 24 24"><use href="#i-trophy"/></svg></button>
-  <button class="icon-btn" id="syncUpdateBtn" aria-label="Check for updates" title="Check for updates"><svg viewBox="0 0 24 24"><use href="#i-restart"/></svg></button>
   <button class="icon-btn" id="matchHistoryBtn" aria-label="Match history"><svg viewBox="0 0 24 24"><use href="#i-clock"/></svg></button>
   <button class="icon-btn" id="themeToggleBtn" aria-label="Toggle dark mode"><svg viewBox="0 0 24 24"><use href="#i-moon" id="themeToggleIconUse"/></svg></button>
   <button class="icon-btn" id="aboutBtn" aria-label="About this app"><svg viewBox="0 0 24 24"><use href="#i-info"/></svg></button>
@@ -438,32 +437,47 @@
 <div class="overlay" id="settingsOverlay" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-label="Settings">
     <h3>Settings</h3>
-    <div class="field">
-      <label for="settingsSessionName">Session name</label>
-      <input type="text" id="settingsSessionName" maxlength="40">
-    </div>
-    <div class="field">
-      <label>Game format (applies to all courts)</label>
-      <div class="seg" id="gameSizeSeg">
-        <button type="button" data-size="4" class="active">Doubles · 4</button>
-        <button type="button" data-size="2">Singles · 2</button>
+
+    <div class="field settings-card">
+      <div class="settings-card-head">
+        <span class="settings-card-icon"><svg viewBox="0 0 24 24"><use href="#i-court"/></svg></span>
+        <div class="settings-card-head-text"><label style="margin:0">Session</label></div>
+      </div>
+      <div class="field" style="margin-bottom:.9rem">
+        <label for="settingsSessionName">Session name</label>
+        <input type="text" id="settingsSessionName" maxlength="40">
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label>Game format (applies to all courts)</label>
+        <div class="seg" id="gameSizeSeg">
+          <button type="button" data-size="4" class="active">Doubles · 4</button>
+          <button type="button" data-size="2">Singles · 2</button>
+        </div>
       </div>
     </div>
-    <hr class="divider">
-    <div class="field">
-      <div class="toggle-row">
-        <label style="margin:0">Skill Levels</label>
-        <label class="switch">
+
+    <div class="field settings-card accent-gold">
+      <div class="settings-card-head">
+        <span class="settings-card-icon"><svg viewBox="0 0 24 24"><use href="#i-trophy"/></svg></span>
+        <div class="settings-card-head-text">
+          <label style="margin:0">Skill Levels</label>
+        </div>
+        <label class="switch" style="margin-left:auto">
           <input type="checkbox" id="skillLevelsToggle">
           <span class="track"></span>
         </label>
       </div>
-      <p class="add-hint" style="padding:0;margin-top:.4rem">Off by default — everyone plays Open Play together. Turn on to assign Beginner, Intermediate, Advanced, etc. to players and courts.</p>
+      <p class="add-hint" style="padding:0">Off by default — everyone plays Open Play together. Turn on to assign Beginner, Intermediate, Advanced, etc. to players and courts.</p>
     </div>
-    <hr class="divider">
-    <div class="field">
-      <label>Matching style</label>
-      <p class="add-hint" style="padding:0;margin:.1rem 0 .6rem">Choose how players rotate and how the queue forms matches.</p>
+
+    <div class="field settings-card">
+      <div class="settings-card-head">
+        <span class="settings-card-icon"><svg viewBox="0 0 24 24"><use href="#i-stack"/></svg></span>
+        <div class="settings-card-head-text">
+          <label style="margin:0">Matching style</label>
+          <p class="add-hint">Choose how players rotate and how the queue forms matches.</p>
+        </div>
+      </div>
       <div class="match-style-group" id="matchStyleGroup">
         <button type="button" class="match-style-card" data-style="balanced">
           <span class="match-style-head"><span class="match-style-check"><svg viewBox="0 0 24 24"><use href="#i-check"/></svg></span><span class="match-style-title">Balanced</span><span class="match-style-tag">Recommended</span></span>
@@ -482,58 +496,73 @@
         </button>
       </div>
     </div>
-    <hr class="divider">
-    <div class="field">
-      <label>Number of courts</label>
-      <div class="stepper">
-        <button type="button" id="courtMinus" aria-label="Fewer courts">–</button>
-        <span class="n" id="courtCountNum">2</span>
-        <button type="button" id="courtPlus" aria-label="More courts">+</button>
+
+    <div class="field settings-card">
+      <div class="settings-card-head">
+        <span class="settings-card-icon"><svg viewBox="0 0 24 24"><use href="#i-grid"/></svg></span>
+        <div class="settings-card-head-text"><label style="margin:0">Courts</label></div>
       </div>
-      <div class="court-name-rows" id="courtNameRows"></div>
-      <p class="add-hint" style="padding:0;margin-top:.45rem">Set each court's name and skill level here — the level shown on the court card is display-only.</p>
+      <div class="field" style="margin-bottom:0">
+        <label>Number of courts</label>
+        <div class="stepper">
+          <button type="button" id="courtMinus" aria-label="Fewer courts">–</button>
+          <span class="n" id="courtCountNum">2</span>
+          <button type="button" id="courtPlus" aria-label="More courts">+</button>
+        </div>
+        <div class="court-name-rows" id="courtNameRows"></div>
+        <p class="add-hint" style="padding:0;margin-top:.45rem">Set each court's name and skill level here — the level shown on the court card is display-only.</p>
+      </div>
     </div>
-    <div class="field toggle-row">
-      <label style="margin:0">Call-up voice (speaker)</label>
-      <label class="switch">
-        <input type="checkbox" id="soundToggle" checked>
-        <span class="track"></span>
-      </label>
-    </div>
-    <p class="add-hint" style="padding:0;margin-top:-.3rem">Speaks the next lineup out loud on this device when you tap "Call Players".</p>
-    <div class="field toggle-row">
-      <label style="margin:0">Notify players by phone</label>
-      <label class="switch">
-        <input type="checkbox" id="notifyCallsToggle" checked>
-        <span class="track"></span>
-      </label>
-    </div>
-    <p class="add-hint" style="padding:0;margin-top:-.3rem">Sends a phone notification to a player's device when you call them, whether or not the voice above is on. Only reaches players who've selected their name on the spectator view.</p>
-    <hr class="divider">
-    <div class="field">
+
+    <div class="field settings-card accent-gold">
+      <div class="settings-card-head">
+        <span class="settings-card-icon"><svg viewBox="0 0 24 24"><use href="#i-bell"/></svg></span>
+        <div class="settings-card-head-text"><label style="margin:0">Calls &amp; notifications</label></div>
+      </div>
       <div class="toggle-row">
-        <label style="margin:0">Enable Target Games</label>
+        <label style="margin:0">Call-up voice (speaker)</label>
         <label class="switch">
+          <input type="checkbox" id="soundToggle" checked>
+          <span class="track"></span>
+        </label>
+      </div>
+      <p class="add-hint" style="padding:0;margin-top:-.15rem">Speaks the next lineup out loud on this device when you tap "Call Players".</p>
+      <div class="toggle-row" style="margin-top:.5rem">
+        <label style="margin:0">Notify players by phone</label>
+        <label class="switch">
+          <input type="checkbox" id="notifyCallsToggle" checked>
+          <span class="track"></span>
+        </label>
+      </div>
+      <p class="add-hint" style="padding:0;margin-top:-.15rem">Sends a phone notification to a player's device when you call them, whether or not the voice above is on. Only reaches players who've selected their name on the spectator view.</p>
+    </div>
+
+    <div class="field settings-card">
+      <div class="settings-card-head">
+        <span class="settings-card-icon"><svg viewBox="0 0 24 24"><use href="#i-calendar"/></svg></span>
+        <div class="settings-card-head-text"><label style="margin:0">Enable Target Games</label></div>
+        <label class="switch" style="margin-left:auto">
           <input type="checkbox" id="targetGamesToggle">
           <span class="track"></span>
         </label>
       </div>
-      <p class="add-hint" style="padding:0;margin-top:.4rem">Automatically tracks games played and prioritizes players with fewer games until everyone reaches the target.</p>
+      <p class="add-hint" style="padding:0">Automatically tracks games played and prioritizes players with fewer games until everyone reaches the target.</p>
       <div class="target-sub" id="targetGamesSub" hidden>
         <label for="targetGamesInput">Target games per player</label>
         <input type="number" id="targetGamesInput" min="1" max="99" step="1" value="7">
       </div>
     </div>
-    <hr class="divider">
-    <div class="field">
-      <div class="toggle-row">
-        <label style="margin:0">Avoid Repeating Teammates</label>
-        <label class="switch">
+
+    <div class="field settings-card accent-gold">
+      <div class="settings-card-head">
+        <span class="settings-card-icon"><svg viewBox="0 0 24 24"><use href="#i-swap"/></svg></span>
+        <div class="settings-card-head-text"><label style="margin:0">Avoid Repeating Teammates</label></div>
+        <label class="switch" style="margin-left:auto">
           <input type="checkbox" id="avoidRepeatToggle">
           <span class="track"></span>
         </label>
       </div>
-      <p class="add-hint" style="padding:0;margin-top:.4rem">When forming doubles teams, tries to pair players who haven't been teammates yet. Repeats only happen if there's no valid alternative.</p>
+      <p class="add-hint" style="padding:0">When forming doubles teams, tries to pair players who haven't been teammates yet. Repeats only happen if there's no valid alternative.</p>
       <div class="target-sub" id="fixedDuoSub" hidden>
         <label>Fixed duo (optional)</label>
         <p class="add-hint" style="padding:0;margin-bottom:.5rem">Lock two players as permanent teammates whenever they're both in the same match — they'll never be split up, even to avoid a repeat pairing.</p>
@@ -545,38 +574,40 @@
         <div class="fixed-duo-list" id="fixedDuoList"></div>
       </div>
     </div>
-    <hr class="divider">
-    <div class="field">
-      <div class="toggle-row">
-        <label style="margin:0">Enable Scoring</label>
-        <label class="switch">
+
+    <div class="field settings-card accent-clay">
+      <div class="settings-card-head">
+        <span class="settings-card-icon"><svg viewBox="0 0 24 24"><use href="#i-trophy"/></svg></span>
+        <div class="settings-card-head-text"><label style="margin:0">Enable Scoring</label></div>
+        <label class="switch" style="margin-left:auto">
           <input type="checkbox" id="scoringToggle">
           <span class="track"></span>
         </label>
       </div>
-      <p class="add-hint" style="padding:0;margin-top:.4rem">Adds a live scoreboard to each in-progress court — serve tracking, point steppers, and side-outs — and carries the score straight into End Game.</p>
+      <p class="add-hint" style="padding:0">Adds a live scoreboard to each in-progress court — serve tracking, point steppers, and side-outs — and carries the score straight into End Game.</p>
       <div class="target-sub" id="scoringSub" hidden>
         <label for="winningScoreInput">Winning score</label>
         <input type="number" id="winningScoreInput" min="1" max="99" step="1" value="11">
       </div>
     </div>
-    <hr class="divider">
-    <div class="field">
-      <div class="toggle-row">
-        <label style="margin:0">Auto-start Ready Courts</label>
-        <label class="switch">
+
+    <div class="field settings-card">
+      <div class="settings-card-head">
+        <span class="settings-card-icon"><svg viewBox="0 0 24 24"><use href="#i-play"/></svg></span>
+        <div class="settings-card-head-text"><label style="margin:0">Auto-start Ready Courts</label></div>
+        <label class="switch" style="margin-left:auto">
           <input type="checkbox" id="autoStartToggle">
           <span class="track"></span>
         </label>
       </div>
-      <p class="add-hint" style="padding:0;margin-top:.4rem">If an open court has enough players and nobody taps Start Game within the time below, it starts automatically. Turn off to always start courts manually.</p>
+      <p class="add-hint" style="padding:0">If an open court has enough players and nobody taps Start Game within the time below, it starts automatically. Turn off to always start courts manually.</p>
       <div class="target-sub" id="autoStartSub" hidden>
         <label for="autoStartMinutesInput">Auto-start after (minutes)</label>
         <input type="number" id="autoStartMinutesInput" min="1" max="60" step="1" value="1">
       </div>
     </div>
-    <hr class="divider">
-    <div class="field">
+
+    <div class="field settings-card">
       <details class="roster-manage-wrap" id="rosterManageWrap">
         <summary class="roster-manage-toggle">
           <svg viewBox="0 0 24 24"><use href="#i-chev"/></svg>
@@ -593,25 +624,46 @@
         </div>
       </details>
     </div>
-    <hr class="divider">
-    <div class="field">
-      <label>Backup</label>
+
+    <div class="field settings-card accent-gold">
+      <div class="settings-card-head">
+        <span class="settings-card-icon"><svg viewBox="0 0 24 24"><use href="#i-cloud"/></svg></span>
+        <div class="settings-card-head-text"><label style="margin:0">Backup</label></div>
+      </div>
       <div class="file-row">
         <button class="btn ghost" id="exportBtn">Export JSON</button>
         <button class="btn ghost" id="importBtn">Import JSON</button>
         <input type="file" id="importFile" accept="application/json" hidden>
       </div>
     </div>
-    <hr class="divider">
-    <div class="danger-zone">
-      <h4>Session controls</h4>
-      <button class="btn ghost" id="restoreDefaultsBtn" style="width:100%;margin-bottom:.5rem"><svg viewBox="0 0 24 24" style="width:13px;height:13px;vertical-align:-2px;margin-right:.35rem"><use href="#i-restart"/></svg>Restore default settings</button>
-      <button class="btn warn" id="endSessionBtn" style="width:100%;margin-bottom:.5rem"><svg viewBox="0 0 24 24" style="width:13px;height:13px;vertical-align:-2px;margin-right:.35rem"><use href="#i-lock"/></svg>End session (keep all records)</button>
-      <button class="btn ghost" id="newSessionBtn" style="width:100%;margin-bottom:.5rem"><svg viewBox="0 0 24 24" style="width:13px;height:13px;vertical-align:-2px;margin-right:.35rem"><use href="#i-restart"/></svg>Start new session (keep player names)</button>
-      <button class="btn danger" id="resetBtn" style="width:100%;margin-bottom:.5rem"><svg viewBox="0 0 24 24" style="width:13px;height:13px;vertical-align:-2px;margin-right:.35rem"><use href="#i-trash"/></svg>Erase everything (players too)</button>
-      <button class="btn danger" id="clearAppDataBtn" style="width:100%"><svg viewBox="0 0 24 24" style="width:13px;height:13px;vertical-align:-2px;margin-right:.35rem"><use href="#i-trash"/></svg>Clear app data (factory reset)</button>
-      <p class="add-hint" style="padding:0;margin-top:.5rem">Clear app data wipes everything this app has stored on this device — session data, saved theme, and any host/login info — then reloads the page from scratch.</p>
+
+    <div class="field settings-card">
+      <div class="settings-card-head">
+        <span class="settings-card-icon"><svg viewBox="0 0 24 24"><use href="#i-refresh"/></svg></span>
+        <div class="settings-card-head-text">
+          <label style="margin:0">App updates</label>
+          <p class="add-hint">PaddleStack checks for a newer version automatically and asks before applying it. Tap to check right now.</p>
+        </div>
+      </div>
+      <button type="button" class="btn ghost pill" id="syncUpdateBtn" style="width:100%">
+        <svg viewBox="0 0 24 24" style="width:14px;height:14px"><use href="#i-restart"/></svg>
+        Check for updates
+      </button>
     </div>
+
+    <div class="field settings-card accent-clay">
+      <div class="settings-card-head">
+        <span class="settings-card-icon"><svg viewBox="0 0 24 24"><use href="#i-lock"/></svg></span>
+        <div class="settings-card-head-text"><label style="margin:0">Session controls</label></div>
+      </div>
+      <button class="btn ghost pill" id="restoreDefaultsBtn" style="width:100%;margin-bottom:.5rem"><svg viewBox="0 0 24 24" style="width:13px;height:13px"><use href="#i-restart"/></svg>Restore default settings</button>
+      <button class="btn warn pill" id="endSessionBtn" style="width:100%;margin-bottom:.5rem"><svg viewBox="0 0 24 24" style="width:13px;height:13px"><use href="#i-lock"/></svg>End session (keep all records)</button>
+      <button class="btn ghost pill" id="newSessionBtn" style="width:100%;margin-bottom:.5rem"><svg viewBox="0 0 24 24" style="width:13px;height:13px"><use href="#i-restart"/></svg>Start new session (keep player names)</button>
+      <button class="btn danger pill" id="resetBtn" style="width:100%;margin-bottom:.5rem"><svg viewBox="0 0 24 24" style="width:13px;height:13px"><use href="#i-trash"/></svg>Erase everything (players too)</button>
+      <button class="btn danger pill" id="clearAppDataBtn" style="width:100%"><svg viewBox="0 0 24 24" style="width:13px;height:13px"><use href="#i-trash"/></svg>Clear app data (factory reset)</button>
+      <p class="add-hint" style="padding:0;margin-top:.6rem">Clear app data wipes everything this app has stored on this device — session data, saved theme, and any host/login info — then reloads the page from scratch.</p>
+    </div>
+
     <div class="modal-actions">
       <button class="btn primary" id="settingsDone">Done</button>
     </div>
