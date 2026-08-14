@@ -12,7 +12,9 @@
       This does NOT add true push-from-server delivery — a viewer tab still
       has to be open and polling for that part to work. */
 
-const CACHE_VERSION = 'v9'; // bumped to precache legal.html (Disclaimer/Feedback page) so it opens offline too
+const CACHE_VERSION = 'v10'; // bumped: network-first fetches now use {cache:'no-store'} so a plain
+// tab (not just incognito) actually sees fresh script.js/style.css/index.html after a deploy,
+// instead of the browser's own HTTP cache quietly serving a stale copy underneath the SW.
 const CACHE_NAME = 'renzku-shell-' + CACHE_VERSION;
 
 // Same-origin files needed to render and run the app with no network at
@@ -85,7 +87,7 @@ self.addEventListener('fetch', (event) => {
   // loadable (and a match running) with no internet.
   if (req.mode === 'navigate'){
     event.respondWith(
-      fetch(req)
+      fetch(req, { cache: 'no-store' })
         .then((res) => {
           const copy = res.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put('./index.html', copy)).catch(() => {});
@@ -109,7 +111,7 @@ self.addEventListener('fetch', (event) => {
   // offline-shell behavior without ever letting JS/CSS lag behind the HTML
   // while online.
   event.respondWith(
-    fetch(req)
+    fetch(req, { cache: 'no-store' })
       .then((res) => {
         if (res && res.ok){
           const copy = res.clone();
