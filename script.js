@@ -1960,7 +1960,7 @@ function playerRowHtml(name, swap, sub){
   // card already covers this, and there's nothing else to tap through to
   // on a read-only screen) — instead they get a level subtitle under the
   // name, matching the reference dashboard's "Name / Unrated" pattern.
-  const viewerLevelSubtitle = viewerMode
+  const viewerLevelSubtitle = (viewerMode && skillLevelsEnabled())
     ? `<span class="viewer-player-level">${esc(levelLabel(getPlayerLevel(name)))}</span>`
     : '';
   return `<span class="player-col">
