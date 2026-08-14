@@ -933,5 +933,17 @@
 
 <script src="qrcode.min.js" defer></script>
 <script src="script.js" defer></script>
+<script>
+(function(){
+  function mark(){
+    try{
+      var c=(document.body.className+' '+document.documentElement.className).toLowerCase();
+      if(/spectator|viewer|live-view/.test(c)) document.body.classList.add('spectator-mode');
+    }catch(e){}
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',mark,{once:true});
+  else mark();
+})();
+</script>
 </body>
 </html>
