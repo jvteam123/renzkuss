@@ -6746,6 +6746,23 @@ function enterViewerMode(code){
     showConnCard('Connecting to live match\u2026', 'This usually only takes a second.', false);
   }
 
+  /* ---- Share: let a spectator pass the live link on to someone else.
+     Sits next to Rankings/History in the topbar, uses the native share
+     sheet where available and falls back to copying the link. ---- */
+  const shareBtn = $('#viewerShareBtn');
+  if (shareBtn){
+    shareBtn.hidden = false;
+    shareBtn.addEventListener('click', async () => {
+      const url = joinUrlFor(code);
+      if (navigator.share){
+        try{ await navigator.share({ title: 'PaddleStack \u2014 Live match', text: 'Watch this live PaddleStack session', url }); }
+        catch(e){ /* user dismissed the native share sheet — nothing to do */ }
+      } else {
+        copyText(url);
+      }
+    });
+  }
+
   /* ---- Notifications: player calls only ----
      Spectators used to also get pinged for "match started", "substitution",
      "game ended", and "next up changed" — but with everyone on the floor
