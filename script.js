@@ -198,6 +198,11 @@ function freshState(){
     playerStats: {},      // name -> {wins, games}
     teammateHistory: {},   // "nameA||nameB" (sorted) -> number of times paired as teammates this session
     opponentHistory: {},   // "nameA||nameB" (sorted) -> number of times faced each other as opponents this session
+    upNextSubMap: {},      // outgoing stack entry id -> incoming stack entry id; host-picked overrides for who
+                             // fills a specific "On deck" slot in the Up Next card (see openUpNextSubPicker).
+                             // Mirrors a court's previewSubMap: the outgoing player simply keeps their spot in
+                             // state.stack, the incoming player is claimed instead. Stale entries (either side
+                             // no longer in state.stack) are pruned lazily in renderUpNext().
     playerLevels: {},      // name -> skill level ('Open'|'Beginner'|'Advanced Beginner'|'Intermediate'|'Advanced')
     roster: [],            // known player names, kept across "new session" resets for quick re-adding
     playerCalls: []         // {id, name, court, title, body, ts} — recent "it's your turn" calls issued
@@ -1956,15 +1961,19 @@ function playerRowHtml(name, swap, sub){
   // own trophy chip here too, but that's redundant now that the Info
   // button's popup already surfaces games played, wins, and win rate —
   // one less thing crowding this row on narrow cards.
-  // Viewers don't get the Info button at all (Match Info on the Up Next
-  // card already covers this, and there's nothing else to tap through to
-  // on a read-only screen) — instead they get a level subtitle under the
-  // name, matching the reference dashboard's "Name / Unrated" pattern.
+  // Viewers don't get the full Info button/row (swap/sub don't apply and
+  // there's no room for the text label) — instead a small round "i" sits
+  // right next to their name and opens the exact same popup (see
+  // showPlayerDetailsPreview / the shared preview-name click handler on
+  // courtsGrid, which already runs regardless of viewer mode).
+  const viewerInfoBtn = viewerMode
+    ? `<button type="button" class="viewer-player-info-btn" data-act="preview-name" data-name="${esc(name)}" aria-label="View player details for ${esc(name)}" title="Player details"><svg viewBox="0 0 24 24"><use href="#i-info"/></svg></button>`
+    : '';
   const viewerLevelSubtitle = (viewerMode && skillLevelsEnabled())
     ? `<span class="viewer-player-level">${esc(levelLabel(getPlayerLevel(name)))}</span>`
     : '';
   return `<span class="player-col">
-    <span class="player-row">${avatarHtml(name)}<span class="player-name-txt" title="${esc(name)}">${esc(courtCardName(name))}</span></span>
+    <span class="player-row">${avatarHtml(name)}<span class="player-name-txt" title="${esc(name)}">${esc(courtCardName(name))}</span>${viewerInfoBtn}</span>
     ${viewerLevelSubtitle}
     <span class="player-actions-row">${previewBtn}${swapBtn}${subBtn}</span>
     <span class="player-games-row">${gamesChip}</span>
@@ -2637,9 +2646,50 @@ function closeSubOverlay(){
 // feedback — the exact "sometimes it just doesn't switch" symptom.
 function refreshSubPickerIfOpen(){
   if (!subTarget || subOverlay.hidden) return;
+  if (subTarget.upNext){
+    // Phase 1 (picking WHICH on-deck player to replace) has no court/incoming
+    // candidates to keep live — just re-list the group in case it changed.
+    // Phase 2 (subTarget.entryId set) re-renders the actual candidate list.
+    if (!subTarget.entryId){ renderUpNextSubChooser(); return; }
+    renderSubPicker(null);
+    return;
+  }
   const court = subTarget.courtId ? state.courts.find(c => c.id === subTarget.courtId) : null;
   if (subTarget.courtId && !court){ closeSubOverlay(); return; } // that court is gone entirely
   renderSubPicker(court);
+}
+// Opens the "customize this on-deck match" picker for a group of on-deck
+// player ids (see the pencil button rendered per row in renderUpNext).
+// Two phases sharing the same subOverlay markup: first pick which of the
+// group's players to replace (renderUpNextSubChooser), then pick their
+// replacement (renderSubPicker, same candidate list logic used for a
+// court's own preview subs).
+function openUpNextSubPicker(entryIds, groupNum){
+  if (!cohostActionAllowed('allowSubstitution', 'substitutions')) return;
+  if (isSessionEnded()){ toast('Session has ended'); return; }
+  if (!entryIds || entryIds.length === 0) return;
+  subTarget = { upNext: true, entryIds, groupNum, entryId: null };
+  renderUpNextSubChooser();
+  subOverlay.hidden = false;
+  if (subRefreshTimer) clearInterval(subRefreshTimer);
+  subRefreshTimer = setInterval(refreshSubPickerIfOpen, 1500);
+}
+function renderUpNextSubChooser(){
+  if (!subTarget || !subTarget.upNext) return;
+  subTitle.textContent = 'Customize On Deck ' + subTarget.groupNum;
+  subSubtitle.textContent = 'Tap a player to pick who fills their spot instead.';
+  subEmptyNote.hidden = true;
+  subList.innerHTML = subTarget.entryIds.map(id => {
+    const entry = state.stack.find(e => e.id === id);
+    if (!entry) return '';
+    return `
+    <div class="sub-row" data-choose-outgoing="${entry.id}">
+      <span class="arrival-name">${esc(entry.name)}</span>
+      <span class="level-badge ${levelClass(getPlayerLevel(entry.name))}">${esc(levelLabel(getPlayerLevel(entry.name)))}</span>
+      ${gamesChipHtml(getGamesPlayed(entry.name))}
+    </div>
+  `;
+  }).join('');
 }
 function openSubPicker(court, idx){
   if (!cohostActionAllowed('allowSubstitution', 'substitutions')) return;
@@ -2704,6 +2754,15 @@ function renderSubPicker(court){
     openQueueNow.forEach(slot => { if (slot.taken) slot.taken.forEach(e => claimed.add(e.id)); });
     const courtLevel = court.level || 'Open';
     candidates = getAllWaitingEntries().filter(e => !claimed.has(e.id) && levelsMatch(getPlayerLevel(e.name), courtLevel));
+  } else if (subTarget && subTarget.upNext){
+    // Same idea, but for the global Up Next card instead of one court's own
+    // preview: anyone already claimed by an open court's preview, or already
+    // sitting in another rendered on-deck group, is off the table. No level
+    // filtering — the Up Next card isn't scoped to a single court.
+    const openQueueNow = computeOpenCourtQueue(state.session.gameSize);
+    const claimed = new Set();
+    openQueueNow.forEach(slot => { if (slot.taken) slot.taken.forEach(e => claimed.add(e.id)); });
+    candidates = getAllWaitingEntries().filter(e => e.id !== subTarget.entryId && !claimed.has(e.id) && !upNextGroupClaimedIds.has(e.id));
   } else {
     // Mid-match sub on a live court: anyone off a court right now — stack
     // or either block — can step in.
@@ -2743,6 +2802,20 @@ function performSubstitution(entryId){
   if (!foundIncoming){ toast('That player is no longer available — pick another'); closeSubOverlay(); return; }
   const incoming = foundIncoming.entry;
   const incomingSrcKey = foundIncoming.src, incomingSrcIdx = foundIncoming.idx;
+  if (subTarget.upNext){
+    if (incoming.id === subTarget.entryId){ closeSubOverlay(); return; }
+    // Purely a "who fills this on-deck slot" preference — like a court's
+    // previewSubMap, this never touches state.stack directly. The outgoing
+    // player stays exactly where they are in the queue; renderUpNext()
+    // honors this pick on the next render, same as computeOpenCourtQueue
+    // does for a court's own preview.
+    state.upNextSubMap = state.upNextSubMap || {};
+    state.upNextSubMap[subTarget.entryId] = incoming.id;
+    toast(`${incoming.name} will fill this on-deck spot`);
+    closeSubOverlay();
+    renderAll(); persist();
+    return;
+  }
   if (subTarget.block){
     if (incoming.id === subTarget.entryId){ closeSubOverlay(); return; }
     // Pull the incoming player out of wherever they actually are (main
@@ -2805,6 +2878,18 @@ function performSubstitution(entryId){
   renderAll(); persist();
 }
 subList.addEventListener('click', (e) => {
+  const chooseRow = e.target.closest('.sub-row[data-choose-outgoing]');
+  if (chooseRow){
+    if (!subTarget || !subTarget.upNext) return;
+    const outgoingId = chooseRow.dataset.chooseOutgoing;
+    const entry = state.stack.find(en => en.id === outgoingId);
+    if (!entry) return;
+    subTarget.entryId = outgoingId;
+    subTitle.textContent = 'Sub in for ' + entry.name;
+    subSubtitle.textContent = entry.name + ' stays in the queue \u2014 pick who takes this on-deck spot instead.';
+    renderSubPicker(null);
+    return;
+  }
   const row = e.target.closest('.sub-row[data-id]');
   if (!row) return;
   performSubstitution(row.dataset.id);
@@ -3096,10 +3181,18 @@ document.addEventListener('click', (e) => {
 document.addEventListener('scroll', hideMatchInfoPreview, true);
 if (historyList){
   historyList.addEventListener('click', (e) => {
-    const btn = e.target.closest('button[data-act="match-info"]');
-    if (!btn) return;
-    const names = (btn.dataset.names || '').split('|').filter(Boolean);
-    showMatchInfoPreview(btn, names);
+    const infoBtn = e.target.closest('button[data-act="match-info"]');
+    if (infoBtn){
+      const names = (infoBtn.dataset.names || '').split('|').filter(Boolean);
+      showMatchInfoPreview(infoBtn, names);
+      return;
+    }
+    const editBtn = e.target.closest('button[data-act="edit-ondeck"]');
+    if (editBtn){
+      if (viewerMode) return; // host-only — hidden in viewer mode via CSS too, this is belt-and-suspenders
+      const ids = (editBtn.dataset.ids || '').split(',').filter(Boolean);
+      openUpNextSubPicker(ids, editBtn.dataset.groupNum);
+    }
   });
 }
 
@@ -3465,11 +3558,29 @@ $('#endgameConfirm').addEventListener('click', async () => {
 // preview logic computes and renders — same selectMatchEntries /
 // reconcileFixedDuosAcrossGroups calls as always, just a higher cap.
 let upNextExpanded = false;
+// Tracks every player id currently claimed by a rendered "On deck" group, as
+// of the last renderUpNext() call — used to keep the customize-slot picker
+// (openUpNextSubPicker) from offering someone who's already locked into
+// another on-deck row.
+let upNextGroupClaimedIds = new Set();
 function renderUpNext(){
   const expandBtn = $('#upNextExpandBtn');
+  // Drop any customize-slot picks that no longer make sense — either side
+  // having left state.stack entirely (started a match, got removed, etc).
+  // Lazy, cheap, and keeps this from silently accumulating dead entries.
+  if (state.upNextSubMap && Object.keys(state.upNextSubMap).length){
+    const stackIds = new Set(state.stack.map(e => e.id));
+    const pruned = {};
+    Object.keys(state.upNextSubMap).forEach(outId => {
+      const inId = state.upNextSubMap[outId];
+      if (stackIds.has(outId) && stackIds.has(inId)) pruned[outId] = inId;
+    });
+    state.upNextSubMap = pruned;
+  }
   if (state.courts.length === 0){
     historyList.innerHTML = '<div class="ondeck-empty">Add a court to see who plays next.</div>';
     if (expandBtn) expandBtn.hidden = true;
+    upNextGroupClaimedIds = new Set();
     updateViewerUpNext();
     return;
   }
@@ -3486,6 +3597,7 @@ function renderUpNext(){
       ? '<div class="ondeck-empty">The stack is empty — add players to fill the next match.</div>'
       : '<div class="ondeck-empty">Everyone waiting is already lined up for an open court.</div>';
     if (expandBtn) expandBtn.hidden = true;
+    upNextGroupClaimedIds = new Set();
     updateViewerUpNext();
     return;
   }
@@ -3507,6 +3619,34 @@ function renderUpNext(){
   }
   const reconciled = reconcileFixedDuosAcrossGroups(groups, onDeck, gameSize);
 
+  // Apply any "customize this on-deck slot" picks the host made (see
+  // openUpNextSubPicker / state.upNextSubMap). Same mechanics as a court's
+  // previewSubMap: the outgoing player is simply left where they are in
+  // state.stack (so they naturally get picked up somewhere else), the
+  // incoming player is pulled into this exact slot. A pick that's gone
+  // stale — incoming already claimed by an open court or another on-deck
+  // group, or would split a fixed duo — is silently skipped, same as the
+  // court version.
+  if (state.upNextSubMap && Object.keys(state.upNextSubMap).length){
+    const usedIncomingIds = new Set();
+    reconciled.forEach(group => {
+      for (let outIdx = 0; outIdx < group.length; outIdx++){
+        const outgoing = group[outIdx];
+        const incomingId = state.upNextSubMap[outgoing.id];
+        if (!incomingId || usedIncomingIds.has(incomingId)) continue;
+        const alreadyPlaced = reconciled.some(g => g.some(e => e.id === incomingId));
+        if (alreadyPlaced) continue;
+        const incomingEntry = state.stack.find(e => e.id === incomingId);
+        if (!incomingEntry || claimed.has(incomingEntry.id)) continue;
+        if (isInFixedDuo(outgoing.name) || isInFixedDuo(incomingEntry.name)) continue;
+        group[outIdx] = incomingEntry;
+        usedIncomingIds.add(incomingId);
+      }
+    });
+  }
+  upNextGroupClaimedIds = new Set();
+  reconciled.forEach(g => g.forEach(e => upNextGroupClaimedIds.add(e.id)));
+
   // Numbered "ON DECK 1/2/3" rows with "&"-joined team names on one line
   // and a player-count icon — same layout for host and spectator alike.
   const rows = [];
@@ -3520,6 +3660,7 @@ function renderUpNext(){
       const [a, b] = splitTeams(names);
       matchup = `<span class="ondeck-team">${a.map(esc).join(' &amp; ')}</span><span class="ondeck-vs">vs</span><span class="ondeck-team">${b.map(esc).join(' &amp; ')}</span>`;
     }
+    const editIds = chosen.map(p => p.id).join(',');
     rows.push(`
       <div class="ondeck-row">
         <span class="ondeck-badge-col">
@@ -3527,6 +3668,7 @@ function renderUpNext(){
           <span class="ondeck-index">${groupNum}</span>
         </span>
         <span class="ondeck-matchup">${matchup}</span>
+        <button type="button" class="ondeck-edit-btn" data-act="edit-ondeck" data-ids="${editIds}" data-group-num="${groupNum}" aria-label="Customize on-deck match ${groupNum}" title="Customize this match"><svg viewBox="0 0 24 24"><use href="#i-pencil"/></svg></button>
         <span class="ondeck-meta"><svg viewBox="0 0 24 24"><use href="#i-user"/></svg>${chosen.length}</span>
       </div>`);
   });
@@ -4474,6 +4616,7 @@ $('#importFile').addEventListener('change', async (e) => {
     if (!parsed.playerStats || typeof parsed.playerStats !== 'object') parsed.playerStats = {};
     if (!parsed.teammateHistory || typeof parsed.teammateHistory !== 'object') parsed.teammateHistory = {};
     if (!parsed.opponentHistory || typeof parsed.opponentHistory !== 'object') parsed.opponentHistory = {};
+    if (!parsed.upNextSubMap || typeof parsed.upNextSubMap !== 'object') parsed.upNextSubMap = {};
     parsed.courts.forEach(c => { if (!('lastResult' in c)) c.lastResult = null; if (!('swapInfo' in c)) c.swapInfo = null; if (!('previewOrder' in c)) c.previewOrder = null; if (!('previewSubMap' in c)) c.previewSubMap = null; });
     parsed.stack.forEach(p => { if (!p.tag) p.tag = 'new'; });
     if (!parsed.session.status) parsed.session.status = 'active';
@@ -4513,6 +4656,7 @@ function startFreshSessionKeepingRoster(){
   state.playerStats = {};
   state.teammateHistory = {};
   state.opponentHistory = {};
+  state.upNextSubMap = {};
   state.session.status = 'active';
   state.courts.forEach(c => { c.status = 'open'; c.players = []; c.startTime = null; c.lastResult = null; c.swapInfo = null; c.previewOrder = null; c.previewSubMap = null; c.openedAt = Date.now(); });
   persist();
@@ -7436,6 +7580,7 @@ function renderCourtsStatsBar(){
     if (!state.playerStats || typeof state.playerStats !== 'object') state.playerStats = {};
     if (!state.teammateHistory || typeof state.teammateHistory !== 'object') state.teammateHistory = {};
     if (!state.opponentHistory || typeof state.opponentHistory !== 'object') state.opponentHistory = {};
+    if (!state.upNextSubMap || typeof state.upNextSubMap !== 'object') state.upNextSubMap = {};
     if (!Array.isArray(state.roster)){
       // Backfill roster for older saves from every name we can find, so no one is lost.
       const names = new Set();
