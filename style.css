@@ -1893,6 +1893,24 @@ body.cohost-mode .court-name{ pointer-events:none; }
 .call-players-modal .call-status-list:empty{display:none;padding:0;border:none;margin-top:0}
 .call-players-modal .modal-actions{justify-content:center}
 
+/* ---------- "It's your turn!" spectator popup ---------- */
+.player-called-modal{max-width:400px;text-align:center;padding-top:2.2rem}
+.player-called-icon{
+  width:64px;height:64px;margin:0 auto 1rem;border-radius:50%;
+  background:var(--turf-pale);color:var(--turf-deep);
+  display:flex;align-items:center;justify-content:center;
+  position:relative;
+  animation:player-called-pulse 1.4s ease-in-out infinite;
+}
+.player-called-icon svg{width:30px;height:30px}
+.player-called-modal h3{margin:0 0 .5rem;font-size:1.4rem}
+.player-called-body{margin:0 0 .3rem;color:var(--slate);font-size:.95rem;line-height:1.5}
+.player-called-modal .modal-actions{justify-content:center}
+@keyframes player-called-pulse{
+  0%,100%{box-shadow:0 0 0 0 var(--turf-pale)}
+  50%{box-shadow:0 0 0 10px rgba(0,0,0,0)}
+}
+
 /* Spectator "up next" notification: a floating card that sits above the
    courts grid so anyone watching remotely sees the very next matchup at a
    glance, instead of having to scroll down to the collapsed "Up next"
