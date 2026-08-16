@@ -373,6 +373,50 @@ window.addEventListener('appinstalled', () => {
   if (installAppBtn) installAppBtn.hidden = true;
 });
 
+/* ---- iOS "Add to Home Screen" hint (spectator side) ----
+   iOS never fires 'beforeinstallprompt' (that's a Chromium-only event) and,
+   more importantly, Safari — and every other iOS browser, since Apple
+   requires them all to run on WebKit — has no Notification API at all
+   outside a Home-Screen-installed, standalone-launched PWA. So a spectator
+   on an iPhone who picks their player name can never get the native "Allow
+   Notifications?" permission popup from a normal browser tab, no matter
+   which browser they're using. This surfaces the one manual path that
+   *does* unlock it, right after they register as a player — shown once per
+   device so it doesn't nag on every "Change Player". */
+function isIOSBrowserTab(){
+  const ua = navigator.userAgent || '';
+  const iOSDevice = /iPad|iPhone|iPod/.test(ua) ||
+    // iPadOS 13+ reports itself as "Macintosh" but is touch-capable, unlike a real Mac.
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (!iOSDevice) return false;
+  // Already installed and launched from the Home Screen — Notification API
+  // is available there (iOS 16.4+), so there's nothing to hint at.
+  const standalone = window.navigator.standalone === true ||
+    (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+  return !standalone;
+}
+const IOS_ADDHOME_DISMISSED_KEY = 'paddleStackIOSAddHomeDismissed';
+function iosAddHomeDismissed(){
+  try{ return localStorage.getItem(IOS_ADDHOME_DISMISSED_KEY) === '1'; }catch(e){ return false; }
+}
+function dismissIOSAddHomeHint(){
+  try{ localStorage.setItem(IOS_ADDHOME_DISMISSED_KEY, '1'); }catch(e){}
+}
+const iosAddHomeOverlay = $('#iosAddHomeOverlay');
+const iosAddHomeOkBtn = $('#iosAddHomeOkBtn');
+function showIOSAddHomeHint(){
+  if (!iosAddHomeOverlay || iosAddHomeDismissed()) return;
+  iosAddHomeOverlay.hidden = false;
+}
+function closeIOSAddHomeHint(){
+  if (!iosAddHomeOverlay) return;
+  iosAddHomeOverlay.hidden = true;
+  dismissIOSAddHomeHint();
+}
+if (iosAddHomeOkBtn) iosAddHomeOkBtn.addEventListener('click', closeIOSAddHomeHint);
+if (iosAddHomeOverlay) iosAddHomeOverlay.addEventListener('click', (e) => { if (e.target === iosAddHomeOverlay) closeIOSAddHomeHint(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && iosAddHomeOverlay && !iosAddHomeOverlay.hidden) closeIOSAddHomeHint(); });
+
 /* ================= Keyboard-aware viewport (mobile modals) =================
    On phones, opening the on-screen keyboard shrinks the *visual* viewport
    without necessarily shrinking the *layout* viewport, so our fixed-position
@@ -7194,6 +7238,11 @@ function enterViewerMode(code){
     const granted = await ensureNotifyPermission();
     if (granted){
       fireNotification(`You're set as ${name}`, "We'll notify this phone when it's your turn.");
+    } else if (isIOSBrowserTab()){
+      // The permission prompt never had a chance to appear on iOS outside
+      // an installed PWA — point them at the one path that unlocks it,
+      // instead of leaving it looking like nothing happened.
+      showIOSAddHomeHint();
     }
     // Reflect the (now possibly just-granted) permission in the "Notify"
     // quick-action button immediately, so the person doesn't have to also
