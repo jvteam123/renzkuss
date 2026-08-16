@@ -2351,6 +2351,19 @@ html[data-theme="dark"] .mobile-tabs button.active{
   font-family:var(--font-mono);font-size:.8rem;font-weight:700;color:var(--slate);
 }
 .ondeck-meta svg{width:14px;height:14px}
+.ondeck-edit-btn{
+  flex-shrink:0;align-self:center;display:flex;align-items:center;justify-content:center;
+  width:28px;height:28px;border-radius:50%;border:1px solid var(--line);
+  background:var(--court);color:var(--slate);cursor:pointer;transition:background .15s,color .15s,border-color .15s;
+}
+.ondeck-edit-btn svg{width:13px;height:13px}
+.ondeck-edit-btn:hover{background:var(--turf-pale);border-color:var(--turf);color:var(--turf-deep)}
+html[data-theme="dark"] .ondeck-edit-btn{background:#0F1930;border-color:#1E2A42;color:#B9C6DE}
+html[data-theme="dark"] .ondeck-edit-btn:hover{background:#101D38;border-color:var(--turf)}
+/* Editing who fills an on-deck slot is host-only — spectators get the
+   read-only Up Next card, same principle as .player-swap-btn/.player-sub-btn
+   being hidden on a live court preview below. */
+body.viewer-mode .ondeck-edit-btn{display:none !important}
 html[data-theme="dark"] .ondeck-badge{background:rgba(47,111,237,.16);color:#8FB3FF}
 html[data-theme="dark"] .ondeck-index{color:#fff}
 html[data-theme="dark"] .ondeck-vs{color:#8FB3FF;background:transparent;font-weight:800}
@@ -2602,6 +2615,23 @@ body.viewer-mode .viewer-team-header-a{background:var(--turf)}
 body.viewer-mode .viewer-team-header-b{background:var(--clay);text-align:right}
 body.viewer-mode .court-card.playing .viewer-team-header-a{background:#3D6FE0}
 body.viewer-mode .court-card.playing .viewer-team-header-b{background:#E0455A}
+
+/* Small round "i" next to each player's name on the spectator view — opens
+   the same player-details bubble as the host's Info button (see
+   showPlayerDetailsPreview / .player-details-pop). Hidden by default like
+   the other viewer-only pieces above; only ever rendered when viewerMode
+   is true (see playerRowHtml), but scoped defensively all the same. */
+.viewer-player-info-btn{display:none}
+body.viewer-mode .viewer-player-info-btn{
+  display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
+  width:18px;height:18px;border-radius:50%;border:1px solid var(--line);
+  background:var(--court);color:var(--slate);cursor:pointer;padding:0;
+}
+body.viewer-mode .viewer-player-info-btn svg{width:11px;height:11px}
+body.viewer-mode .viewer-player-info-btn:hover,
+body.viewer-mode .viewer-player-info-btn:focus-visible{background:var(--turf-pale);border-color:var(--turf);color:var(--turf-deep)}
+html[data-theme="dark"] body.viewer-mode .viewer-player-info-btn{background:#0F1930;border-color:#1E2A42;color:#B9C6DE}
+html[data-theme="dark"] body.viewer-mode .viewer-player-info-btn:hover{background:#101D38;border-color:var(--info-blue)}
 
 @media (max-width:520px){
   body.viewer-mode .avatar{width:24px;height:24px;font-size:.58rem}
