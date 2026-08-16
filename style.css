@@ -2565,7 +2565,15 @@ body.viewer-mode .matchup .team.team-b{background:rgba(206,17,38,.1)}
 body.viewer-mode .court-card.playing .matchup .team{background:rgba(61,111,224,.16)}
 body.viewer-mode .court-card.playing .matchup .team.team-b{background:rgba(224,69,90,.14)}
 body.viewer-mode .matchup .team > .player-col{padding:.5rem .8rem .65rem}
-body.viewer-mode .matchup .team.team-b > .player-col{align-items:flex-end;text-align:right}
+/* Name pinned to the left edge, info icon pinned to the right edge — same
+   arrangement for both teams. Team 2's column used to shrink-wrap and
+   hug the right side (inherited from the host layout's align-items:
+   flex-end/text-align:right, meant for when an avatar sits on the outer
+   edge), which bunched the name up against the icon instead of spanning
+   the card like Team 1 does. */
+body.viewer-mode .matchup .team.team-b > .player-col{align-items:stretch;text-align:left;align-self:stretch}
+body.viewer-mode .player-row{width:100%;justify-content:space-between}
+body.viewer-mode .player-name-txt{text-align:left}
 body.viewer-mode .avatar{display:none}
 body.viewer-mode .player-name-txt{font-size:.92rem;font-weight:800}
 body.viewer-mode .viewer-player-level{
