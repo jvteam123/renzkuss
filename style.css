@@ -41,6 +41,13 @@
   --sub-amber:#F0B429;
   --sub-amber-deep:#C4880C;
   --sub-amber-pale:#FDF0D2;
+  /* ---- Player-call delivery status (host "Call Players" dialog etc) ----
+     Orange = not connected, light green = connected — deliberately not
+     the flag blue/red used everywhere else, so these two states read as
+     a distinct at-a-glance status signal rather than blending into the
+     brand palette. */
+  --status-ok:#1E9E52;
+  --status-warn:#F0740C;
   --radius:14px;
   --radius-sm:9px;
   --shadow-sm:0 1px 3px rgba(10,30,61,.08), 0 1px 2px rgba(10,30,61,.06);
@@ -86,6 +93,8 @@ html[data-theme="dark"]{
   --danger:#FF6B75;
   --danger-pale:rgba(255,107,117,.15);
   --sub-amber-pale:rgba(240,180,41,.16);
+  --status-ok:#4ADE80;
+  --status-warn:#FFA94D;
   --shadow-sm:0 1px 2px rgba(0,0,0,.5);
   --shadow-md:0 12px 32px rgba(0,0,0,.6);
   color-scheme:dark;
@@ -431,6 +440,33 @@ body.session-locked .quick-add-panel{opacity:.55;pointer-events:none}
 .subpick-row:hover .subpick-row-chevron{color:var(--sub-amber-deep);transform:translateX(2px)}
 html[data-theme="dark"] .subpick-row:hover .subpick-row-chevron{color:var(--sub-amber)}
 html[data-theme="dark"] .subpick-row:hover{border-color:var(--sub-amber);background:var(--sub-amber-pale)}
+
+/* ---- "Which player are you?" list (spectator) ----
+   Same card-row treatment as the host's "Pick a substitute" list above
+   (.subpick-row) — bordered card, avatar, trailing chevron — just with
+   the app's normal turf accent instead of the amber "sub" accent, since
+   picking your own name isn't a substitution action. */
+.player-pick-list{display:flex;flex-direction:column;gap:.4rem;max-height:min(46vh,340px);overflow-y:auto;padding-right:.1rem}
+.player-pick-row{
+  display:flex;align-items:center;gap:.65rem;width:100%;text-align:left;
+  background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius-sm);
+  min-height:var(--touch);padding:.7rem .75rem;cursor:pointer;
+  font-family:var(--font-body);color:var(--ink);
+  transition:border-color .15s,background .15s,transform .1s,box-shadow .15s;
+  box-shadow:var(--shadow-sm);
+}
+.player-pick-row:hover{border-color:var(--turf-deep);background:var(--turf-pale)}
+.player-pick-row:active{transform:scale(.985)}
+.player-pick-row .avatar{width:36px;height:36px;font-size:.85rem;flex-shrink:0}
+.player-pick-row .pp-name{flex:1 1 auto;min-width:0;font-size:.98rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.player-pick-row .pp-current{
+  flex-shrink:0;font-size:.66rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;
+  color:var(--turf-deep);background:var(--turf-pale);padding:.2rem .5rem;border-radius:99px;
+}
+.player-pick-row .pp-chevron{width:18px;height:18px;flex-shrink:0;color:var(--line);transition:color .15s,transform .15s}
+.player-pick-row:hover .pp-chevron{color:var(--turf-deep);transform:translateX(2px)}
+html[data-theme="dark"] .player-pick-row:hover .pp-chevron{color:var(--turf)}
+html[data-theme="dark"] .player-pick-row:hover{border-color:var(--turf);background:var(--turf-pale)}
 /* Extra gap (beyond the base .arrivals-list gap) so adjacent rows have a
    clear visual and physical buffer between tap targets — the tight .4rem
    default was easy to mis-tap between two names stacked back-to-back. */
@@ -1864,8 +1900,8 @@ body.cohost-mode .court-name{ pointer-events:none; }
 .call-status-card .csc-title{font-size:.76rem;font-weight:800;color:var(--slate);text-transform:uppercase;letter-spacing:.03em;margin-bottom:.35rem;display:flex;align-items:center;gap:.35rem}
 .call-status-card .csc-title svg{width:12px;height:12px}
 .call-status-line{display:flex;align-items:center;gap:.4rem;font-size:.84rem;font-weight:600;padding:.15rem 0}
-.call-status-line.ok{color:var(--turf-deep)}
-.call-status-line.warn{color:var(--clay-deep)}
+.call-status-line.ok{color:var(--status-ok)}
+.call-status-line.warn{color:var(--status-warn)}
 .call-status-line.unknown{color:var(--slate)}
 .call-status-list{display:flex;flex-direction:column;gap:.2rem;margin-top:.6rem}
 .call-status-list:empty{display:none;margin:0}
