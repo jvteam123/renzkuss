@@ -402,23 +402,27 @@ body.session-locked .quick-add-panel{opacity:.55;pointer-events:none}
    (not .sub-row) since that name is already used for the unrelated
    tag/level/games badge strip inside the stack's .paddle rows. */
 .subpick-row{
-  display:flex;align-items:center;gap:.55rem;
+  display:flex;align-items:center;gap:.65rem;
   background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius-sm);
-  padding:.5rem .6rem;cursor:pointer;transition:border-color .15s,background .15s,transform .1s,box-shadow .15s;
+  min-height:var(--touch);padding:.7rem .75rem;cursor:pointer;
+  transition:border-color .15s,background .15s,transform .1s,box-shadow .15s;
   box-shadow:var(--shadow-sm);
 }
 .subpick-row:hover{border-color:var(--sub-amber-deep);background:var(--sub-amber-pale)}
 .subpick-row:active{transform:scale(.985)}
-.subpick-row .avatar{width:30px;height:30px;font-size:.72rem}
-.subpick-row .arrival-name{flex:1}
+.subpick-row .avatar{width:36px;height:36px;font-size:.85rem}
+.subpick-row .arrival-name{flex:1;font-size:.95rem}
 .subpick-row .level-badge{flex-shrink:0}
 .subpick-row-chevron{
-  width:16px;height:16px;flex-shrink:0;color:var(--line);transition:color .15s,transform .15s;
+  width:18px;height:18px;flex-shrink:0;color:var(--line);transition:color .15s,transform .15s;
 }
 .subpick-row:hover .subpick-row-chevron{color:var(--sub-amber-deep);transform:translateX(2px)}
 html[data-theme="dark"] .subpick-row:hover .subpick-row-chevron{color:var(--sub-amber)}
 html[data-theme="dark"] .subpick-row:hover{border-color:var(--sub-amber);background:var(--sub-amber-pale)}
-.sub-picker-list{margin-top:0}
+/* Extra gap (beyond the base .arrivals-list gap) so adjacent rows have a
+   clear visual and physical buffer between tap targets — the tight .4rem
+   default was easy to mis-tap between two names stacked back-to-back. */
+.sub-picker-list{margin-top:0;gap:.55rem}
 
 .player-sub-btn{
   border:1px solid var(--sub-amber-deep);background:var(--sub-amber);color:var(--brand-ink);cursor:pointer;
