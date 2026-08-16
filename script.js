@@ -7257,10 +7257,19 @@ function enterViewerMode(code){
   if (playerSelectGuestBtn) playerSelectGuestBtn.addEventListener('click', chooseGuest);
   if (playerSelectBackBtn) playerSelectBackBtn.addEventListener('click', () => { closePlayerSelect(); if (!viewerIdentity) openWhosWatching(); });
   if (playerSelectList){
-    playerSelectList.addEventListener('click', (e) => {
+    playerSelectList.addEventListener('click', async (e) => {
       const row = e.target.closest('button[data-name]');
       if (!row) return;
-      choosePlayer(row.dataset.name);
+      const name = row.dataset.name;
+      // Confirm before locking this phone in as a specific player — picking
+      // the wrong name means someone else's court calls end up buzzing a
+      // stranger's pocket (and this phone never gets its own).
+      const ok = await showConfirm(
+        `Make sure it's really you before we start sending court call-ups to this phone.`,
+        { title: `Are you sure you're ${name}?`, confirmLabel: "Yes, that's me", cancelLabel: 'Pick again' }
+      );
+      if (!ok) return;
+      choosePlayer(name);
     });
   }
   if (viewerChangePlayerBtn) viewerChangePlayerBtn.addEventListener('click', openWhosWatching);
