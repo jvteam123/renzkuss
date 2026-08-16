@@ -40,6 +40,7 @@
   --swap-orange-deep:#C25A00;
   --sub-amber:#F0B429;
   --sub-amber-deep:#C4880C;
+  --sub-amber-pale:#FDF0D2;
   --radius:14px;
   --radius-sm:9px;
   --shadow-sm:0 1px 3px rgba(10,30,61,.08), 0 1px 2px rgba(10,30,61,.06);
@@ -84,6 +85,7 @@ html[data-theme="dark"]{
   --surface:#101A2C;
   --danger:#FF6B75;
   --danger-pale:rgba(255,107,117,.15);
+  --sub-amber-pale:rgba(240,180,41,.16);
   --shadow-sm:0 1px 2px rgba(0,0,0,.5);
   --shadow-md:0 12px 32px rgba(0,0,0,.6);
   color-scheme:dark;
@@ -390,6 +392,33 @@ body.session-locked .quick-add-panel{opacity:.55;pointer-events:none}
 .sub-row:hover{border-color:var(--turf);background:var(--turf-pale)}
 .sub-row .arrival-name{flex:1}
 .sub-row .level-badge{flex-shrink:0}
+
+/* ---- Sub picker rows ----
+   Reuses the arrivals-list shell but styled to read as a "sub" action:
+   avatar for quick recognition (same chip used everywhere else a player
+   is identified), amber tap-highlight to match the SUB button's color
+   language, and a trailing chevron so it's obvious the whole row is
+   tappable rather than looking like a static info card. Its own class
+   (not .sub-row) since that name is already used for the unrelated
+   tag/level/games badge strip inside the stack's .paddle rows. */
+.subpick-row{
+  display:flex;align-items:center;gap:.55rem;
+  background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius-sm);
+  padding:.5rem .6rem;cursor:pointer;transition:border-color .15s,background .15s,transform .1s,box-shadow .15s;
+  box-shadow:var(--shadow-sm);
+}
+.subpick-row:hover{border-color:var(--sub-amber-deep);background:var(--sub-amber-pale)}
+.subpick-row:active{transform:scale(.985)}
+.subpick-row .avatar{width:30px;height:30px;font-size:.72rem}
+.subpick-row .arrival-name{flex:1}
+.subpick-row .level-badge{flex-shrink:0}
+.subpick-row-chevron{
+  width:16px;height:16px;flex-shrink:0;color:var(--line);transition:color .15s,transform .15s;
+}
+.subpick-row:hover .subpick-row-chevron{color:var(--sub-amber-deep);transform:translateX(2px)}
+html[data-theme="dark"] .subpick-row:hover .subpick-row-chevron{color:var(--sub-amber)}
+html[data-theme="dark"] .subpick-row:hover{border-color:var(--sub-amber);background:var(--sub-amber-pale)}
+.sub-picker-list{margin-top:0}
 
 .player-sub-btn{
   border:1px solid var(--sub-amber-deep);background:var(--sub-amber);color:var(--brand-ink);cursor:pointer;
@@ -1216,6 +1245,7 @@ body:not(.levels-on) .court-level-select{
 }
 .settings-card.accent-gold::before{background:var(--gold)}
 .settings-card.accent-clay::before{background:var(--clay)}
+.settings-card.accent-amber::before{background:var(--sub-amber)}
 .settings-card-head{display:flex;align-items:flex-start;gap:.65rem;margin-bottom:.75rem}
 .settings-card-head:last-child{margin-bottom:0}
 .settings-card-icon{
@@ -1225,6 +1255,7 @@ body:not(.levels-on) .court-level-select{
 }
 .settings-card.accent-gold .settings-card-icon{background:var(--gold-pale);color:var(--gold-ink)}
 .settings-card.accent-clay .settings-card-icon{background:var(--danger-pale);color:var(--clay-deep)}
+.settings-card.accent-amber .settings-card-icon{background:var(--sub-amber-pale);color:var(--sub-amber-deep)}
 .settings-card-icon svg{width:16px;height:16px}
 .settings-card-head-text{min-width:0}
 .settings-card-head-text label{margin:0 0 .2rem !important}
