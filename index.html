@@ -951,6 +951,28 @@
   </div>
 </div>
 
+<!-- iOS "Add to Home Screen" hint — shown once to a spectator on iPhone/
+     iPad, right after they pick their player name, since Safari (and every
+     other iOS browser — Apple requires them all to run on WebKit) can't
+     show the native notification-permission prompt from a normal browser
+     tab. Installing to the Home Screen and opening from there is the only
+     way to unlock it. -->
+<div class="overlay ios-addhome-overlay" id="iosAddHomeOverlay" hidden>
+  <div class="modal ios-addhome-modal" role="dialog" aria-modal="true" aria-labelledby="iosAddHomeTitle" aria-describedby="iosAddHomeBody">
+    <div class="ios-addhome-icon"><svg viewBox="0 0 24 24"><use href="#i-bell"/></svg></div>
+    <h3 id="iosAddHomeTitle">Get notified on iPhone</h3>
+    <p id="iosAddHomeBody" class="ios-addhome-body">iPhone only allows call alerts for apps added to your Home Screen. You'll still get the on-screen "It's your turn!" popup either way — but for alerts even when your screen is locked:</p>
+    <ol class="ios-addhome-steps">
+      <li><span class="ios-addhome-step-icon"><svg viewBox="0 0 24 24"><use href="#i-share"/></svg></span><span>Tap the <b>Share</b> button in Safari (or Chrome)</span></li>
+      <li><span class="ios-addhome-step-icon"><svg viewBox="0 0 24 24"><use href="#i-plus"/></svg></span><span>Choose <b>Add to Home Screen</b></span></li>
+      <li><span class="ios-addhome-step-icon"><svg viewBox="0 0 24 24"><use href="#i-bell"/></svg></span><span>Open PaddleStack from that icon and pick your name again</span></li>
+    </ol>
+    <div class="modal-actions">
+      <button type="button" class="btn primary" id="iosAddHomeOkBtn">Got it</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast-wrap" id="toastWrap"></div>
 <div class="call-status-wrap" id="callStatusWrap" aria-live="polite"></div>
 
