@@ -1947,6 +1947,33 @@ body.cohost-mode .court-name{ pointer-events:none; }
   50%{box-shadow:0 0 0 10px rgba(0,0,0,0)}
 }
 
+/* ---------- iOS "Add to Home Screen" hint ---------- */
+.ios-addhome-modal{max-width:420px;text-align:center}
+.ios-addhome-icon{
+  width:52px;height:52px;margin:0 auto .9rem;border-radius:50%;
+  background:var(--turf-pale);color:var(--turf-deep);
+  display:flex;align-items:center;justify-content:center;
+}
+.ios-addhome-icon svg{width:24px;height:24px}
+.ios-addhome-modal h3{margin:0 0 .5rem}
+.ios-addhome-body{margin:0 0 1.1rem;color:var(--slate);font-size:.9rem;line-height:1.55;text-align:left}
+.ios-addhome-steps{
+  list-style:none;margin:0 0 .2rem;padding:0;text-align:left;
+  display:flex;flex-direction:column;gap:.6rem;
+}
+.ios-addhome-steps li{
+  display:flex;align-items:center;gap:.65rem;
+  background:var(--court);border:1px solid var(--line);border-radius:var(--radius-sm);
+  padding:.6rem .75rem;font-size:.88rem;color:var(--ink);line-height:1.4;
+}
+.ios-addhome-step-icon{
+  flex-shrink:0;width:30px;height:30px;border-radius:50%;
+  background:var(--turf-pale);color:var(--turf-deep);
+  display:flex;align-items:center;justify-content:center;
+}
+.ios-addhome-step-icon svg{width:15px;height:15px}
+.ios-addhome-modal .modal-actions{justify-content:center;margin-top:1.3rem}
+
 /* Spectator "up next" notification: a floating card that sits above the
    courts grid so anyone watching remotely sees the very next matchup at a
    glance, instead of having to scroll down to the collapsed "Up next"
