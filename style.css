@@ -2242,6 +2242,11 @@ html[data-theme="dark"] .mobile-tabs button.active{
      duplicate icons from the topbar so they're not offered twice. They
      stay in the topbar on wider screens, which have no bottom nav. */
   #matchHistoryBtn,#settingsBtn{display:none}
+  /* ...except in spectator view: body.viewer-mode hides the bottom nav
+     entirely (see rule below), so without this the History icon would
+     disappear from phones altogether. Keep it next to the Rankings icon
+     in the topbar, same as the host sees on wider screens. */
+  body.viewer-mode #matchHistoryBtn{display:flex}
 }
 
 /* =====================================================================
