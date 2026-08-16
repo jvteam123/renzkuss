@@ -2686,10 +2686,12 @@ function renderUpNextSubChooser(){
     <div class="subpick-row" data-choose-outgoing="${entry.id}">
       ${avatarHtml(entry.name)}
       <span class="subpick-row-main">
-        <span class="arrival-name">${esc(entry.name)}</span>
+        <span class="subpick-row-top">
+          <span class="arrival-name">${esc(entry.name)}</span>
+          ${gamesChipHtml(getGamesPlayed(entry.name))}
+        </span>
         <span class="subpick-row-meta">
           <span class="level-badge ${levelClass(getPlayerLevel(entry.name))}">${esc(levelLabel(getPlayerLevel(entry.name)))}</span>
-          ${gamesChipHtml(getGamesPlayed(entry.name))}
         </span>
       </span>
       <svg class="subpick-row-chevron" viewBox="0 0 24 24"><use href="#i-chev"/></svg>
@@ -2792,10 +2794,12 @@ function renderSubPicker(court){
     <div class="subpick-row" data-id="${entry.id}">
       ${avatarHtml(entry.name)}
       <span class="subpick-row-main">
-        <span class="arrival-name">${esc(entry.name)}</span>
+        <span class="subpick-row-top">
+          <span class="arrival-name">${esc(entry.name)}</span>
+          ${gamesChipHtml(getGamesPlayed(entry.name))}
+        </span>
         <span class="subpick-row-meta">
           <span class="level-badge ${levelClass(getPlayerLevel(entry.name))}">${esc(levelLabel(getPlayerLevel(entry.name)))}</span>
-          ${gamesChipHtml(getGamesPlayed(entry.name))}
           ${srcTag}
         </span>
       </span>
