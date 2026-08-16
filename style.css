@@ -997,10 +997,15 @@ body.viewer-mode .up-next-expand-chevron{display:block;width:13px;height:13px;fl
 }
 .courts-stat svg{width:18px;height:18px;color:var(--turf)}
 .courts-stat-num{font-family:var(--font-mono);font-weight:700;font-size:1.15rem;color:var(--ink)}
+/* Session Time's h:mm:ss reads much wider than the plain counts the other
+   three stats show — shrink and tighten tracking just for this slot so it
+   doesn't overlap its own card edges/label on narrower screens. */
+.courts-stat-num.is-clock{font-size:.98rem;letter-spacing:-.02em;white-space:nowrap}
 .courts-stat-label{font-size:.68rem;font-weight:600;color:var(--slate);letter-spacing:.01em}
 @media (max-width:420px){
   .courts-stat svg{width:16px;height:16px}
   .courts-stat-num{font-size:1rem}
+  .courts-stat-num.is-clock{font-size:.8rem}
   .courts-stat-label{font-size:.62rem}
 }
 
