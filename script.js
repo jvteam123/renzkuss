@@ -3128,7 +3128,7 @@ function hidePlayerDetailsPreview(){
 }
 document.addEventListener('click', (e) => {
   if (!playerDetailsEl || !playerDetailsEl.classList.contains('show')) return;
-  if (e.target.closest('.player-preview-btn')) return;
+  if (e.target.closest('.player-preview-btn, .viewer-player-info-btn')) return;
   hidePlayerDetailsPreview();
 });
 document.addEventListener('scroll', hidePlayerDetailsPreview, true);
