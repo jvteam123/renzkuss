@@ -427,9 +427,16 @@
 <div class="overlay" id="subOverlay" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-label="Pick a substitute">
     <h3 id="subTitle">Pick a substitute</h3>
-    <p class="winner-note" style="margin:-.3rem 0 .8rem" id="subSubtitle"></p>
-    <div class="arrivals-list" id="subList"></div>
-    <p class="stack-empty" id="subEmptyNote" hidden>Nobody's free in the stack to sub in right now.</p>
+    <div class="settings-card accent-amber">
+      <div class="settings-card-head">
+        <span class="settings-card-icon"><svg viewBox="0 0 24 24"><use href="#i-sub"/></svg></span>
+        <div class="settings-card-head-text">
+          <p class="add-hint" id="subSubtitle" style="padding:0;margin:0"></p>
+        </div>
+      </div>
+      <div class="arrivals-list sub-picker-list" id="subList"></div>
+      <p class="stack-empty" id="subEmptyNote" hidden>Nobody's free in the stack to sub in right now.</p>
+    </div>
     <div class="modal-actions">
       <button class="btn" id="subCancel">Cancel</button>
     </div>
