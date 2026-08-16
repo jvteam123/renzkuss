@@ -1874,6 +1874,25 @@ body.cohost-mode .court-name{ pointer-events:none; }
   .call-status-wrap{left:1rem;right:1rem;max-width:none;align-items:stretch}
 }
 
+/* ---------- "Call Players" popup modal ---------- */
+.call-players-modal{max-width:400px;text-align:center;position:relative;padding-top:2.4rem}
+.call-players-close{position:absolute;top:1rem;right:1rem}
+.call-players-icon{
+  width:52px;height:52px;margin:0 auto .9rem;border-radius:50%;
+  background:var(--turf-pale);color:var(--turf-deep);
+  display:flex;align-items:center;justify-content:center;
+}
+.call-players-icon svg{width:24px;height:24px}
+.call-players-modal h3{margin:0 0 .4rem}
+.call-players-subtitle{margin:0;color:var(--slate);font-size:.92rem;line-height:1.5}
+.call-players-subtitle:empty{display:none}
+.call-players-modal .call-status-list{
+  margin-top:1rem;text-align:left;background:var(--court);border:1px solid var(--line);
+  border-radius:var(--radius-sm);padding:.6rem .8rem;
+}
+.call-players-modal .call-status-list:empty{display:none;padding:0;border:none;margin-top:0}
+.call-players-modal .modal-actions{justify-content:center}
+
 /* Spectator "up next" notification: a floating card that sits above the
    courts grid so anyone watching remotely sees the very next matchup at a
    glance, instead of having to scroll down to the collapsed "Up next"
