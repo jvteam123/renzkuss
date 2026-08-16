@@ -2594,7 +2594,12 @@ body.viewer-mode .court-card.playing .vs-divider::after{background:none;color:#7
 body.viewer-mode .matchup{flex-direction:row;align-items:stretch}
 body.viewer-mode .matchup .team{flex:1 1 0}
 body.viewer-mode .matchup .team.team-b{align-items:flex-end;text-align:right}
-body.viewer-mode .team-b .player-row{flex-direction:row-reverse}
+/* Avatars are hidden in viewer mode (see .avatar{display:none} above), so
+   the host-side row-reverse (meant to push the avatar to the outer edge)
+   would otherwise leave Team 2 reading "icon, name" while Team 1 reads
+   "name, icon". Force both teams to the same order so the info icon
+   always sits right after the name, matching the host layout. */
+body.viewer-mode .team-b .player-row{flex-direction:row}
 body.viewer-mode .vs-divider{height:auto;align-self:stretch}
 /* The dashed "net" stripe behind the divider (from the base playing-state
    style) has more classes in its selector than our earlier override, so it
