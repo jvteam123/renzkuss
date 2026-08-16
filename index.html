@@ -933,6 +933,24 @@
   </div>
 </div>
 
+<!-- "It's your turn!" dialog — shown on a SPECTATOR device the moment the
+     host calls that device's registered player name to a court. This is
+     the guaranteed, always-visible channel: the OS push notification
+     (fireNotification in script.js) still fires alongside it when
+     permission was granted, but that permission is often never granted
+     (especially on iOS), so this in-app popup is what most players will
+     actually see. -->
+<div class="overlay player-called-overlay" id="playerCalledOverlay" hidden>
+  <div class="modal player-called-modal" role="alertdialog" aria-modal="true" aria-labelledby="playerCalledTitle" aria-describedby="playerCalledBody">
+    <div class="player-called-icon"><svg viewBox="0 0 24 24"><use href="#i-bell"/></svg></div>
+    <h3 id="playerCalledTitle">It's your turn!</h3>
+    <p id="playerCalledBody" class="player-called-body"></p>
+    <div class="modal-actions">
+      <button type="button" class="btn primary" id="playerCalledOkBtn">Got it, heading over</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast-wrap" id="toastWrap"></div>
 <div class="call-status-wrap" id="callStatusWrap" aria-live="polite"></div>
 
