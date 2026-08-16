@@ -7144,10 +7144,11 @@ function enterViewerMode(code){
     playerSelectList.innerHTML = filtered.map(name => {
       const isCurrent = viewerIdentity && viewerIdentity.role === 'player' && namesMatch(viewerIdentity.playerName, name);
       return `
-        <button type="button" class="player-select-row" data-name="${esc(name)}">
-          <span class="avatar" style="background:${avatarColor(name)}">${initials(name)}</span>
-          <span class="ps-name">${esc(name)}</span>
-          ${isCurrent ? '<span class="ps-current">You</span>' : ''}
+        <button type="button" class="player-pick-row" data-name="${esc(name)}">
+          ${avatarHtml(name)}
+          <span class="pp-name">${esc(name)}</span>
+          ${isCurrent ? '<span class="pp-current">You</span>' : ''}
+          <svg class="pp-chevron" viewBox="0 0 24 24"><use href="#i-chev"/></svg>
         </button>
       `;
     }).join('');
