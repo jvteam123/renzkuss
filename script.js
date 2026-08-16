@@ -7517,12 +7517,18 @@ function renderCourtsStatsBar(){
   const stat3Icon = $('#statStat3IconUse');
   const stat4Icon = $('#statStat4IconUse');
   if (viewerMode){
-    if (stat3Label) stat3Label.textContent = 'Matches Completed';
+    if (stat3Label) stat3Label.textContent = 'Matches';
     if (stat4Label) stat4Label.textContent = 'Session Time';
     if (stat3Icon) stat3Icon.setAttribute('href', '#i-trophy');
     if (stat4Icon) stat4Icon.setAttribute('href', '#i-clock');
     $('#statOnDeckNum').textContent = state.history.length;
     const startedAt = state.session.createdAt || Date.now();
+    // "Session Time" (h:mm:ss) runs noticeably wider than a plain number —
+    // the base stat font size was sized for 1-2 digit counts and starts
+    // overlapping its own label/border once a session passes an hour. The
+    // is-clock class dials it back specifically for this slot.
+    const gamesNumEl = $('#statGamesNum');
+    if (gamesNumEl) gamesNumEl.classList.add('is-clock');
     $('#statGamesNum').textContent = fmtClock(Math.max(0, Date.now() - startedAt));
   } else {
     if (stat3Label) stat3Label.textContent = 'On Deck';
@@ -7531,6 +7537,8 @@ function renderCourtsStatsBar(){
     if (stat4Icon) stat4Icon.setAttribute('href', '#i-bars');
     $('#statOnDeckNum').textContent = state.stack.length;
     $('#statGamesNum').textContent = state.history.length;
+    const gamesNumEl = $('#statGamesNum');
+    if (gamesNumEl) gamesNumEl.classList.remove('is-clock');
   }
 }
 
