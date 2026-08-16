@@ -567,6 +567,48 @@ if (callPlayersOkBtn) callPlayersOkBtn.addEventListener('click', closeCallPlayer
 if (callPlayersCloseX) callPlayersCloseX.addEventListener('click', closeCallPlayersModal);
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && callPlayersOverlay && !callPlayersOverlay.hidden) closeCallPlayersModal(); });
 
+/* ================= "It's your turn!" popup — spectator side =================
+   Shown on a SPECTATOR device the moment the host calls that device's
+   registered player name. This is the guaranteed channel: the OS push
+   notification (fireNotification, inside enterViewerMode below) still
+   fires alongside it when Notification permission was granted, but most
+   phones never grant that (iOS Safari especially), so this in-app dialog —
+   which needs no permission at all — is what actually reaches most players.
+   Queued the same way the confirm dialog is, in case two calls land close
+   together (e.g. the host calls twice in a row). */
+const playerCalledOverlay = $('#playerCalledOverlay');
+const playerCalledTitleEl = $('#playerCalledTitle');
+const playerCalledBodyEl = $('#playerCalledBody');
+const playerCalledOkBtn = $('#playerCalledOkBtn');
+const playerCalledQueue = [];
+let playerCalledActive = false;
+function showNextPlayerCalledDialog(){
+  if (playerCalledActive || playerCalledQueue.length === 0 || !playerCalledOverlay) return;
+  const call = playerCalledQueue.shift();
+  playerCalledActive = true;
+  if (playerCalledTitleEl) playerCalledTitleEl.textContent = (call && call.title) || "It's your turn!";
+  if (playerCalledBodyEl) playerCalledBodyEl.textContent = (call && call.body) || 'The host is calling you to the courts.';
+  playerCalledOverlay.hidden = false;
+  if (playerCalledOkBtn) playerCalledOkBtn.focus();
+  // Vibration doesn't require Notification permission and works on most
+  // Android browsers even when the OS notification itself can't fire —
+  // an extra nudge in case the phone is face-down on the sideline.
+  try{ if (navigator.vibrate) navigator.vibrate([200, 100, 200]); }catch(e){}
+}
+function closePlayerCalledDialog(){
+  if (!playerCalledOverlay) return;
+  playerCalledOverlay.hidden = true;
+  playerCalledActive = false;
+  showNextPlayerCalledDialog();
+}
+function showPlayerCalledDialog(call){
+  playerCalledQueue.push(call || {});
+  showNextPlayerCalledDialog();
+}
+if (playerCalledOkBtn) playerCalledOkBtn.addEventListener('click', closePlayerCalledDialog);
+if (playerCalledOverlay) playerCalledOverlay.addEventListener('click', (e) => { if (e.target === playerCalledOverlay) closePlayerCalledDialog(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && playerCalledOverlay && !playerCalledOverlay.hidden) closePlayerCalledDialog(); });
+
 /* ================= Skill-level picker dialog ================= */
 /* Tapping a player's skill-level badge opens this dialog instead of
    cycling on a press-and-hold — a clear list of every level beats a
@@ -7232,6 +7274,11 @@ function enterViewerMode(code){
   // receives — picking a player name is itself the opt-in for it, and the
   // "Notify" quick-action toggle is the on/off switch on top of that.
   function notifyPlayerCall(call){
+    // The in-app dialog is the guaranteed channel — always show it,
+    // regardless of OS Notification permission. Sound/vibrate/native
+    // banner on top of that are a bonus when permission happens to be
+    // granted, not a requirement for the player to find out.
+    showPlayerCalledDialog(call);
     if (!isViewerNotifyEnabled()) return;
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
     fireNotification(call.title, call.body, { tag: 'renzku-call-' + call.id, requireInteraction: true, vibrate: [200, 100, 200] });
