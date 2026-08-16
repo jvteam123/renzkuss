@@ -533,6 +533,40 @@ confirmCancelBtn.addEventListener('click', () => closeConfirm(false));
 confirmOverlay.addEventListener('click', (e) => { if (e.target === confirmOverlay) closeConfirm(false); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !confirmOverlay.hidden) closeConfirm(false); });
 
+/* ================= "Call Players" popup dialog =================
+   Pops up whenever the host taps "Call Players" on a court card (beside
+   Start Game) or the voice-only fallback fires — confirming what was just
+   called out and, when phone notifications went out, showing per-player
+   delivery status as it resolves. Styled off the same modal/overlay theme
+   as every other dialog in the app (see .call-players-modal in style.css). */
+const callPlayersOverlay = $('#callPlayersOverlay');
+const callPlayersSubtitleEl = $('#callPlayersSubtitle');
+const callPlayersStatusListEl = $('#callPlayersStatusList');
+const callPlayersOkBtn = $('#callPlayersOkBtn');
+const callPlayersCloseX = $('#callPlayersCloseX');
+
+function openCallPlayersModal(subtitle){
+  if (!callPlayersOverlay) return;
+  if (callPlayersSubtitleEl) callPlayersSubtitleEl.textContent = subtitle || '';
+  if (callPlayersStatusListEl) callPlayersStatusListEl.innerHTML = '';
+  callPlayersOverlay.hidden = false;
+  if (callPlayersOkBtn) callPlayersOkBtn.focus();
+}
+// Fills in delivery status once presence lookup resolves. No-ops if the
+// host already dismissed the dialog before the (async) status came back.
+function fillCallPlayersModalStatus(results){
+  if (!callPlayersStatusListEl || !callPlayersOverlay || callPlayersOverlay.hidden) return;
+  callPlayersStatusListEl.innerHTML = results.map(callStatusLineHtml).join('');
+}
+function closeCallPlayersModal(){
+  if (!callPlayersOverlay) return;
+  callPlayersOverlay.hidden = true;
+}
+if (callPlayersOverlay) callPlayersOverlay.addEventListener('click', (e) => { if (e.target === callPlayersOverlay) closeCallPlayersModal(); });
+if (callPlayersOkBtn) callPlayersOkBtn.addEventListener('click', closeCallPlayersModal);
+if (callPlayersCloseX) callPlayersCloseX.addEventListener('click', closeCallPlayersModal);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && callPlayersOverlay && !callPlayersOverlay.hidden) closeCallPlayersModal(); });
+
 /* ================= Skill-level picker dialog ================= */
 /* Tapping a player's skill-level badge opens this dialog instead of
    cycling on a press-and-hold — a clear list of every level beats a
@@ -2202,12 +2236,17 @@ function speakScoreOrMilestone(sc, scoringTeamScore){
    lineup is read out, then repeated once more — "Court 2, Alice and Bob
    versus Carol and Dave" twice in a row — so it carries across a noisy
    gym even if someone missed it the first time. */
-function callPlayersText(court, names){
+// Plain "Alice & Bob vs Carol & Dave" matchup text, shared by the spoken
+// announcement (repeated below, for the gym) and the "Call Players" popup
+// dialog's subtitle (shown once, for the host's screen).
+function callPlayersMatchupText(names){
   const gameSize = state.session.gameSize;
-  const matchupText = (gameSize === 2)
-    ? `${names[0]} versus ${names[1]}`
-    : (() => { const [a, b] = splitTeams(names); return `${a.join(' and ')} versus ${b.join(' and ')}`; })();
-  const call = `${court.name}. ${matchupText}. Please come to the court.`;
+  if (gameSize === 2) return `${names[0]} versus ${names[1]}`;
+  const [a, b] = splitTeams(names);
+  return `${a.join(' & ')} vs ${b.join(' & ')}`;
+}
+function callPlayersText(court, names){
+  const call = `${court.name}. ${callPlayersMatchupText(names)}. Please come to the court.`;
   return `${call} ... ${call}`;
 }
 function speakCallPlayers(court, names){
@@ -2235,16 +2274,24 @@ function announceCallPlayers(court, btnEl){
       setTimeout(() => { btnEl.classList.remove('speaking'); }, 3500);
     }
   }
+  const subtitle = `${court.name} — ${callPlayersMatchupText(names)}`;
   // Phone notifications ride alongside (or instead of) the voice
   // announcement — but only mean anything once someone could actually be
   // watching, i.e. this device is currently broadcasting live.
   if (notifyOn && hostSession){
     const calls = issuePlayerCall(names, { courtName: court.name });
-    reportCallStatus(calls);
+    // Confirm the call with a themed popup right away; per-player delivery
+    // status streams in and fills the dialog once presence resolves.
+    openCallPlayersModal(subtitle);
+    resolveCallStatus(calls).then(fillCallPlayersModalStatus);
   } else if (notifyOn && !hostSession && !voiceOn){
     // They're relying entirely on phone notifications but aren't hosting
     // live — nobody's watching yet, so say so instead of doing nothing.
     toast('Go live in Host Online to notify players by phone');
+  } else {
+    // Voice-only call (not hosting live, or notifications turned off) —
+    // still confirm on-screen what was just announced.
+    openCallPlayersModal(subtitle);
   }
 }
 
@@ -2300,23 +2347,30 @@ async function fetchViewerPresence(){
   }catch(e){ return null; }
 }
 
+// Renders one "✓ Renzku notified" / "⚠ John is not connected" line for a
+// single call's delivery result. Shared by the floating call-status card,
+// the inline list inside the "Call Out Player" modal, and the "Call
+// Players" popup dialog so all three stay visually and textually in sync.
+function callStatusLineHtml(r){
+  if (r.status === 'connected'){
+    return `<div class="call-status-line ok"><svg viewBox="0 0 24 24" style="width:13px;height:13px"><use href="#i-check"/></svg> ${esc(r.name)} notified</div>`;
+  }
+  if (r.status === 'not-connected'){
+    return `<div class="call-status-line warn"><svg viewBox="0 0 24 24" style="width:13px;height:13px"><use href="#i-info"/></svg> ${esc(r.name)} is not connected — they haven\u2019t selected their name on a device</div>`;
+  }
+  return `<div class="call-status-line unknown"><svg viewBox="0 0 24 24" style="width:13px;height:13px"><use href="#i-bell"/></svg> ${esc(r.name)} called — delivery status unavailable</div>`;
+}
+
 // Shows a small floating card (bottom-right) reporting per-player delivery
-// status for a just-issued batch of calls — "✓ Renzku notified" / "⚠ John
-// is not connected" — instead of just silently hoping it worked.
+// status for a just-issued batch of calls — instead of just silently
+// hoping it worked. Used by call sites (like "Call Out Player") that don't
+// have their own dialog open already to report status into.
 function showCallStatusCard(results){
   const wrap = $('#callStatusWrap');
   if (!wrap) return;
   const card = document.createElement('div');
   card.className = 'call-status-card';
-  const lines = results.map(r => {
-    if (r.status === 'connected'){
-      return `<div class="call-status-line ok"><svg viewBox="0 0 24 24" style="width:13px;height:13px"><use href="#i-check"/></svg> ${esc(r.name)} notified</div>`;
-    }
-    if (r.status === 'not-connected'){
-      return `<div class="call-status-line warn"><svg viewBox="0 0 24 24" style="width:13px;height:13px"><use href="#i-info"/></svg> ${esc(r.name)} is not connected — they haven\u2019t selected their name on a device</div>`;
-    }
-    return `<div class="call-status-line unknown"><svg viewBox="0 0 24 24" style="width:13px;height:13px"><use href="#i-bell"/></svg> ${esc(r.name)} called — delivery status unavailable</div>`;
-  }).join('');
+  const lines = results.map(callStatusLineHtml).join('');
   card.innerHTML = `<div class="csc-title"><svg viewBox="0 0 24 24"><use href="#i-bell"/></svg>Player calls</div>${lines}`;
   wrap.appendChild(card);
   requestAnimationFrame(() => card.classList.add('show'));
@@ -2327,16 +2381,23 @@ function showCallStatusCard(results){
   }, life);
 }
 
-async function reportCallStatus(calls){
+// Looks up per-player delivery status for a just-issued batch of calls,
+// without rendering anything — callers decide where the result goes (the
+// floating card via reportCallStatus below, or the "Call Players" popup).
+async function resolveCallStatus(calls){
   const names = calls.map(c => c.name);
   const presence = await fetchViewerPresence();
   const now = Date.now();
-  const results = names.map(name => {
+  return names.map(name => {
     if (!presence) return { name, status: 'unknown' };
     const row = presence.find(r => r.role === 'player' && namesMatch(r.player_name, name) &&
       (now - new Date(r.last_seen).getTime()) < VIEWER_PRESENCE_WINDOW_MS);
     return { name, status: row ? 'connected' : 'not-connected' };
   });
+}
+
+async function reportCallStatus(calls){
+  const results = await resolveCallStatus(calls);
   showCallStatusCard(results);
   return results;
 }
@@ -6530,11 +6591,7 @@ function closeCallOutOverlay(){
 
 function renderCallOutStatusInline(results){
   if (!callOutStatusList) return;
-  callOutStatusList.innerHTML = results.map(r => {
-    if (r.status === 'connected') return `<div class="call-status-line ok"><svg viewBox="0 0 24 24" style="width:13px;height:13px"><use href="#i-check"/></svg> ${esc(r.name)} notified</div>`;
-    if (r.status === 'not-connected') return `<div class="call-status-line warn"><svg viewBox="0 0 24 24" style="width:13px;height:13px"><use href="#i-info"/></svg> ${esc(r.name)} is not connected</div>`;
-    return `<div class="call-status-line unknown"><svg viewBox="0 0 24 24" style="width:13px;height:13px"><use href="#i-bell"/></svg> ${esc(r.name)} called — status unavailable</div>`;
-  }).join('');
+  callOutStatusList.innerHTML = results.map(callStatusLineHtml).join('');
 }
 
 if (callOutSearch) callOutSearch.addEventListener('input', renderCallOutList);
