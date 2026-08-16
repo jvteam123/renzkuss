@@ -2683,10 +2683,12 @@ function renderUpNextSubChooser(){
     const entry = state.stack.find(e => e.id === id);
     if (!entry) return '';
     return `
-    <div class="sub-row" data-choose-outgoing="${entry.id}">
+    <div class="subpick-row" data-choose-outgoing="${entry.id}">
+      ${avatarHtml(entry.name)}
       <span class="arrival-name">${esc(entry.name)}</span>
       <span class="level-badge ${levelClass(getPlayerLevel(entry.name))}">${esc(levelLabel(getPlayerLevel(entry.name)))}</span>
       ${gamesChipHtml(getGamesPlayed(entry.name))}
+      <svg class="subpick-row-chevron" viewBox="0 0 24 24"><use href="#i-chev"/></svg>
     </div>
   `;
   }).join('');
@@ -2783,11 +2785,13 @@ function renderSubPicker(court){
     const srcTag = entry.__src === 'winnersBlock' ? '<span class="tag-pill queued">Winners block</span>'
       : entry.__src === 'losersBlock' ? '<span class="tag-pill queued">Losers block</span>' : '';
     return `
-    <div class="sub-row" data-id="${entry.id}">
+    <div class="subpick-row" data-id="${entry.id}">
+      ${avatarHtml(entry.name)}
       <span class="arrival-name">${esc(entry.name)}</span>
       <span class="level-badge ${levelClass(getPlayerLevel(entry.name))}">${esc(levelLabel(getPlayerLevel(entry.name)))}</span>
       ${gamesChipHtml(getGamesPlayed(entry.name))}
       ${srcTag}
+      <svg class="subpick-row-chevron" viewBox="0 0 24 24"><use href="#i-chev"/></svg>
     </div>
   `;
   }).join('');
@@ -2878,7 +2882,7 @@ function performSubstitution(entryId){
   renderAll(); persist();
 }
 subList.addEventListener('click', (e) => {
-  const chooseRow = e.target.closest('.sub-row[data-choose-outgoing]');
+  const chooseRow = e.target.closest('.subpick-row[data-choose-outgoing]');
   if (chooseRow){
     if (!subTarget || !subTarget.upNext) return;
     const outgoingId = chooseRow.dataset.chooseOutgoing;
@@ -2890,7 +2894,7 @@ subList.addEventListener('click', (e) => {
     renderSubPicker(null);
     return;
   }
-  const row = e.target.closest('.sub-row[data-id]');
+  const row = e.target.closest('.subpick-row[data-id]');
   if (!row) return;
   performSubstitution(row.dataset.id);
 });
