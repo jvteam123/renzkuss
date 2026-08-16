@@ -411,7 +411,17 @@ body.session-locked .quick-add-panel{opacity:.55;pointer-events:none}
 .subpick-row:hover{border-color:var(--sub-amber-deep);background:var(--sub-amber-pale)}
 .subpick-row:active{transform:scale(.985)}
 .subpick-row .avatar{width:36px;height:36px;font-size:.85rem}
-.subpick-row .arrival-name{flex:1;font-size:.95rem}
+/* Name gets its own full-width line instead of competing with the level
+   badge / games chip / block tag for space in one flex row — on a narrow
+   phone those fixed-width pills were squeezing "flex:1" name down to just
+   a few pixels, leaving it unreadable (basically one truncated letter).
+   Badges now wrap onto a line underneath instead. */
+.subpick-row-main{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:.25rem}
+.subpick-row .arrival-name{
+  flex:none;width:100%;font-size:.98rem;font-weight:700;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.subpick-row-meta{display:flex;align-items:center;flex-wrap:wrap;gap:.35rem}
 .subpick-row .level-badge{flex-shrink:0}
 .subpick-row-chevron{
   width:18px;height:18px;flex-shrink:0;color:var(--line);transition:color .15s,transform .15s;
