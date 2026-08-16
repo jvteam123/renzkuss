@@ -915,6 +915,24 @@
   </div>
 </div>
 
+<!-- Call Players modal — pops up when the host taps "Call Players" on a
+     court card, confirming the call went out (voice/push) and, when push
+     notifications were sent, showing per-player delivery status. -->
+<div class="overlay call-players-overlay" id="callPlayersOverlay" hidden>
+  <div class="modal call-players-modal" role="dialog" aria-modal="true" aria-labelledby="callPlayersTitle" aria-describedby="callPlayersSubtitle">
+    <button type="button" class="modal-icon-btn call-players-close" id="callPlayersCloseX" aria-label="Close">
+      <svg viewBox="0 0 24 24"><use href="#i-x"/></svg>
+    </button>
+    <div class="call-players-icon"><svg viewBox="0 0 24 24"><use href="#i-bell"/></svg></div>
+    <h3 id="callPlayersTitle">Players called</h3>
+    <p id="callPlayersSubtitle" class="call-players-subtitle"></p>
+    <div class="call-status-list" id="callPlayersStatusList"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn primary" id="callPlayersOkBtn">Got it</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast-wrap" id="toastWrap"></div>
 <div class="call-status-wrap" id="callStatusWrap" aria-live="polite"></div>
 
