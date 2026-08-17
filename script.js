@@ -188,7 +188,7 @@ function defaultCourts(n){
 
 function freshState(){
   return {
-    session: { name: 'PaddleStack', club: '', description: '', createdAt: Date.now(), gameSize: 4, soundOn: true, notifyCallsEnabled: true, status: 'active', targetGamesEnabled: false, targetGamesPerPlayer: 7, avoidRepeatTeammates: false, fixedDuos: [], fixedDuosEnabled: false, scoringEnabled: true, winningScore: 11, autoStartEnabled: false, autoStartMinutes: 1, matchingStyle: 'winnersLosers', skillLevelsEnabled: false, cohostPermissions: { allowSwap: true, allowSubstitution: true } }, // status: 'active' | 'ended'; matchingStyle: 'balanced' | 'skillSeparated' | 'winnersLosers'; skillLevelsEnabled: off by default — everyone plays Open Play until turned on; autoStartMinutes: how long an open, ready court waits before auto-starting (default 1 minute); soundOn: on-site voice announcement only; notifyCallsEnabled: phone notifications on call-up, independent of soundOn; cohostPermissions: what a co-host device is allowed to do beyond start/score — both default ON, host can turn either off per-session (see setCohostPermission); createdAt: when this session was created, used only for the viewer dashboard's "Session Time" stat — a saved session from before this field existed just won't show an accurate elapsed time, which is harmless; club/description: optional, set via the "Go live" session-name prompt — club shows on the shared-link preview banner, description rides along whenever the live link is copied/shared
+    session: { name: 'PaddleStack', club: '', description: '', createdAt: Date.now(), gameSize: 4, soundOn: true, notifyCallsEnabled: true, status: 'active', targetGamesEnabled: false, targetGamesPerPlayer: 7, avoidRepeatTeammates: false, fixedDuos: [], fixedDuosEnabled: false, scoringEnabled: true, winningScore: 11, autoStartEnabled: false, autoStartMinutes: 1, generationReady: false, matchingStyle: 'winnersLosers', skillLevelsEnabled: false, cohostPermissions: { allowSwap: true, allowSubstitution: true } }, // status: 'active' | 'ended'; matchingStyle: 'balanced' | 'skillSeparated' | 'winnersLosers'; skillLevelsEnabled: off by default — everyone plays Open Play until turned on; autoStartMinutes: how long an open, ready court waits before auto-starting (default 1 minute); soundOn: on-site voice announcement only; notifyCallsEnabled: phone notifications on call-up, independent of soundOn; cohostPermissions: what a co-host device is allowed to do beyond start/score — both default ON, host can turn either off per-session (see setCohostPermission); createdAt: when this session was created, used only for the viewer dashboard's "Session Time" stat — a saved session from before this field existed just won't show an accurate elapsed time, which is harmless; club/description: optional, set via the "Go live" session-name prompt — club shows on the shared-link preview banner, description rides along whenever the live link is copied/shared
     courts: defaultCourts(2),
     arrivals: [],        // {id, name, addedAt} — added but not yet checked in; not part of the live queue
     stack: [],           // {id, name, joinedAt, tag: 'new'|'queued'}
@@ -2044,6 +2044,7 @@ async function generateMatchesFromWizard(){
   // Matches are deliberately started only by this wizard. Auto-start is kept
   // off so checking players in can never start a court behind the host's back.
   state.session.autoStartEnabled = false;
+  state.session.generationReady = true;
   await applyWizardCourtCount(d.courts);
   state.courts.forEach(c => { if (c.status === 'open') { c.openedAt = null; c.previewOrder = null; c.previewSubMap = null; } });
   persist();
@@ -2236,7 +2237,11 @@ function teamColHtml(names, side, gameSize, swapCtx, subBaseIdx){
    a specific court's "Call next" is clicked — keeping the two in sync so a
    court never calls a different group of players than what it just showed. */
 function computeOpenCourtQueue(gameSize){
-  const queue = new Map(); // courtId -> { taken: entries|null, remaining: number available at this point }
+  const queue = new Map();
+  // Checked-in players must remain in the main queue until the host explicitly
+  // completes the Generate Match wizard. Do not preview/claim them onto open
+  // courts during check-in or normal rendering.
+  if (!state.session.generationReady) return queue; // courtId -> { taken: entries|null, remaining: number available at this point }
   // Belt-and-suspenders: state.stack should never contain someone who's
   // already actually playing on a live court, but if anything upstream ever
   // leaves it in that state, don't let a preview pick them up and hand them
@@ -4883,6 +4888,7 @@ $('#importFile').addEventListener('change', async (e) => {
     if (!parsed.opponentHistory || typeof parsed.opponentHistory !== 'object') parsed.opponentHistory = {};
     if (!parsed.upNextSubMap || typeof parsed.upNextSubMap !== 'object') parsed.upNextSubMap = {};
     parsed.courts.forEach(c => { if (!('lastResult' in c)) c.lastResult = null; if (!('swapInfo' in c)) c.swapInfo = null; if (!('previewOrder' in c)) c.previewOrder = null; if (!('previewSubMap' in c)) c.previewSubMap = null; });
+    if (!parsed.session || typeof parsed.session.generationReady !== 'boolean') parsed.session = Object.assign({}, parsed.session || {}, { generationReady: false });
     parsed.stack.forEach(p => { if (!p.tag) p.tag = 'new'; });
     if (!parsed.session.status) parsed.session.status = 'active';
     if (typeof parsed.session.targetGamesEnabled !== 'boolean') parsed.session.targetGamesEnabled = false;
