@@ -2122,6 +2122,13 @@ async function generateMatchesFromWizard(){
    session and a recurring club night through this same button. */
 const generateMatchNavLabel = generateMatchNav ? generateMatchNav.querySelector('span:last-child') : null;
 const generateMatchNavOrbIcon = generateMatchNav ? generateMatchNav.querySelector('.generate-match-orb use') : null;
+/* Desktop-width counterpart of generateMatchNav — the bottom nav (and its
+   Generate button) only renders below 880px, so this is the sole way to
+   open the Generate Match wizard on wider screens. Mirrors the same
+   ready/end-session state instead of duplicating the logic. */
+const generateMatchDesktopBtn = $('#generateMatchDesktopBtn');
+const generateMatchDesktopLabel = $('#generateMatchDesktopLabel');
+const generateMatchDesktopIcon = $('#generateMatchDesktopIcon use');
 const endSessionOverlay = $('#endSessionOverlay');
 const endSessionKeepBtn = $('#endSessionKeepBtn');
 const endSessionClearBtn = $('#endSessionClearBtn');
@@ -2130,12 +2137,19 @@ function hasActiveGeneratedSession(){
   return !!state.session.generationReady && !isSessionEnded();
 }
 function renderGenerateNav(){
-  if (!generateMatchNav) return;
   const ready = hasActiveGeneratedSession();
-  generateMatchNav.classList.toggle('is-end-session', ready);
-  generateMatchNav.setAttribute('aria-label', ready ? 'End Session' : 'Generate Match');
-  if (generateMatchNavLabel) generateMatchNavLabel.textContent = ready ? 'End Session' : 'Generate';
-  if (generateMatchNavOrbIcon) generateMatchNavOrbIcon.setAttribute('href', ready ? '#i-x' : '#i-bolt');
+  if (generateMatchNav){
+    generateMatchNav.classList.toggle('is-end-session', ready);
+    generateMatchNav.setAttribute('aria-label', ready ? 'End Session' : 'Generate Match');
+    if (generateMatchNavLabel) generateMatchNavLabel.textContent = ready ? 'End Session' : 'Generate';
+    if (generateMatchNavOrbIcon) generateMatchNavOrbIcon.setAttribute('href', ready ? '#i-x' : '#i-bolt');
+  }
+  if (generateMatchDesktopBtn){
+    generateMatchDesktopBtn.classList.toggle('is-end-session', ready);
+    generateMatchDesktopBtn.setAttribute('aria-label', ready ? 'End Session' : 'Generate Match');
+    if (generateMatchDesktopLabel) generateMatchDesktopLabel.textContent = ready ? 'End Session' : 'Generate Match';
+    if (generateMatchDesktopIcon) generateMatchDesktopIcon.setAttribute('href', ready ? '#i-x' : '#i-bolt');
+  }
 }
 function openEndSessionPrompt(){
   if (isCoHostRestricted() || viewerMode) return;
@@ -2163,10 +2177,12 @@ if (endSessionClearBtn) endSessionClearBtn.addEventListener('click', async () =>
 if (endSessionCancelBtn) endSessionCancelBtn.addEventListener('click', closeEndSessionPrompt);
 if (endSessionOverlay) endSessionOverlay.addEventListener('click', e => { if (e.target === endSessionOverlay) closeEndSessionPrompt(); });
 
-if (generateMatchNav) generateMatchNav.addEventListener('click', () => {
+function handleGenerateMatchTrigger(){
   if (hasActiveGeneratedSession()) openEndSessionPrompt();
   else openGenerateWizard();
-});
+}
+if (generateMatchNav) generateMatchNav.addEventListener('click', handleGenerateMatchTrigger);
+if (generateMatchDesktopBtn) generateMatchDesktopBtn.addEventListener('click', handleGenerateMatchTrigger);
 if (generateWizardClose) generateWizardClose.addEventListener('click', closeGenerateWizard);
 if (generateMatchOverlay) generateMatchOverlay.addEventListener('click', e => { if (e.target === generateMatchOverlay) closeGenerateWizard(); });
 document.addEventListener('click', e => {
