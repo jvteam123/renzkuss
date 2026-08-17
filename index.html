@@ -55,6 +55,7 @@
   <symbol id="i-down" viewBox="0 0 24 24"><path fill="currentColor" d="M12 18l-7-8h14z"/></symbol>
   <symbol id="i-x" viewBox="0 0 24 24"><path fill="currentColor" d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6z"/></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path fill="currentColor" d="M9 6l6 6-6 6z"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13.2 2 5.5 13h5.3l-1 9L18.5 11h-5.1z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
   <symbol id="i-stack" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 2 7l10 5 10-5zM2 12l10 5 10-5M2 17l10 5 10-5"/></symbol>
   <symbol id="i-court" viewBox="0 0 24 24"><path fill="currentColor" d="M3 4h18v16H3zm9 0v16M3 12h18" stroke="currentColor" stroke-width="1.6" fill="none"/></symbol>
   <symbol id="i-trophy" viewBox="0 0 24 24"><path fill="currentColor" d="M6 3h12v2h2.5v2c0 2.3-1.7 4.2-4 4.5-.7 1.6-2.1 2.8-3.8 3.2V18h3v2H8v-2h3v-3.3c-1.7-.4-3.1-1.6-3.8-3.2-2.3-.3-4-2.2-4-4.5V5H6V3Zm0 4H3.9c.2 1.1.9 2 2.1 2.3V7Zm12 0v2.3c1.2-.3 1.9-1.2 2.1-2.3H18Z"/></symbol>
@@ -81,7 +82,6 @@
   <symbol id="i-download" viewBox="0 0 24 24"><path fill="currentColor" d="M11 3h2v9.2l3.6-3.6 1.4 1.4-6 6-6-6 1.4-1.4L11 12.2V3ZM5 19h14v2H5v-2Z"/></symbol>
   <symbol id="i-bars" viewBox="0 0 24 24"><path fill="currentColor" d="M4 13h4v8H4v-8Zm6-6h4v14h-4V7Zm6 3h4v11h-4V10Z"/></symbol>
   <symbol id="i-calendar" viewBox="0 0 24 24"><path fill="currentColor" d="M7 2v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2V2h-2v2H9V2H7Zm12 7v11H5V9h14ZM7 12h4v4H7v-4Z"/></symbol>
-  <symbol id="i-bolt" viewBox="0 0 24 24"><path fill="currentColor" d="M13.2 2 4.8 13h6.1L10 22l9.2-12.2h-6.3L13.2 2Z"/></symbol>
   <symbol id="i-refresh" viewBox="0 0 24 24"><path fill="currentColor" d="M12 4V1L8 5l4 4V6a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8Z"/></symbol>
   <symbol id="i-grid" viewBox="0 0 24 24"><path fill="currentColor" d="M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 0h7v7h-7v-7Z"/></symbol>
   <symbol id="i-share" viewBox="0 0 24 24"><path fill="currentColor" d="M18 16.1c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 1 0-3-3c0 .24.04.47.09.7L7.04 9.81A2.99 2.99 0 0 0 5 9a3 3 0 1 0 0 6c.76 0 1.44-.3 1.96-.77l7.13 4.15c-.05.21-.08.43-.08.62a2.92 2.92 0 1 0 5.85 0 2.92 2.92 0 0 0-2.92-2.92Z"/></symbol>
@@ -361,16 +361,74 @@
   </main>
 </div>
 
-<nav class="mobile-tabs" aria-label="Primary navigation">
-  <button id="tabStack" class="active"><svg viewBox="0 0 24 24"><use href="#i-stack"/></svg><span>Players</span></button>
-  <button id="tabCourts"><svg viewBox="0 0 24 24"><use href="#i-court"/></svg><span>Courts</span></button>
-  <button id="generateMatchNav" class="generate-nav-btn" type="button" aria-label="Generate Match" title="Generate Match">
-    <span class="generate-nav-orb"><svg viewBox="0 0 24 24"><use href="#i-bolt"/></svg></span>
-    <span class="generate-nav-label">Generate</span>
+<nav class="mobile-tabs">
+  <button id="tabStack" class="active"><svg viewBox="0 0 24 24"><use href="#i-stack"/></svg>Players</button>
+  <button id="tabCourts"><svg viewBox="0 0 24 24"><use href="#i-court"/></svg>Courts</button>
+  <button id="generateMatchNav" class="generate-match-nav" type="button" aria-label="Generate Match">
+    <span class="generate-match-orb"><svg viewBox="0 0 24 24"><use href="#i-bolt"/></svg></span>
+    <span>Generate</span>
   </button>
-  <button id="tabHistoryNav" type="button"><svg viewBox="0 0 24 24"><use href="#i-clock"/></svg><span>History</span></button>
-  <button id="tabMoreNav" type="button"><svg viewBox="0 0 24 24"><use href="#i-gear"/></svg><span>Settings</span></button>
+  <button id="tabHistoryNav" type="button"><svg viewBox="0 0 24 24"><use href="#i-clock"/></svg>History</button>
+  <button id="tabMoreNav" type="button"><svg viewBox="0 0 24 24"><use href="#i-gear"/></svg>Settings</button>
 </nav>
+
+<!-- Generate Match setup wizard -->
+<div class="overlay" id="generateMatchOverlay" hidden>
+  <div class="modal generate-wizard" role="dialog" aria-modal="true" aria-label="Generate Match setup">
+    <div class="wizard-head">
+      <div>
+        <p class="wizard-kicker">SESSION SETUP</p>
+        <h3>Generate Match</h3>
+        <p class="wizard-subtitle">Check-in only builds the queue. Nothing starts until you finish this setup.</p>
+      </div>
+      <button type="button" class="modal-close" id="generateWizardClose" aria-label="Close">×</button>
+    </div>
+    <div class="wizard-progress" id="generateWizardProgress" aria-label="Setup progress">
+      <span class="active" data-step-dot="1">1</span><i></i><span data-step-dot="2">2</span><i></i><span data-step-dot="3">3</span><i></i><span data-step-dot="4">4</span>
+    </div>
+
+    <section class="wizard-step active" data-wizard-step="1">
+      <div class="wizard-step-title"><span>01</span><div><strong>How many courts?</strong><small>Choose how many matches you want to start.</small></div></div>
+      <div class="wizard-court-grid" id="wizardCourtChoices">
+        <button type="button" data-courts="1">1</button><button type="button" data-courts="2">2</button><button type="button" data-courts="3">3</button><button type="button" data-courts="4">4</button><button type="button" data-courts="5">5</button><button type="button" data-courts="6">6</button>
+      </div>
+      <p class="wizard-hint">You can keep or change the number of courts later in Settings.</p>
+    </section>
+
+    <section class="wizard-step" data-wizard-step="2">
+      <div class="wizard-step-title"><span>02</span><div><strong>Match type</strong><small>Choose how many players belong in each match.</small></div></div>
+      <div class="wizard-option-list" id="wizardMatchTypeChoices">
+        <button type="button" class="wizard-option active" data-size="4"><b>2v2 Doubles</b><small>4 players per match</small></button>
+        <button type="button" class="wizard-option" data-size="2"><b>1v1 Singles</b><small>2 players per match</small></button>
+      </div>
+    </section>
+
+    <section class="wizard-step" data-wizard-step="3">
+      <div class="wizard-step-title"><span>03</span><div><strong>Matching rules</strong><small>Use the same matching styles already available in Settings.</small></div></div>
+      <div class="wizard-style-list" id="wizardStyleChoices">
+        <button type="button" class="wizard-style active" data-style="balanced"><b>Balance</b><small>Fair teams and turns with fewer repeat partners.</small></button>
+        <button type="button" class="wizard-style" data-style="skillSeparated"><b>Skill</b><small>Keep similar skill levels together when skill levels are enabled.</small></button>
+        <button type="button" class="wizard-style" data-style="winnersLosers"><b>Winner / Loser</b><small>Winners play winners and losers play losers.</small></button>
+      </div>
+      <div class="wizard-toggle-grid">
+        <label class="wizard-toggle-card"><span><b>Avoid Repeating</b><small>Prioritize new teammate pairings.</small></span><input type="checkbox" id="wizardAvoidRepeat"><i class="track"></i></label>
+        <label class="wizard-toggle-card"><span><b>Fixed Duo</b><small>Respect your saved fixed-duo pairings.</small></span><input type="checkbox" id="wizardFixedDuo"><i class="track"></i></label>
+      </div>
+    </section>
+
+    <section class="wizard-step" data-wizard-step="4">
+      <div class="wizard-step-title"><span>04</span><div><strong>Scoring &amp; review</strong><small>Finish your setup, then generate the matches.</small></div></div>
+      <label class="wizard-toggle-card large"><span><b>Enable Scoring</b><small>Show the live scoreboard, serve tracking, and score controls.</small></span><input type="checkbox" id="wizardScoring"><i class="track"></i></label>
+      <div class="wizard-summary" id="wizardSummary"></div>
+      <p class="wizard-final-note">After you tap <b>Generate Match</b>, the selected number of courts will start from the checked-in queue. Check-in itself will never auto-start a match.</p>
+    </section>
+
+    <div class="modal-actions wizard-actions">
+      <button class="btn" id="generateWizardBack" type="button">Back</button>
+      <button class="btn primary" id="generateWizardNext" type="button">Continue</button>
+    </div>
+  </div>
+</div>
 
 <!-- Add player modal -->
 <div class="overlay" id="addPlayerOverlay" hidden>
@@ -628,17 +686,12 @@
     <div class="field settings-card">
       <div class="settings-card-head">
         <span class="settings-card-icon"><svg viewBox="0 0 24 24"><use href="#i-play"/></svg></span>
-        <div class="settings-card-head-text"><label style="margin:0">Auto-start Ready Courts</label></div>
-        <label class="switch" style="margin-left:auto">
-          <input type="checkbox" id="autoStartToggle">
-          <span class="track"></span>
-        </label>
+        <div class="settings-card-head-text"><label style="margin:0">Match Start</label></div>
+        <span class="settings-lock-badge">MANUAL</span>
+        <input type="checkbox" id="autoStartToggle" checked disabled hidden>
       </div>
-      <p class="add-hint" style="padding:0">If an open court has enough players and nobody taps Start Game within the time below, it starts automatically. Turn off to always start courts manually.</p>
-      <div class="target-sub" id="autoStartSub" hidden>
-        <label for="autoStartMinutesInput">Auto-start after (minutes)</label>
-        <input type="number" id="autoStartMinutesInput" min="1" max="60" step="1" value="1">
-      </div>
+      <p class="add-hint" style="padding:0">Matches start only from the <b>Generate Match</b> setup wizard. Checking players in will never automatically start a game.</p>
+      <div class="target-sub" id="autoStartSub" hidden><input type="number" id="autoStartMinutesInput" value="1" hidden></div>
     </div>
 
     <div class="field settings-card">
