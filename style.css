@@ -11,6 +11,10 @@
   --brand-gold-pale:#FFF6D6; /* fixed — the topbar pill's text needs a light cream regardless
                                 of theme; --gold-pale becomes a translucent tint in dark mode,
                                 which isn't legible as solid text */
+  --brand-danger:#C6272E;  /* fixed — same reasoning as --brand-turf above: a couple of solid-fill
+                               "stop/end" badges (e.g. the mobile nav's End Session orb) want one
+                               consistent red circle in both themes, not --danger/--clay's dark-mode
+                               pastel shades, which exist for on-page text/pill legibility instead. */
   --turf:#0038A8;          /* flag blue — primary */
   --turf-deep:#00256E;
   --turf-pale:#DEE7F7;
@@ -28,6 +32,12 @@
   --slate:#5C6B82;
   --line:#DBE2EE;
   --surface:#FFFFFF;
+  --paper:var(--surface);   /* elevated card fill for content sitting inside a modal (e.g. the
+                                Generate Match wizard's option rows) — same tone as the modal
+                                itself, distinguished by its own border rather than a bg shift */
+  --paper-2:var(--court);   /* recessed/nested panel fill (summary boxes, step-progress dots,
+                                the fixed-duo sub-panel) — one tick further from --paper so nested
+                                content reads as "inset" rather than just another flat card */
   --danger:#C6272E;
   --danger-pale:#FAE1E2;
   /* ---- Player action buttons (court cards): INFO / SWAP / SUB ----
@@ -3036,9 +3046,30 @@ body.viewer-mode .court-status-footer,
 
 /* ================= Generate Match setup wizard ================= */
 .generate-match-nav{position:relative!important;overflow:visible!important;font-weight:800!important}
-.generate-match-nav .generate-match-orb{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;margin-top:-30px;border:4px solid var(--paper);background:var(--turf-deep);color:#fff;box-shadow:0 10px 24px rgba(0,0,0,.22)}
+.generate-match-nav .generate-match-orb{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;margin-top:-30px;border:4px solid var(--paper);background:var(--turf-deep);color:#fff;box-shadow:0 10px 24px rgba(0,0,0,.22);transition:background .15s ease,color .15s ease}
 .generate-match-nav .generate-match-orb svg{width:23px;height:23px}
 .generate-match-nav>span:last-child{margin-top:2px}
+/* Dark mode: --turf-deep flips to a *pale* blue for on-page text contrast
+   elsewhere in the app (see :root's dark-theme block), which left this
+   button's white icon nearly invisible against a light-blue fill — the
+   exact "hard to see in dark mode" complaint. Gold reads as a clear,
+   energetic "primary action" accent against the dark navy bar, and dark
+   ink on gold keeps the bolt icon crisp instead of washing out. */
+html[data-theme="dark"] .generate-match-nav .generate-match-orb{
+  background:var(--gold);
+  color:#241C00;
+}
+/* "End Session" state — once matches have been generated this session, the
+   same button becomes the session-ending control, so it gets a distinct
+   stop/end color rather than staying gold (which now means "ready to
+   generate"). Uses the fixed --brand-danger red in both themes on purpose:
+   --danger/--clay intentionally go pastel in dark mode for text/pill
+   legibility, but a solid "stop" circle reads better staying solid red. */
+.generate-match-nav.is-end-session .generate-match-orb{
+  background:var(--brand-danger);
+  color:#fff;
+}
+.generate-match-nav.is-end-session .generate-match-orb svg{width:19px;height:19px}
 .generate-wizard{max-width:620px}
 .wizard-head{display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;margin-bottom:1rem}
 .wizard-kicker{margin:0 0 .18rem;font-size:.68rem;font-weight:900;letter-spacing:.14em;color:var(--turf-deep)}
@@ -3081,3 +3112,21 @@ body.viewer-mode .court-status-footer,
 @media (max-width:640px){.wizard-toggle-grid{grid-template-columns:1fr}.wizard-summary{grid-template-columns:1fr}.generate-wizard{max-height:92vh;overflow:auto}.generate-match-nav .generate-match-orb{width:50px;height:50px}}
 
 .settings-lock-badge{margin-left:auto;font-size:.62rem;font-weight:900;letter-spacing:.08em;padding:.3rem .5rem;border-radius:999px;background:var(--paper-2);border:1px solid var(--line);color:var(--slate)}
+
+/* ================= End Session modal ================= */
+.end-session-actions{flex-direction:column;align-items:stretch}
+.end-session-actions .btn{
+  display:flex;flex-direction:column;align-items:flex-start;gap:.2rem;
+  text-align:left;padding:.85rem 1rem;border-radius:14px;width:100%;white-space:normal;
+}
+.end-session-actions .btn strong{font-size:.9rem}
+.end-session-actions .btn small{font-weight:500;color:var(--slate);line-height:1.4}
+.end-session-actions .btn.danger small{color:var(--danger)}
+#endSessionCancelBtn{align-items:center}
+
+/* ================= Check-in hold note (Generate wizard in progress) ================= */
+.wizard-hold-note{
+  background:var(--gold-pale);border:1px solid var(--gold-deep);border-radius:12px;
+  padding:.65rem .8rem;margin:0 0 .75rem;color:var(--gold-ink);font-weight:600;
+}
+.arrival-checkin-btn:disabled{opacity:.45;cursor:not-allowed}
