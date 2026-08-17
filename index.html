@@ -734,8 +734,15 @@
     <h3 id="sessionNameTitle">Name this session</h3>
     <p class="add-hint" style="padding:0;margin:0 0 .7rem;text-align:center">Give this live match a name so you can find it later in your session dashboard.</p>
     <form id="sessionNameForm">
+      <label class="session-name-field-label" for="sessionNameInput">Session name / Title</label>
       <input type="text" id="sessionNameInput" maxlength="60" autocomplete="off" placeholder="e.g. Saturday Morning Open Play" required>
       <p class="host-error" id="sessionNameError" hidden></p>
+      <label class="session-name-field-label" for="sessionClubInput">Club name <span class="session-name-optional">(optional)</span></label>
+      <input type="text" id="sessionClubInput" maxlength="60" autocomplete="off" placeholder="e.g. Cebu Paddle Club">
+      <p class="add-hint" style="padding:0;margin:.2rem 0 0;text-align:left">If filled, the club name appears on the shared link's preview banner.</p>
+      <label class="session-name-field-label" for="sessionDescriptionInput" style="margin-top:.85rem">Description <span class="session-name-optional">(optional)</span></label>
+      <textarea id="sessionDescriptionInput" maxlength="200" rows="2" placeholder="e.g. Open play, all levels welcome. Bring your own paddle."></textarea>
+      <p class="add-hint" style="padding:0;margin:.2rem 0 0;text-align:left">Included whenever the live link is copied or shared.</p>
       <div class="modal-actions">
         <button type="submit" class="btn primary" id="sessionNameSubmitBtn">🔴 Go live</button>
         <button type="button" class="btn ghost" id="sessionNameCancelBtn">Cancel</button>
