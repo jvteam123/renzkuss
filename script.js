@@ -6373,6 +6373,7 @@ function fmtDashDate(iso){
 function accountSessionRowHTML(row){
   const busy = accountDashBusyId === row.id;
   const isLive = row.status === 'live';
+  const isCurrent = !!hostSession && hostSession.id === row.id;
   const name = row.session_name ? esc(row.session_name) : 'Untitled session';
   return `
     <div class="account-dash-row${isLive ? ' is-live' : ''}">
@@ -6380,13 +6381,13 @@ function accountSessionRowHTML(row){
         <span class="account-dash-status-dot" aria-hidden="true"></span>
         <div class="account-dash-row-text">
           <span class="account-dash-name">${name}</span>
-          <span class="account-dash-meta">${isLive ? '\uD83D\uDD34 Live now' : '\u23F8 Ended'} &middot; code ${esc(row.invite_code)} &middot; ${fmtDashDate(row.created_at)}</span>
+          <span class="account-dash-meta">${isLive ? '\uD83D\uDD34 Live now' : '\u23F8 Ended'}${isCurrent ? ' &middot; this device' : ''} &middot; code ${esc(row.invite_code)} &middot; ${fmtDashDate(row.created_at)}</span>
         </div>
       </div>
       <div class="account-dash-row-actions">
         ${busy
           ? `<span class="account-dash-busy"><span class="btn-spinner" aria-hidden="true"></span>Working\u2026</span>`
-          : `<button type="button" class="btn ghost sm" data-act="dash-load" data-id="${row.id}">Load</button>
+          : `<button type="button" class="btn ghost sm" data-act="dash-load" data-id="${row.id}" ${isCurrent ? 'disabled title="Already live on this device"' : ''}>${isCurrent ? 'Current' : 'Load'}</button>
              <button type="button" class="btn danger sm" data-act="dash-delete" data-id="${row.id}">Delete</button>`}
       </div>
     </div>
@@ -6435,6 +6436,7 @@ async function loadAccountSession(id){
   if (!accountSessions) return;
   const row = accountSessions.find(r => r.id === id);
   if (!row) return;
+  if (hostSession && hostSession.id === row.id) return; // already live on this device — nothing to load
   if (!(await showConfirm(
     `This will replace this device\u2019s current stack, courts and history with the saved session \u201c${row.session_name || 'Untitled session'}\u201d. This cannot be undone.`,
     { title: 'Load this session?', confirmLabel: 'Load' }
