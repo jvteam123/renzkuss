@@ -6366,6 +6366,18 @@ function shareUrlFor(code){
 function cohostUrlFor(inviteCode, cohostCodeVal){
   return location.origin + location.pathname + '?join=' + encodeURIComponent(inviteCode) + '&cohost=' + encodeURIComponent(cohostCodeVal);
 }
+/* The co-host link actually shown/copied in the host panel — routes through
+   /api/share-cohost (see /cs/:invite/:secret rewrite in vercel.json) the
+   same way shareUrlFor() routes the viewer link through /api/share, so a
+   co-host link pasted into a chat app also gets a real preview card (see
+   api/og.js's role=cohost banner) instead of showing up bare. A real click
+   still 302s straight into the app; only bot user-agents see the
+   intermediate HTML. Falls back to the raw join+cohost link if this isn't
+   running on the deployed domain (e.g. a local file:// preview). */
+function cohostShareUrlFor(inviteCode, cohostCodeVal){
+  if (location.protocol !== 'http:' && location.protocol !== 'https:') return cohostUrlFor(inviteCode, cohostCodeVal);
+  return location.origin + '/cs/' + encodeURIComponent(inviteCode) + '/' + encodeURIComponent(cohostCodeVal);
+}
 
 /* ================= Session name prompt (asked before "Go live") =================
    A themed replacement for window.prompt() — resolves with the trimmed name
@@ -6810,7 +6822,7 @@ function renderHostPanel(){
             : 'Give a trusted helper their own link to run the courts \u2014 no account needed on their end, and they can\u2019t change settings or the roster.'}
         </p>
         ${hostCohostCode ? `
-          <div class="host-cohost-link" id="cohostLinkText">${esc(cohostUrlFor(hostSession.invite_code, hostCohostCode))}</div>
+          <div class="host-cohost-link" id="cohostLinkText">${esc(cohostShareUrlFor(hostSession.invite_code, hostCohostCode))}</div>
           ${state.session.cohostPin ? `
             <div class="host-cohost-pin">PIN <strong id="cohostPinText">${esc(state.session.cohostPin)}</strong></div>
             <p class="host-live-note" style="margin-top:.2rem">Share this PIN separately from the link (in person or a text) \u2014 whoever opens the link needs it too before they're let in.</p>
@@ -7241,7 +7253,7 @@ hostOverlay.addEventListener('click', (e) => {
   if (e.target.closest('#hostCopyLinkBtn')){ copyText(shareUrlFor(hostSession.invite_code)); return; }
   if (e.target.closest('#hostCopyCodeBtn')){ copyText(hostSession.invite_code); return; }
   if (e.target.closest('#cohostEnableBtn')){ enableCohostAccess(); return; }
-  if (e.target.closest('#cohostCopyLinkBtn')){ if (hostCohostCode) copyText(cohostUrlFor(hostSession.invite_code, hostCohostCode)); return; }
+  if (e.target.closest('#cohostCopyLinkBtn')){ if (hostCohostCode) copyText(cohostShareUrlFor(hostSession.invite_code, hostCohostCode)); return; }
   if (e.target.closest('#cohostRegenBtn')){ enableCohostAccess(); return; } // re-running enable_cohost issues a fresh code, invalidating the old link
   if (e.target.closest('#cohostDisableBtn')){
     (async () => {
