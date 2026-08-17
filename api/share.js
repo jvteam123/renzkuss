@@ -48,6 +48,7 @@ export default async function handler(req){
   // reason, fall back to generic PaddleStack branding rather than erroring.
   let sessionName = 'PaddleStack Session';
   let description = 'Live match — tap to view.';
+  let club = '';
   try{
     const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_hosted_session_by_code`, {
       method: 'POST',
@@ -62,17 +63,23 @@ export default async function handler(req){
       const data = await res.json().catch(() => null);
       const row = Array.isArray(data) ? data[0] : null;
       if (row){
-        const nameFromState = row.state && row.state.session && row.state.session.name;
+        const sessionState = row.state && row.state.session;
+        const nameFromState = sessionState && sessionState.name;
         sessionName = row.session_name || nameFromState || sessionName;
-        description = row.status === 'live'
+        club = (sessionState && sessionState.club) || '';
+        // A host-supplied description takes priority over the generic
+        // live/ended copy — it's what they typed in the "Go live" prompt
+        // specifically to be seen when this link gets shared.
+        const customDescription = (sessionState && sessionState.description) || '';
+        description = customDescription || (row.status === 'live'
           ? 'Live now on PaddleStack — tap to watch courts and scores.'
-          : 'View this PaddleStack session.';
+          : 'View this PaddleStack session.');
       }
     }
   }catch(e){ /* fall through with generic defaults */ }
 
-  const title = `${sessionName} — PaddleStack`;
-  const ogImage = `${url.origin}/api/og?code=${encodeURIComponent(code)}&name=${encodeURIComponent(sessionName)}`;
+  const title = club ? `${sessionName} — ${club}` : `${sessionName} — PaddleStack`;
+  const ogImage = `${url.origin}/api/og?code=${encodeURIComponent(code)}&name=${encodeURIComponent(sessionName)}${club ? `&club=${encodeURIComponent(club)}` : ''}`;
 
   const html = `<!doctype html>
 <html>
