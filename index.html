@@ -667,7 +667,6 @@
         <div class="settings-card-head-text"><label style="margin:0">Session controls</label></div>
       </div>
       <button class="btn ghost pill" id="restoreDefaultsBtn" style="width:100%;margin-bottom:.5rem"><svg viewBox="0 0 24 24" style="width:13px;height:13px"><use href="#i-restart"/></svg>Restore default settings</button>
-      <button class="btn warn pill" id="endSessionBtn" style="width:100%;margin-bottom:.5rem"><svg viewBox="0 0 24 24" style="width:13px;height:13px"><use href="#i-lock"/></svg>End session (keep all records)</button>
       <button class="btn ghost pill" id="newSessionBtn" style="width:100%;margin-bottom:.5rem"><svg viewBox="0 0 24 24" style="width:13px;height:13px"><use href="#i-restart"/></svg>Start new session (keep player names)</button>
       <button class="btn danger pill" id="resetBtn" style="width:100%;margin-bottom:.5rem"><svg viewBox="0 0 24 24" style="width:13px;height:13px"><use href="#i-trash"/></svg>Erase everything (players too)</button>
       <button class="btn danger pill" id="clearAppDataBtn" style="width:100%"><svg viewBox="0 0 24 24" style="width:13px;height:13px"><use href="#i-trash"/></svg>Clear app data (factory reset)</button>
@@ -682,9 +681,14 @@
 
 <!-- Host Online modal -->
 <div class="overlay" id="hostOverlay" hidden>
-  <div class="modal" role="dialog" aria-modal="true" aria-label="Host match online">
-    <h3><svg viewBox="0 0 24 24" style="width:16px;height:16px;vertical-align:-2px;margin-right:.35rem"><use href="#i-cloud"/></svg>Watch or host live</h3>
-    <p class="winner-note" style="margin:-.3rem 0 .8rem">Got a code from the host? Paste it below to watch live. Or share your own courts and queue with a code or QR — no account needed to view.</p>
+  <div class="modal host-modal" role="dialog" aria-modal="true" aria-label="Host match online">
+    <div class="host-modal-head">
+      <span class="host-modal-head-icon"><svg viewBox="0 0 24 24"><use href="#i-cloud"/></svg></span>
+      <div class="host-modal-head-text">
+        <h3>Watch or host live</h3>
+        <p>Share your courts and queue, or watch someone else's</p>
+      </div>
+    </div>
 
     <div class="watch-code-block">
       <label for="watchCodeInput">Match code</label>
@@ -699,6 +703,45 @@
     <div id="hostPanelBody"></div>
     <div class="modal-actions">
       <button class="btn ghost" id="hostDone">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Session name modal — asked right before "Go live" so the match can be
+     found again later in the session dashboard. -->
+<div class="overlay" id="sessionNameOverlay" hidden>
+  <div class="modal session-name-modal" role="dialog" aria-modal="true" aria-labelledby="sessionNameTitle">
+    <span class="session-name-icon"><svg viewBox="0 0 24 24"><use href="#i-cloud"/></svg></span>
+    <h3 id="sessionNameTitle">Name this session</h3>
+    <p class="add-hint" style="padding:0;margin:0 0 .7rem;text-align:center">Give this live match a name so you can find it later in your session dashboard.</p>
+    <form id="sessionNameForm">
+      <input type="text" id="sessionNameInput" maxlength="60" autocomplete="off" placeholder="e.g. Saturday Morning Open Play" required>
+      <p class="host-error" id="sessionNameError" hidden></p>
+      <div class="modal-actions">
+        <button type="submit" class="btn primary" id="sessionNameSubmitBtn">🔴 Go live</button>
+        <button type="button" class="btn ghost" id="sessionNameCancelBtn">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Account dashboard modal — every hosted session this account has saved
+     (live or ended), newest first, capped at 10 with the oldest pruned
+     automatically. Opened from "Manage account" in the Host Online panel. -->
+<div class="overlay" id="accountDashOverlay" hidden>
+  <div class="modal wide account-dash-modal" role="dialog" aria-modal="true" aria-labelledby="accountDashTitle">
+    <div class="account-dash-head">
+      <span class="account-dash-head-icon"><svg viewBox="0 0 24 24"><use href="#i-cloud"/></svg></span>
+      <div class="account-dash-head-text">
+        <h3 id="accountDashTitle">Session dashboard</h3>
+        <p>Your saved live sessions, newest first</p>
+      </div>
+      <span class="account-dash-count" id="accountDashCount"></span>
+    </div>
+    <p class="winner-note" style="margin:-.2rem 0 .8rem">Load a saved session back onto this device, or delete one you don't need. Only your 10 most recent are kept — older ones are removed automatically.</p>
+    <div class="account-dash-list" id="accountDashList"></div>
+    <div class="modal-actions">
+      <button class="btn primary" id="accountDashDone">Done</button>
     </div>
   </div>
 </div>
@@ -803,11 +846,16 @@
 
 <!-- Match history modal -->
 <div class="overlay" id="matchHistoryOverlay" hidden>
-  <div class="modal wide" role="dialog" aria-modal="true" aria-label="Match history">
-    <h3>🕓 Match History</h3>
+  <div class="modal wide match-history-modal" role="dialog" aria-modal="true" aria-label="Match history">
+    <div class="rankings-modal-head">
+      <h3>🕓 Match History</h3>
+    </div>
     <p class="winner-note" style="margin:-.3rem 0 .8rem">Every completed match this session, in full.</p>
     <div class="match-history-filters">
-      <div class="match-history-search"><input type="text" id="matchHistorySearchInput" placeholder="Search player or court…" aria-label="Search match history"></div>
+      <div class="match-history-search">
+        <svg viewBox="0 0 24 24"><use href="#i-search"/></svg>
+        <input type="text" id="matchHistorySearchInput" placeholder="Search player or court…" aria-label="Search match history">
+      </div>
       <div class="match-history-filter-row">
         <!-- Native <select> kept for state only (script.js reads/writes .value) —
              the visible picker is a custom dropdown so it matches the themed
