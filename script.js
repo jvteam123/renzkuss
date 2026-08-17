@@ -1980,9 +1980,28 @@ function wizardDefaults(){
     gameSize: state.session.gameSize || 4,
     matchingStyle: getMatchingStyle(),
     avoidRepeat: !!state.session.avoidRepeatTeammates,
-    fixedDuo: state.session.fixedDuosEnabled !== false && Array.isArray(state.session.fixedDuos) && state.session.fixedDuos.length > 0,
+    fixedDuos: Array.isArray(state.session.fixedDuos) ? state.session.fixedDuos.map(d => ({a:d.a,b:d.b})) : [],
     scoring: state.session.scoringEnabled !== false
   };
+}
+function renderWizardFixedDuoOptions(){
+  const a = $('#wizardFixedDuoNameA'), b = $('#wizardFixedDuoNameB');
+  if (!a || !b) return;
+  const names = allKnownNames();
+  const opts = names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  a.innerHTML = '<option value="">Player A…</option>' + opts;
+  b.innerHTML = '<option value="">Player B…</option>' + opts;
+}
+function renderWizardFixedDuoList(){
+  const list = $('#wizardFixedDuoList');
+  if (!list || !generateWizardDraft) return;
+  const duos = generateWizardDraft.fixedDuos || [];
+  if (!duos.length){ list.innerHTML = '<div class="fixed-duo-empty">No fixed duos selected for this generation.</div>'; return; }
+  list.innerHTML = duos.map((duo, i) => `
+    <div class="fixed-duo-row">
+      <span class="fd-names">${esc(duo.a)}<svg viewBox="0 0 24 24"><use href="#i-swap"/></svg>${esc(duo.b)}</span>
+      <button type="button" class="rm-del" data-wizard-duo-idx="${i}" aria-label="Remove fixed duo of ${esc(duo.a)} and ${esc(duo.b)}"><svg viewBox="0 0 24 24"><use href="#i-x"/></svg></button>
+    </div>`).join('');
 }
 function renderGenerateWizard(){
   if (!generateMatchOverlay || !generateWizardDraft) return;
@@ -1996,13 +2015,19 @@ function renderGenerateWizard(){
   document.querySelectorAll('#wizardMatchTypeChoices [data-size]').forEach(b => b.classList.toggle('active', Number(b.dataset.size) === generateWizardDraft.gameSize));
   document.querySelectorAll('#wizardStyleChoices [data-style]').forEach(b => b.classList.toggle('active', b.dataset.style === generateWizardDraft.matchingStyle));
   wizardAvoidRepeat.checked = generateWizardDraft.avoidRepeat;
-  wizardFixedDuo.checked = generateWizardDraft.fixedDuo;
+  const wizardFixedDuoSub = $('#wizardFixedDuoSub');
+  if (wizardFixedDuoSub) wizardFixedDuoSub.hidden = !generateWizardDraft.avoidRepeat;
   wizardScoring.checked = generateWizardDraft.scoring;
+  if (generateWizardDraft.avoidRepeat){
+    renderWizardFixedDuoOptions();
+    renderWizardFixedDuoList();
+  }
   generateWizardBack.disabled = generateWizardStep === 1;
   generateWizardNext.textContent = generateWizardStep === 4 ? '⚡ Generate Match' : 'Continue';
   if (generateWizardStep === 4){
     const styleLabel = generateWizardDraft.matchingStyle === 'balanced' ? 'Balance' : generateWizardDraft.matchingStyle === 'skillSeparated' ? 'Skill' : 'Winner / Loser';
-    wizardSummary.innerHTML = `<div><span>Courts</span><b>${generateWizardDraft.courts}</b></div><div><span>Match type</span><b>${generateWizardDraft.gameSize === 4 ? '2v2 Doubles' : '1v1 Singles'}</b></div><div><span>Matching style</span><b>${styleLabel}</b></div><div><span>Avoid repeating</span><b>${generateWizardDraft.avoidRepeat ? 'ON' : 'OFF'}</b></div><div><span>Fixed duo</span><b>${generateWizardDraft.fixedDuo ? 'ON' : 'OFF'}</b></div><div><span>Scoring</span><b>${generateWizardDraft.scoring ? 'ON' : 'OFF'}</b></div>`;
+    const duoCount = (generateWizardDraft.fixedDuos || []).length;
+    wizardSummary.innerHTML = `<div><span>Courts</span><b>${generateWizardDraft.courts}</b></div><div><span>Match type</span><b>${generateWizardDraft.gameSize === 4 ? '2v2 Doubles' : '1v1 Singles'}</b></div><div><span>Matching style</span><b>${styleLabel}</b></div><div><span>Avoid repeating teammates</span><b>${generateWizardDraft.avoidRepeat ? 'ON' : 'OFF'}</b></div><div><span>Fixed duos</span><b>${generateWizardDraft.avoidRepeat ? (duoCount ? `${duoCount} selected` : 'None') : 'OFF'}</b></div><div><span>Scoring</span><b>${generateWizardDraft.scoring ? 'ON' : 'OFF'}</b></div>`;
   }
 }
 function openGenerateWizard(){
@@ -2036,13 +2061,9 @@ async function generateMatchesFromWizard(){
   state.session.gameSize = d.gameSize;
   state.session.matchingStyle = d.matchingStyle;
   state.session.avoidRepeatTeammates = d.avoidRepeat;
-  state.session.fixedDuosEnabled = d.fixedDuo;
+  state.session.fixedDuosEnabled = d.avoidRepeat && (d.fixedDuos || []).length > 0;
   state.session.scoringEnabled = d.scoring;
-  // Fixed Duo is a saved pairing feature. The wizard toggle controls whether
-  // those saved pairings should be respected for this generation.
-  if (!d.fixedDuo) state.session.fixedDuos = [];
-  // Matches are deliberately started only by this wizard. Auto-start is kept
-  // off so checking players in can never start a court behind the host's back.
+  state.session.fixedDuos = d.avoidRepeat ? (d.fixedDuos || []).map(x => ({a:x.a,b:x.b})) : [];
   state.session.autoStartEnabled = false;
   state.session.generationReady = true;
   await applyWizardCourtCount(d.courts);
@@ -2071,9 +2092,40 @@ document.addEventListener('click', e => {
   if (sizeBtn && generateWizardDraft){ generateWizardDraft.gameSize = Number(sizeBtn.dataset.size); renderGenerateWizard(); return; }
   const styleBtn = e.target.closest('#wizardStyleChoices [data-style]');
   if (styleBtn && generateWizardDraft){ generateWizardDraft.matchingStyle = styleBtn.dataset.style; renderGenerateWizard(); return; }
+  const addDuoBtn = e.target.closest('#wizardFixedDuoAddBtn');
+  if (addDuoBtn && generateWizardDraft){
+    const a = $('#wizardFixedDuoNameA')?.value, b = $('#wizardFixedDuoNameB')?.value;
+    if (!a || !b){ toast('Pick two players first'); return; }
+    if (a === b){ toast('Pick two different players'); return; }
+    const duos = generateWizardDraft.fixedDuos || (generateWizardDraft.fixedDuos = []);
+    const already = duos.some(d => (d.a === a && d.b === b) || (d.a === b && d.b === a));
+    if (already){ toast('That duo is already selected'); return; }
+    const inOtherDuo = duos.some(d => [d.a,d.b].includes(a) || [d.a,d.b].includes(b));
+    if (inOtherDuo){ toast('One of those players is already in a fixed duo'); return; }
+    duos.push({a,b});
+    renderWizardFixedDuoOptions();
+    renderWizardFixedDuoList();
+    toast(a + ' & ' + b + ' added as a fixed duo');
+    return;
+  }
+  const removeDuoBtn = e.target.closest('[data-wizard-duo-idx]');
+  if (removeDuoBtn && generateWizardDraft){
+    const idx = Number(removeDuoBtn.dataset.wizardDuoIdx);
+    if (generateWizardDraft.fixedDuos?.[idx]) generateWizardDraft.fixedDuos.splice(idx,1);
+    renderWizardFixedDuoOptions();
+    renderWizardFixedDuoList();
+    return;
+  }
 });
-if (wizardAvoidRepeat) wizardAvoidRepeat.addEventListener('change', () => { if (generateWizardDraft) generateWizardDraft.avoidRepeat = wizardAvoidRepeat.checked; });
-if (wizardFixedDuo) wizardFixedDuo.addEventListener('change', () => { if (generateWizardDraft) generateWizardDraft.fixedDuo = wizardFixedDuo.checked; });
+if (wizardAvoidRepeat) wizardAvoidRepeat.addEventListener('change', () => {
+  if (!generateWizardDraft) return;
+  generateWizardDraft.avoidRepeat = wizardAvoidRepeat.checked;
+  if (generateWizardDraft.avoidRepeat){
+    renderWizardFixedDuoOptions();
+    renderWizardFixedDuoList();
+  }
+  renderGenerateWizard();
+});
 if (wizardScoring) wizardScoring.addEventListener('change', () => { if (generateWizardDraft) generateWizardDraft.scoring = wizardScoring.checked; });
 if (generateWizardBack) generateWizardBack.addEventListener('click', () => { if (generateWizardStep > 1){ generateWizardStep--; renderGenerateWizard(); } });
 if (generateWizardNext) generateWizardNext.addEventListener('click', () => { if (generateWizardStep < 4){ generateWizardStep++; renderGenerateWizard(); } else generateMatchesFromWizard(); });
