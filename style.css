@@ -1839,13 +1839,22 @@ html[data-theme="dark"] .vb-live-badge{background:rgba(255,107,117,.16)}
    keep the normal stack/courts layout (they need to see who's queued to
    know when to call the next game) — only specific controls are hidden. */
 body.cohost-mode #hostOnlineBtn,
-body.cohost-mode #settingsBtn,
 body.cohost-mode #callOutTopBtn,
 body.cohost-mode #addPlayerTabBtn,
 body.cohost-mode #checkInTabBtn,
 body.cohost-mode .session-banner,
 body.cohost-mode .block-flush-btn,
 body.cohost-mode .block-level-flush-btn{ display:none !important; }
+/* Settings stays VISIBLE (not display:none) for a co-host, unlike the
+   controls above — tapping it is still fully blocked (openSettings() shows
+   "Settings are disabled by host" instead of opening the panel), but a
+   dimmed, clearly-locked icon communicates that up front rather than the
+   gear just silently disappearing. */
+body.cohost-mode #settingsBtn{ opacity:.45; position:relative; }
+body.cohost-mode #settingsBtn::after{
+  content:'';position:absolute;right:2px;bottom:2px;width:9px;height:9px;border-radius:50%;
+  background:var(--slate);border:1.5px solid var(--surface);
+}
 /* Swap/Sub icons on a co-host device are now conditionally rendered by
    script.js based on the host's Allow Swap / Allow Substitution toggles
    (see cohostActionAllowed/getCohostPermissions) rather than always
@@ -1871,6 +1880,18 @@ body.cohost-mode .court-name{ pointer-events:none; }
   font-family:var(--font-mono);font-size:.72rem;line-height:1.4;word-break:break-all;
   color:var(--turf-deep);background:var(--turf-pale);border-radius:var(--radius-sm);
   padding:.6rem .7rem;margin:.6rem 0;user-select:all;
+}
+.host-cohost-pin{
+  font-family:var(--font-mono);font-size:.78rem;color:var(--ink);
+  background:var(--court);border:1px solid var(--line);border-radius:var(--radius-sm);
+  padding:.5rem .7rem;margin:0 0 .3rem;
+}
+.host-cohost-pin strong{
+  font-size:1rem;letter-spacing:.12em;color:var(--turf-deep);
+}
+.cohost-pin-modal #cohostPinInput{
+  width:100%;font-family:var(--font-mono);font-size:1.4rem;letter-spacing:.4em;
+  text-align:center;padding:.6rem .5rem;
 }
 .host-cohost-permissions{
   display:flex;flex-direction:column;gap:.45rem;margin:.7rem 0;padding:.6rem .7rem;
