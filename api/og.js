@@ -1,5 +1,13 @@
-// Draws the banner image that shows up in link previews
-// (icon + session name + invite code + LIVE + WATCH NOW)
+// Draws the banner image that shows up in link previews.
+// Three modes, chosen by which query params are present:
+//   - code + name  -> live/watch session banner (icon, session name,
+//                     invite code, LIVE badge, WATCH NOW) — unchanged
+//                     default behavior, used by /api/share.
+//   - role=cohost + name -> co-host invite banner (no join code shown,
+//                     since the real co-host secret is 16-32 chars) —
+//                     used by /api/share-cohost.
+//   - neither      -> generic PaddleStack default banner, used as the
+//                     static og:image fallback for the bare site.
 
 import { ImageResponse } from '@vercel/og';
 
@@ -16,13 +24,23 @@ function h(type, props, ...children) {
 export default async function handler(req) {
   const { searchParams, origin } = new URL(req.url);
 
-  const name = (
-    searchParams.get('name') || 'PaddleStack Session'
-  ).slice(0, 80);
-
   const code = (
     searchParams.get('code') || ''
   ).slice(0, 6);
+
+  // role=cohost draws a co-host invite banner instead of the default
+  // "watch live" one — no join code shown (the real co-host secret is
+  // 16-32 chars, not something you'd want rendered into a banner image).
+  const isCohost = searchParams.get('role') === 'cohost';
+  // Neither a code nor a role means this is the generic/default banner —
+  // used on the bare site (paddlestack.online with no session context) so
+  // sharing the homepage itself still gets a real preview card instead of
+  // nothing. See index.html's static og:image fallback.
+  const isGeneric = !code && !isCohost;
+
+  const name = (
+    searchParams.get('name') || (isGeneric ? 'Queue, courts, and scoring — all in one place.' : 'PaddleStack Session')
+  ).slice(0, 80);
 
   const iconUrl = `${origin}/icon-512.png`;
 
@@ -96,7 +114,8 @@ export default async function handler(req) {
       )
     ),
 
-    // LIVE badge
+    // Status badge — red LIVE for a real session link, gold CO-HOST for a
+    // co-host invite, neutral OPEN PLAY wordmark for the generic default.
     h(
       'div',
       {
@@ -112,18 +131,18 @@ export default async function handler(req) {
         }
       },
 
-      h('div', {
+      isGeneric ? null : h('div', {
         style: {
           width: 14,
           height: 14,
           borderRadius: 999,
-          background: '#FF4D4D',
+          background: isCohost ? '#FCD116' : '#FF4D4D',
           marginRight: 12,
           display: 'flex'
         }
       }),
 
-      'LIVE'
+      isCohost ? 'CO-HOST' : (isGeneric ? 'OPEN PLAY' : 'LIVE')
     )
   );
 
@@ -156,7 +175,7 @@ export default async function handler(req) {
           marginBottom: 14
         }
       },
-      'YOU’RE INVITED TO PLAY'
+      isCohost ? 'YOU’RE INVITED TO CO-HOST' : (isGeneric ? 'OPEN PLAY, ORGANIZED' : 'YOU’RE INVITED TO PLAY')
     ),
 
     h(
