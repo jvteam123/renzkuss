@@ -188,7 +188,7 @@ function defaultCourts(n){
 
 function freshState(){
   return {
-    session: { name: 'PaddleStack', club: '', description: '', createdAt: Date.now(), gameSize: 4, soundOn: true, notifyCallsEnabled: true, status: 'active', targetGamesEnabled: false, targetGamesPerPlayer: 7, avoidRepeatTeammates: false, fixedDuos: [], scoringEnabled: true, winningScore: 11, autoStartEnabled: true, autoStartMinutes: 1, matchingStyle: 'winnersLosers', skillLevelsEnabled: false, cohostPermissions: { allowSwap: true, allowSubstitution: true } }, // status: 'active' | 'ended'; matchingStyle: 'balanced' | 'skillSeparated' | 'winnersLosers'; skillLevelsEnabled: off by default — everyone plays Open Play until turned on; autoStartMinutes: how long an open, ready court waits before auto-starting (default 1 minute); soundOn: on-site voice announcement only; notifyCallsEnabled: phone notifications on call-up, independent of soundOn; cohostPermissions: what a co-host device is allowed to do beyond start/score — both default ON, host can turn either off per-session (see setCohostPermission); createdAt: when this session was created, used only for the viewer dashboard's "Session Time" stat — a saved session from before this field existed just won't show an accurate elapsed time, which is harmless; club/description: optional, set via the "Go live" session-name prompt — club shows on the shared-link preview banner, description rides along whenever the live link is copied/shared
+    session: { name: 'PaddleStack', club: '', description: '', createdAt: Date.now(), gameSize: 4, soundOn: true, notifyCallsEnabled: true, status: 'active', targetGamesEnabled: false, targetGamesPerPlayer: 7, avoidRepeatTeammates: false, fixedDuos: [], fixedDuosEnabled: false, scoringEnabled: true, winningScore: 11, autoStartEnabled: false, autoStartMinutes: 1, matchingStyle: 'winnersLosers', skillLevelsEnabled: false, cohostPermissions: { allowSwap: true, allowSubstitution: true } }, // status: 'active' | 'ended'; matchingStyle: 'balanced' | 'skillSeparated' | 'winnersLosers'; skillLevelsEnabled: off by default — everyone plays Open Play until turned on; autoStartMinutes: how long an open, ready court waits before auto-starting (default 1 minute); soundOn: on-site voice announcement only; notifyCallsEnabled: phone notifications on call-up, independent of soundOn; cohostPermissions: what a co-host device is allowed to do beyond start/score — both default ON, host can turn either off per-session (see setCohostPermission); createdAt: when this session was created, used only for the viewer dashboard's "Session Time" stat — a saved session from before this field existed just won't show an accurate elapsed time, which is harmless; club/description: optional, set via the "Go live" session-name prompt — club shows on the shared-link preview banner, description rides along whenever the live link is copied/shared
     courts: defaultCourts(2),
     arrivals: [],        // {id, name, addedAt} — added but not yet checked in; not part of the live queue
     stack: [],           // {id, name, joinedAt, tag: 'new'|'queued'}
@@ -910,7 +910,7 @@ function selectMatchEntries(gameSize, sourceStack){
    lookahead, prefers opponents the duo (and the other flex player) haven't
    already faced/teamed with repeatedly — see optimizeFlexOpponents. */
 function applyFixedDuoToSelection(base, pool, gameSize){
-  if (gameSize !== 4 || !state.session.avoidRepeatTeammates) return base;
+  if (gameSize !== 4 || !state.session.avoidRepeatTeammates || state.session.fixedDuosEnabled === false) return base;
   const duos = state.session.fixedDuos || [];
   if (duos.length === 0 || base.length === 0 || base.length > pool.length) return base;
   const idxOf = new Map();
@@ -1020,7 +1020,7 @@ function optimizeFlexOpponents(result, pool, duo){
    no-op outside gameSize 4 — same restriction applyFixedDuoToSelection
    already enforces for the same reason. */
 function reconcileFixedDuosAcrossGroups(groups, pool, gameSize, levelForGroup){
-  if (gameSize !== 4 || !state.session.avoidRepeatTeammates || groups.length < 2) return groups;
+  if (gameSize !== 4 || !state.session.avoidRepeatTeammates || state.session.fixedDuosEnabled === false || groups.length < 2) return groups;
   const duos = state.session.fixedDuos || [];
   if (duos.length === 0) return groups;
   const idxOf = new Map();
@@ -1168,7 +1168,7 @@ function findFixedDuo(names){
 // the host explicitly asked to always keep together. Fixed duos only take
 // effect while "Avoid Repeating Teammates" is on, so the lock follows suit.
 function isInFixedDuo(name){
-  if (!state.session.avoidRepeatTeammates) return false;
+  if (!state.session.avoidRepeatTeammates || state.session.fixedDuosEnabled === false) return false;
   const duos = state.session.fixedDuos || [];
   return duos.some(d => d.a === name || d.b === name);
 }
@@ -1176,7 +1176,7 @@ function isInFixedDuo(name){
 // otherwise null. Used by the player-details preview to surface duo status
 // alongside the rest of a player's info at a glance.
 function fixedDuoPartner(name){
-  if (!state.session.avoidRepeatTeammates) return null;
+  if (!state.session.avoidRepeatTeammates || state.session.fixedDuosEnabled === false) return null;
   const duos = state.session.fixedDuos || [];
   const d = duos.find(x => x.a === name || x.b === name);
   if (!d) return null;
@@ -1960,6 +1960,122 @@ if (checkInAllBtnEl){
     checkInAllArrivals();
   });
 }
+
+/* ================= Generate Match setup wizard ================= */
+const generateMatchOverlay = $('#generateMatchOverlay');
+const generateMatchNav = $('#generateMatchNav');
+const generateWizardClose = $('#generateWizardClose');
+const generateWizardNext = $('#generateWizardNext');
+const generateWizardBack = $('#generateWizardBack');
+const wizardSummary = $('#wizardSummary');
+const wizardAvoidRepeat = $('#wizardAvoidRepeat');
+const wizardFixedDuo = $('#wizardFixedDuo');
+const wizardScoring = $('#wizardScoring');
+let generateWizardStep = 1;
+let generateWizardDraft = null;
+
+function wizardDefaults(){
+  return {
+    courts: Math.max(1, Math.min(6, state.courts.length || 1)),
+    gameSize: state.session.gameSize || 4,
+    matchingStyle: getMatchingStyle(),
+    avoidRepeat: !!state.session.avoidRepeatTeammates,
+    fixedDuo: state.session.fixedDuosEnabled !== false && Array.isArray(state.session.fixedDuos) && state.session.fixedDuos.length > 0,
+    scoring: state.session.scoringEnabled !== false
+  };
+}
+function renderGenerateWizard(){
+  if (!generateMatchOverlay || !generateWizardDraft) return;
+  document.querySelectorAll('[data-wizard-step]').forEach(el => el.classList.toggle('active', Number(el.dataset.wizardStep) === generateWizardStep));
+  document.querySelectorAll('[data-step-dot]').forEach(el => {
+    const n = Number(el.dataset.stepDot);
+    el.classList.toggle('active', n === generateWizardStep);
+    el.classList.toggle('done', n < generateWizardStep);
+  });
+  document.querySelectorAll('#wizardCourtChoices button').forEach(b => b.classList.toggle('active', Number(b.dataset.courts) === generateWizardDraft.courts));
+  document.querySelectorAll('#wizardMatchTypeChoices [data-size]').forEach(b => b.classList.toggle('active', Number(b.dataset.size) === generateWizardDraft.gameSize));
+  document.querySelectorAll('#wizardStyleChoices [data-style]').forEach(b => b.classList.toggle('active', b.dataset.style === generateWizardDraft.matchingStyle));
+  wizardAvoidRepeat.checked = generateWizardDraft.avoidRepeat;
+  wizardFixedDuo.checked = generateWizardDraft.fixedDuo;
+  wizardScoring.checked = generateWizardDraft.scoring;
+  generateWizardBack.disabled = generateWizardStep === 1;
+  generateWizardNext.textContent = generateWizardStep === 4 ? '⚡ Generate Match' : 'Continue';
+  if (generateWizardStep === 4){
+    const styleLabel = generateWizardDraft.matchingStyle === 'balanced' ? 'Balance' : generateWizardDraft.matchingStyle === 'skillSeparated' ? 'Skill' : 'Winner / Loser';
+    wizardSummary.innerHTML = `<div><span>Courts</span><b>${generateWizardDraft.courts}</b></div><div><span>Match type</span><b>${generateWizardDraft.gameSize === 4 ? '2v2 Doubles' : '1v1 Singles'}</b></div><div><span>Matching style</span><b>${styleLabel}</b></div><div><span>Avoid repeating</span><b>${generateWizardDraft.avoidRepeat ? 'ON' : 'OFF'}</b></div><div><span>Fixed duo</span><b>${generateWizardDraft.fixedDuo ? 'ON' : 'OFF'}</b></div><div><span>Scoring</span><b>${generateWizardDraft.scoring ? 'ON' : 'OFF'}</b></div>`;
+  }
+}
+function openGenerateWizard(){
+  if (viewerMode || isSessionEnded()) { toast('Match generation is unavailable right now'); return; }
+  generateWizardDraft = wizardDefaults();
+  generateWizardStep = 1;
+  generateMatchOverlay.hidden = false;
+  renderGenerateWizard();
+}
+function closeGenerateWizard(){ if (generateMatchOverlay) generateMatchOverlay.hidden = true; }
+async function applyWizardCourtCount(target){
+  target = Math.max(1, Math.min(24, Number(target) || 1));
+  while (state.courts.length < target){
+    const n = state.courts.length + 1;
+    state.courts.push({ id: nextId('c'), name: 'Court ' + n, level: 'Open', status:'open', players:[], startTime:null, lastResult:null, swapInfo:null, score:null, previewOrder:null, previewSubMap:null, openedAt: null, pauseStart: null, pausedMs: 0 });
+  }
+  while (state.courts.length > target){
+    const last = state.courts[state.courts.length - 1];
+    if (last.status === 'playing'){
+      const returning = last.players.map(name => ({ id: nextId('p'), name, joinedAt: Date.now(), tag: 'queued' }));
+      state.stack.unshift(...returning);
+    }
+    if (swapSelection && swapSelection.courtId === last.id) swapSelection = null;
+    state.courts.pop();
+  }
+}
+async function generateMatchesFromWizard(){
+  const d = generateWizardDraft;
+  if (!d) return;
+  if (state.stack.length < d.gameSize){ toast(`Need at least ${d.gameSize} checked-in players to generate a match`, 'warning'); return; }
+  state.session.gameSize = d.gameSize;
+  state.session.matchingStyle = d.matchingStyle;
+  state.session.avoidRepeatTeammates = d.avoidRepeat;
+  state.session.fixedDuosEnabled = d.fixedDuo;
+  state.session.scoringEnabled = d.scoring;
+  // Fixed Duo is a saved pairing feature. The wizard toggle controls whether
+  // those saved pairings should be respected for this generation.
+  if (!d.fixedDuo) state.session.fixedDuos = [];
+  // Matches are deliberately started only by this wizard. Auto-start is kept
+  // off so checking players in can never start a court behind the host's back.
+  state.session.autoStartEnabled = false;
+  await applyWizardCourtCount(d.courts);
+  state.courts.forEach(c => { if (c.status === 'open') { c.openedAt = null; c.previewOrder = null; c.previewSubMap = null; } });
+  persist();
+  let started = 0;
+  for (const court of state.courts){
+    if (court.status !== 'open') continue;
+    const before = court.status;
+    callNext(court);
+    if (before !== court.status && court.status === 'playing') started++;
+  }
+  closeGenerateWizard();
+  setMobileTab('courts');
+  renderAll();
+  if (!started) toast('No complete match could be generated from the checked-in queue', 'warning');
+  else toast(started === 1 ? '1 match generated' : `${started} matches generated`);
+}
+if (generateMatchNav) generateMatchNav.addEventListener('click', openGenerateWizard);
+if (generateWizardClose) generateWizardClose.addEventListener('click', closeGenerateWizard);
+if (generateMatchOverlay) generateMatchOverlay.addEventListener('click', e => { if (e.target === generateMatchOverlay) closeGenerateWizard(); });
+document.addEventListener('click', e => {
+  const courtBtn = e.target.closest('#wizardCourtChoices [data-courts]');
+  if (courtBtn && generateWizardDraft){ generateWizardDraft.courts = Number(courtBtn.dataset.courts); renderGenerateWizard(); return; }
+  const sizeBtn = e.target.closest('#wizardMatchTypeChoices [data-size]');
+  if (sizeBtn && generateWizardDraft){ generateWizardDraft.gameSize = Number(sizeBtn.dataset.size); renderGenerateWizard(); return; }
+  const styleBtn = e.target.closest('#wizardStyleChoices [data-style]');
+  if (styleBtn && generateWizardDraft){ generateWizardDraft.matchingStyle = styleBtn.dataset.style; renderGenerateWizard(); return; }
+});
+if (wizardAvoidRepeat) wizardAvoidRepeat.addEventListener('change', () => { if (generateWizardDraft) generateWizardDraft.avoidRepeat = wizardAvoidRepeat.checked; });
+if (wizardFixedDuo) wizardFixedDuo.addEventListener('change', () => { if (generateWizardDraft) generateWizardDraft.fixedDuo = wizardFixedDuo.checked; });
+if (wizardScoring) wizardScoring.addEventListener('change', () => { if (generateWizardDraft) generateWizardDraft.scoring = wizardScoring.checked; });
+if (generateWizardBack) generateWizardBack.addEventListener('click', () => { if (generateWizardStep > 1){ generateWizardStep--; renderGenerateWizard(); } });
+if (generateWizardNext) generateWizardNext.addEventListener('click', () => { if (generateWizardStep < 4){ generateWizardStep++; renderGenerateWizard(); } else generateMatchesFromWizard(); });
 
 /* ---- Add Player / Check In modals ---- */
 function openAddPlayerModal(){
@@ -3126,11 +3242,8 @@ function renderCourts(){
       let matchupHtml;
       let swapHint = '';
       let autoStartHtml = '';
-      if (court.openedAt == null) court.openedAt = Date.now(); // e.g. an older saved session predating this field
-      if (enough && !ended && !viewerMode && state.session.autoStartEnabled){
-        const remainingMs = getAutoStartMs() - (Date.now() - court.openedAt);
-        autoStartHtml = `<div class="auto-start-hint" data-role="autostart" data-court="${court.id}">Auto-starts in ${fmtClock(Math.max(0, remainingMs))} if nobody taps Start</div>`;
-      }
+      if (court.openedAt == null) court.openedAt = null; // match starts only through Generate Match
+
       if (enough){
         const naturalNames = orderForTeammatePairing(taken.map(p => p.name));
         // Keep any manual swap the host made as long as it's still the same
@@ -4260,31 +4373,10 @@ setInterval(() => {
 // host really did just forget to tap Start Game — starts it for them once 2
 // minutes have passed since that court opened AND it currently has enough
 // players. Never runs for viewers (read-only) or after the session ends.
-setInterval(() => {
-  if (viewerMode || isSessionEnded() || !state.session.autoStartEnabled || !Array.isArray(state.courts) || state.courts.length === 0) return;
-  const gameSize = state.session.gameSize;
-  const openQueue = computeOpenCourtQueue(gameSize);
-  let dueCourt = null;
-  state.courts.forEach(court => {
-    if (court.status !== 'open') return;
-    if (court.openedAt == null) court.openedAt = Date.now();
-    const remainingMs = getAutoStartMs() - (Date.now() - court.openedAt);
-    const slot = openQueue.get(court.id);
-    const enough = !!(slot && slot.taken);
-    if (remainingMs <= 0){
-      if (dueCourt === null && enough) dueCourt = court; // start at most one per tick; keep waiting if not enough yet
-      return;
-    }
-    if (enough){
-      const el = document.querySelector(`[data-role="autostart"][data-court="${court.id}"]`);
-      if (el) el.textContent = `Auto-starts in ${fmtClock(remainingMs)} if nobody taps Start`;
-    }
-  });
-  if (dueCourt){
-    callNext(dueCourt);
-    toast(dueCourt.name + ' auto-started — nobody tapped Start Game in time');
-  }
-}, 1000);
+// Automatic match starting is intentionally disabled. Hosts start matches only
+// through the Generate Match setup wizard. The old timer is not used so
+// checking players in can never unexpectedly start a court.
+
 
 /* ================= Session name ================= */
 
@@ -4797,9 +4889,10 @@ $('#importFile').addEventListener('change', async (e) => {
     if (!parsed.session.targetGamesPerPlayer || parsed.session.targetGamesPerPlayer < 1) parsed.session.targetGamesPerPlayer = 7;
     if (typeof parsed.session.avoidRepeatTeammates !== 'boolean') parsed.session.avoidRepeatTeammates = false;
     if (!Array.isArray(parsed.session.fixedDuos)) parsed.session.fixedDuos = [];
+    if (typeof parsed.session.fixedDuosEnabled !== 'boolean') parsed.session.fixedDuosEnabled = parsed.session.fixedDuos.length > 0;
     if (typeof parsed.session.scoringEnabled !== 'boolean') parsed.session.scoringEnabled = false;
     if (!parsed.session.winningScore || parsed.session.winningScore < 1) parsed.session.winningScore = 11;
-    if (typeof parsed.session.autoStartEnabled !== 'boolean') parsed.session.autoStartEnabled = true;
+    if (typeof parsed.session.autoStartEnabled !== 'boolean') parsed.session.autoStartEnabled = false;
     if (!Number.isFinite(parsed.session.autoStartMinutes) || parsed.session.autoStartMinutes < 1) parsed.session.autoStartMinutes = 1;
     if (typeof parsed.session.club !== 'string') parsed.session.club = '';
     if (typeof parsed.session.description !== 'string') parsed.session.description = '';
@@ -4902,41 +4995,6 @@ function setMobileTab(tab){ // 'stack' | 'courts'
 }
 $('#tabStack').addEventListener('click', () => setMobileTab('stack'));
 $('#tabCourts').addEventListener('click', () => setMobileTab('courts'));
-
-/* ================= Quick Generate Match =================
-   Mobile-first primary action. It commits every currently ready open court
-   in court order, using the same queue allocator as the normal Start Game
-   buttons. No new matching logic is introduced, so the existing fairness,
-   fixed-duo, skill and winners/losers rules remain the single source of truth. */
-function generateReadyMatches(){
-  if (viewerMode) return;
-  if (isSessionEnded()){
-    toast('Session has ended — resume it to generate new matches');
-    return;
-  }
-  const readyIds = state.courts
-    .filter(c => c.status === 'open')
-    .map(c => c.id);
-  let started = 0;
-  for (const id of readyIds){
-    const court = state.courts.find(c => c.id === id);
-    if (!court || court.status !== 'open') continue;
-    const before = court.status;
-    callNext(court);
-    if (court.status === 'playing' && before === 'open') started++;
-  }
-  setMobileTab('courts');
-  if (started === 0){
-    toast('Add enough players to generate a match', 'warning');
-  } else if (started === 1){
-    toast('Match generated');
-  } else {
-    toast(`${started} matches generated`);
-  }
-}
-const generateMatchNavBtn = $('#generateMatchNav');
-if (generateMatchNavBtn) generateMatchNavBtn.addEventListener('click', generateReadyMatches);
-
 
 /* ================= Host Online (Supabase) =================
    Lets someone create a free account and broadcast a read-only view of
@@ -8343,7 +8401,7 @@ function renderCourtsStatsBar(){
     if (!Array.isArray(state.session.fixedDuos)) state.session.fixedDuos = [];
     if (typeof state.session.scoringEnabled !== 'boolean') state.session.scoringEnabled = false;
     if (!state.session.winningScore || state.session.winningScore < 1) state.session.winningScore = 11;
-    if (typeof state.session.autoStartEnabled !== 'boolean') state.session.autoStartEnabled = true;
+    if (typeof state.session.autoStartEnabled !== 'boolean') state.session.autoStartEnabled = false;
     if (!Number.isFinite(state.session.autoStartMinutes) || state.session.autoStartMinutes < 1) state.session.autoStartMinutes = 1;
     if (state.session.matchingStyle !== 'balanced' && state.session.matchingStyle !== 'skillSeparated' && state.session.matchingStyle !== 'winnersLosers') state.session.matchingStyle = 'winnersLosers';
     if (typeof state.session.club !== 'string') state.session.club = '';
