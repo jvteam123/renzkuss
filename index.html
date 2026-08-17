@@ -970,6 +970,23 @@
   </div>
 </div>
 
+<!-- Co-host PIN prompt — shown the first time a ?join=&cohost= link is opened,
+     when the host has co-host access on with a PIN set. Not shown again on
+     later reloads/auto-resume of an already-accepted co-host credential. -->
+<div class="overlay" id="cohostPinOverlay" hidden>
+  <div class="modal cohost-pin-modal" role="dialog" aria-modal="true" aria-labelledby="cohostPinTitle">
+    <h3 id="cohostPinTitle">Enter co-host PIN</h3>
+    <p class="add-hint" style="padding:0;margin:0 0 .6rem" id="cohostPinSubtitle">Ask the host for the 4-digit PIN to finish joining.</p>
+    <form id="cohostPinForm">
+      <input type="text" id="cohostPinInput" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="off" placeholder="0000" required>
+      <div class="modal-actions">
+        <button type="submit" class="btn primary">Continue</button>
+        <button type="button" class="btn ghost" id="cohostPinCancelBtn">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- Confirm modal (replaces native browser confirm() popups) -->
 <div class="overlay confirm-overlay" id="confirmOverlay" hidden>
   <div class="modal confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
