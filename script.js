@@ -549,6 +549,7 @@ function runNextConfirm(){
   confirmMessageEl.textContent = confirmActive.message;
   confirmOkBtn.textContent = opts.confirmLabel || 'Confirm';
   confirmCancelBtn.textContent = opts.cancelLabel || 'Cancel';
+  confirmCancelBtn.hidden = !!opts.alertOnly; // single-button "alert" mode — see showAlert() below
   confirmOkBtn.className = 'btn ' + (opts.danger ? 'danger' : 'primary');
   confirmOverlay.hidden = false;
   confirmOkBtn.focus();
@@ -563,6 +564,13 @@ function showConfirm(message, opts){
     confirmQueue.push({ message, opts: opts || {}, resolve });
     runNextConfirm();
   });
+}
+/* Single-button variant of showConfirm — for messages that just need
+   acknowledging (nothing to confirm/cancel between). Reuses the same
+   overlay/queue, just hides the Cancel button. Returns a Promise that
+   resolves once the person dismisses it. */
+function showAlert(message, opts){
+  return showConfirm(message, Object.assign({ confirmLabel: 'OK' }, opts || {}, { alertOnly: true }));
 }
 function closeConfirm(result){
   if (!confirmActive) return;
@@ -3718,6 +3726,10 @@ let upNextExpanded = false;
 let upNextGroupClaimedIds = new Set();
 function renderUpNext(){
   const expandBtn = $('#upNextExpandBtn');
+  // Same permission a co-host needs to actually use the pencil icon below
+  // (enforced again in openUpNextSubPicker via cohostActionAllowed) — the
+  // host device is never coHostMode, so this is always true for the host.
+  const subPermitted = !coHostMode || getCohostPermissions().allowSubstitution;
   // Drop any customize-slot picks that no longer make sense — either side
   // having left state.stack entirely (started a match, got removed, etc).
   // Lazy, cheap, and keeps this from silently accumulating dead entries.
@@ -3814,6 +3826,12 @@ function renderUpNext(){
       matchup = `<span class="ondeck-team">${a.map(esc).join(' &amp; ')}</span><span class="ondeck-vs">vs</span><span class="ondeck-team">${b.map(esc).join(' &amp; ')}</span>`;
     }
     const editIds = chosen.map(p => p.id).join(',');
+    // Same rule as every other sub-related control (see playerRowHtml /
+    // blockItemsHtml above): a co-host without the Allow Substitution
+    // permission never even sees this pencil icon — left out of the HTML
+    // entirely, not just CSS-hidden — since tapping it only leads to a
+    // dead-end toast from cohostActionAllowed() inside openUpNextSubPicker.
+    const editBtnHtml = subPermitted ? `<button type="button" class="ondeck-edit-btn" data-act="edit-ondeck" data-ids="${editIds}" data-group-num="${groupNum}" aria-label="Customize on-deck match ${groupNum}" title="Customize this match"><svg viewBox="0 0 24 24"><use href="#i-pencil"/></svg></button>` : '';
     rows.push(`
       <div class="ondeck-row">
         <span class="ondeck-badge-col">
@@ -3821,7 +3839,7 @@ function renderUpNext(){
           <span class="ondeck-index">${groupNum}</span>
         </span>
         <span class="ondeck-matchup">${matchup}</span>
-        <button type="button" class="ondeck-edit-btn" data-act="edit-ondeck" data-ids="${editIds}" data-group-num="${groupNum}" aria-label="Customize on-deck match ${groupNum}" title="Customize this match"><svg viewBox="0 0 24 24"><use href="#i-pencil"/></svg></button>
+        ${editBtnHtml}
         <span class="ondeck-meta"><svg viewBox="0 0 24 24"><use href="#i-user"/></svg>${chosen.length}</span>
       </div>`);
   });
@@ -4469,7 +4487,13 @@ const skillLevelsToggle = $('#skillLevelsToggle');
 const matchStyleGroup = $('#matchStyleGroup');
 
 function openSettings(){
-  if (isCoHostRestricted()) return;
+  // Co-hosts don't just get the generic "ask the host" toast here — settings
+  // (and the roster) stay host-only no matter what, so this is worth a real
+  // dialog instead of a toast that might get missed.
+  if (coHostMode){
+    showAlert('Settings are disabled by host', { title: 'Settings locked' });
+    return;
+  }
   settingsSessionName.value = state.session.name;
   courtCountNum.textContent = state.courts.length;
   soundToggle.checked = state.session.soundOn;
@@ -5059,6 +5083,52 @@ let remoteLiveChecked = false; // whether we've asked the server yet this "logge
 let lastStoppedHost = null; // { id, invite_code, session_name } | null — the match this device
                              // just stopped hosting, kept around so the panel can offer to pick
                              // it back up on the same link (same row, re-activated) or start fresh
+
+/* ---- Co-host PIN prompt ----
+   Small text-input dialog (same overlay pattern as showConfirm/renamePlayer)
+   used once, right after fetchCohostState succeeds for a fresh ?join=&cohost=
+   link, when the host has a 4-digit PIN set (state.session.cohostPin — see
+   enableCohostAccess below). Not a full queue like showConfirm since only
+   one of these is ever relevant at a time (during enterCoHostMode). */
+const cohostPinOverlay = $('#cohostPinOverlay');
+const cohostPinSubtitle = $('#cohostPinSubtitle');
+const cohostPinForm = $('#cohostPinForm');
+const cohostPinInput = $('#cohostPinInput');
+const cohostPinCancelBtn = $('#cohostPinCancelBtn');
+let cohostPinResolve = null;
+/* Returns a Promise<string|null> — the 4 digits entered, or null if the
+   person cancelled/dismissed. Doesn't judge correctness itself; the caller
+   (enterCoHostMode) compares against the real PIN. */
+function openCohostPinPrompt(sessionName){
+  if (!cohostPinOverlay) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    cohostPinResolve = resolve;
+    if (cohostPinSubtitle) cohostPinSubtitle.textContent = 'Ask the host for the 4-digit PIN to finish joining \u201c' + (sessionName || 'this match') + '\u201d.';
+    if (cohostPinInput) cohostPinInput.value = '';
+    cohostPinOverlay.hidden = false;
+    setTimeout(() => { if (cohostPinInput) cohostPinInput.focus(); }, 0);
+  });
+}
+function closeCohostPinPrompt(result){
+  if (!cohostPinOverlay || cohostPinOverlay.hidden) return;
+  cohostPinOverlay.hidden = true;
+  const resolve = cohostPinResolve;
+  cohostPinResolve = null;
+  if (resolve) resolve(result);
+}
+if (cohostPinForm) cohostPinForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  closeCohostPinPrompt((cohostPinInput.value || '').trim());
+});
+if (cohostPinCancelBtn) cohostPinCancelBtn.addEventListener('click', () => closeCohostPinPrompt(null));
+if (cohostPinOverlay) cohostPinOverlay.addEventListener('click', (e) => { if (e.target === cohostPinOverlay) closeCohostPinPrompt(null); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && cohostPinOverlay && !cohostPinOverlay.hidden) closeCohostPinPrompt(null); });
+/* Random 4-digit PIN as a zero-padded string ('0000'–'9999') — plain
+   digits (unlike COHOST_CODE_ALPHABET) since this is meant to be read
+   aloud or texted separately from the link, not typed from the URL. */
+function generateCohostPin(){
+  return String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+}
 
 /* ---- Co-host mode: a second device manages the same live match ----
    A co-host is NOT a second login on the host's account (that's already
@@ -5965,6 +6035,20 @@ async function enterCoHostMode(inviteCode, cohostCodeVal, opts){
     saveCohostSession(null);
     return false;
   }
+  // If the host has a PIN set, it rode along inside fetched.state (same
+  // state.session blob a co-host will adopt below) — require it before
+  // granting access on a FRESH link click. An auto-resume of an
+  // already-accepted credential (opts.skipConfirm) was already PIN-checked
+  // the first time, so it isn't asked again on every reload.
+  const requiredPin = fetched.state && fetched.state.session && fetched.state.session.cohostPin;
+  if (requiredPin && !opts.skipConfirm){
+    const enteredPin = await openCohostPinPrompt(fetched.session_name);
+    if (enteredPin === null) return false; // cancelled
+    if (enteredPin !== requiredPin){
+      toast('Incorrect PIN \u2014 ask the host for the 4-digit code', 'warning');
+      return false;
+    }
+  }
   if (!opts.skipConfirm){
     const ok = await showConfirm(
       'As a co-host you can start games and keep score on \u201c' + (fetched.session_name || 'this match') + '\u201d, plus swap partners and manage substitutions unless the host turns those off. Settings and the player roster stay with the host.',
@@ -6075,8 +6159,19 @@ async function enableCohostAccess(){
     const data = await res.json().catch(() => null);
     const row = Array.isArray(data) ? data[0] : data;
     hostCohostCode = row && row.cohost_code ? row.cohost_code : null;
-    if (hostCohostCode) toast('Co-host access is on \u2014 share the link below');
-    else toast('Could not enable co-host access \u2014 try again', 'warning');
+    if (hostCohostCode){
+      // Fresh 4-digit PIN every time co-host access is (re-)enabled — same
+      // moment the link/code itself gets regenerated (see cohostRegenBtn),
+      // so an old PIN never outlives its matching link. Rides the normal
+      // session-state sync (state.session, same as cohostPermissions) so a
+      // co-host device fetching cohost_fetch_state sees it before they're
+      // ever granted access — see enterCoHostMode below.
+      state.session.cohostPin = generateCohostPin();
+      persist(true);
+      toast('Co-host access is on \u2014 share the link and PIN below');
+    } else {
+      toast('Could not enable co-host access \u2014 try again', 'warning');
+    }
   }catch(e){
     toast('Could not enable co-host access \u2014 has supabase-cohost.sql been applied yet?', 'warning');
   }finally{
@@ -6092,7 +6187,11 @@ async function disableCohostAccess(){
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ p_session_id: hostSession.id })
     }, true);
-    if (res.ok){ hostCohostCode = null; toast('Co-host access turned off \u2014 the old link no longer works'); }
+    if (res.ok){
+      hostCohostCode = null;
+      if (state.session.cohostPin){ state.session.cohostPin = null; persist(true); }
+      toast('Co-host access turned off \u2014 the old link no longer works');
+    }
     else toast('Could not turn off co-host access \u2014 try again', 'warning');
   }catch(e){
     toast('Could not turn off co-host access \u2014 try again', 'warning');
@@ -6712,6 +6811,10 @@ function renderHostPanel(){
         </p>
         ${hostCohostCode ? `
           <div class="host-cohost-link" id="cohostLinkText">${esc(cohostUrlFor(hostSession.invite_code, hostCohostCode))}</div>
+          ${state.session.cohostPin ? `
+            <div class="host-cohost-pin">PIN <strong id="cohostPinText">${esc(state.session.cohostPin)}</strong></div>
+            <p class="host-live-note" style="margin-top:.2rem">Share this PIN separately from the link (in person or a text) \u2014 whoever opens the link needs it too before they're let in.</p>
+          ` : ''}
           <div class="host-live-actions">
             <button type="button" class="btn ghost sm" id="cohostCopyLinkBtn" ${hostCohostBusy ? 'disabled' : ''}>Copy link</button>
             <button type="button" class="btn ghost sm" id="cohostRegenBtn" ${hostCohostBusy ? 'disabled' : ''}>${hostCohostBusy ? 'Working\u2026' : 'Regenerate'}</button>
