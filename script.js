@@ -5093,7 +5093,6 @@ let lastCohostStateAt = 0;  // most recent updated_at (ms) this device has actua
 let hostCohostCode = null;  // the ACTIVE co-host code for hostSession's row, as last fetched by
                              // this (the real host's) device — null if co-host access is off
 let hostCohostBusy = false; // true while an enable/disable/regenerate request is in flight
-let hostBannerBusy = false; // true while the share-banner image is being generated/shared
 
 function b64UrlDecode(str){
   str = str.replace(/-/g, '+').replace(/_/g, '/');
@@ -6699,7 +6698,6 @@ function renderHostPanel(){
       <div class="host-live-actions">
         <button type="button" class="btn ghost sm" id="hostCopyLinkBtn">Copy link</button>
         <button type="button" class="btn ghost sm" id="hostCopyCodeBtn">Copy code</button>
-        <button type="button" class="btn ghost sm" id="hostShareBannerBtn" ${hostBannerBusy ? 'disabled' : ''}>${hostBannerBusy ? 'Making banner\u2026' : '\uD83D\uDDBC\uFE0F Share banner'}</button>
       </div>
       <button type="button" class="btn danger" id="hostStopBtn" style="width:100%;margin-top:.7rem" ${hostBusy ? 'disabled' : ''}>Stop hosting</button>
       <div class="host-cohost-card">
@@ -6743,157 +6741,6 @@ function renderHostPanel(){
   } else if (qrBox){
     qrBox.textContent = 'QR unavailable — use the code or link above.';
   }
-}
-
-/* ---- Share banner: a downloadable/shareable image (app icon + session
-   name + invite code) for the host to send alongside — or instead of —
-   the raw link, e.g. in a group chat or on social media. Pure canvas, no
-   server round-trip. Sized like a standard social-share image (1200x630)
-   so it previews well when attached in most chat apps. ---- */
-let bannerIconImg = null; // cached Image() for icon-512.png, loaded once
-function loadBannerIcon(){
-  if (bannerIconImg) return Promise.resolve(bannerIconImg);
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => { bannerIconImg = img; resolve(img); };
-    img.onerror = reject;
-    img.src = 'icon-512.png';
-  });
-}
-
-function wrapCanvasText(ctx, text, maxWidth){
-  const words = String(text).split(/\s+/).filter(Boolean);
-  const lines = [];
-  let line = '';
-  words.forEach(word => {
-    const test = line ? line + ' ' + word : word;
-    if (ctx.measureText(test).width > maxWidth && line){
-      lines.push(line);
-      line = word;
-    } else {
-      line = test;
-    }
-  });
-  if (line) lines.push(line);
-  return lines;
-}
-
-async function generateShareBanner(sessionName, inviteCode){
-  const W = 1200, H = 630;
-  const canvas = document.createElement('canvas');
-  canvas.width = W; canvas.height = H;
-  const ctx = canvas.getContext('2d');
-
-  // Background — brand navy/turf gradient, matches the app's own header treatment.
-  const grad = ctx.createLinearGradient(0, 0, W, H);
-  grad.addColorStop(0, '#0038A8');
-  grad.addColorStop(1, '#00256E');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, W, H);
-
-  // Soft decorative circles for depth.
-  ctx.globalAlpha = 0.08;
-  ctx.fillStyle = '#FFFFFF';
-  ctx.beginPath(); ctx.arc(W - 120, 90, 220, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(80, H - 60, 180, 0, Math.PI * 2); ctx.fill();
-  ctx.globalAlpha = 1;
-
-  // App icon, top-left, rounded square.
-  try{
-    const icon = await loadBannerIcon();
-    const iconSize = 120, iconX = 80, iconY = 80, radius = 26;
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(iconX + radius, iconY);
-    ctx.arcTo(iconX + iconSize, iconY, iconX + iconSize, iconY + iconSize, radius);
-    ctx.arcTo(iconX + iconSize, iconY + iconSize, iconX, iconY + iconSize, radius);
-    ctx.arcTo(iconX, iconY + iconSize, iconX, iconY, radius);
-    ctx.arcTo(iconX, iconY, iconX + iconSize, iconY, radius);
-    ctx.closePath();
-    ctx.clip();
-    ctx.drawImage(icon, iconX, iconY, iconSize, iconSize);
-    ctx.restore();
-  }catch(e){ /* icon failed to load — banner still works without it */ }
-
-  // Brand wordmark next to the icon.
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = '700 44px Arial, sans-serif';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('PaddleStack', 220, 140);
-  ctx.fillStyle = 'rgba(255,255,255,.75)';
-  ctx.font = '500 24px Arial, sans-serif';
-  ctx.fillText('Live match', 220, 180);
-
-  // Session name — the headline, word-wrapped and centered in the middle band.
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = '800 72px Arial, sans-serif';
-  ctx.textBaseline = 'alphabetic';
-  const lines = wrapCanvasText(ctx, sessionName || 'PaddleStack Session', W - 160);
-  const lineHeight = 84;
-  const startY = H / 2 - ((lines.length - 1) * lineHeight) / 2 + 20;
-  lines.slice(0, 3).forEach((line, i) => {
-    ctx.fillText(line, 80, startY + i * lineHeight);
-  });
-
-  // Invite code pill, bottom-left.
-  const codeText = 'Join with code:  ' + (inviteCode || '');
-  ctx.font = '600 32px Arial, sans-serif';
-  const codePadX = 28, codeH = 64;
-  const codeW = ctx.measureText(codeText).width + codePadX * 2;
-  const codeX = 80, codeY = H - 130;
-  ctx.fillStyle = 'rgba(255,255,255,.14)';
-  ctx.beginPath();
-  const r2 = codeH / 2;
-  ctx.moveTo(codeX + r2, codeY);
-  ctx.arcTo(codeX + codeW, codeY, codeX + codeW, codeY + codeH, r2);
-  ctx.arcTo(codeX + codeW, codeY + codeH, codeX, codeY + codeH, r2);
-  ctx.arcTo(codeX, codeY + codeH, codeX, codeY, r2);
-  ctx.arcTo(codeX, codeY, codeX + codeW, codeY, r2);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = '#FCD116';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(codeText, codeX + codePadX, codeY + codeH / 2 + 2);
-
-  return new Promise(resolve => canvas.toBlob(blob => resolve(blob), 'image/png'));
-}
-
-async function shareBanner(){
-  if (!hostSession) return;
-  hostBannerBusy = true; renderHostPanel();
-  try{
-    const blob = await generateShareBanner(state.session.name, hostSession.invite_code);
-    if (!blob) throw new Error('Could not generate the banner image');
-    const url = shareUrlFor(hostSession.invite_code);
-    const file = new File([blob], 'paddlestack-session.png', { type: 'image/png' });
-    if (navigator.canShare && navigator.canShare({ files: [file] })){
-      await navigator.share({
-        title: state.session.name || 'PaddleStack — Live match',
-        text: `Watch "${state.session.name || 'this'}" live on PaddleStack: ${url}`,
-        files: [file]
-      });
-    } else if (navigator.share){
-      // Can't attach files on this browser — share the link/text and still
-      // hand over the banner image as a download so it can be sent manually.
-      downloadBlob(blob, 'paddlestack-session.png');
-      await navigator.share({ title: state.session.name || 'PaddleStack — Live match', text: `Watch this live on PaddleStack: ${url}`, url });
-    } else {
-      downloadBlob(blob, 'paddlestack-session.png');
-      toast('Banner downloaded — attach it to your message along with the link');
-    }
-  }catch(e){
-    if (e && e.name !== 'AbortError') toast('Could not create the share banner', 'error');
-  }finally{
-    hostBannerBusy = false; renderHostPanel();
-  }
-}
-
-function downloadBlob(blob, filename){
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click(); a.remove();
-  URL.revokeObjectURL(url);
 }
 
 /* Renders the "Buy credits" flow: collapsed to a single toggle button
@@ -7289,7 +7136,6 @@ hostOverlay.addEventListener('click', (e) => {
   if (e.target.closest('#hostResumeBtn')){ resumeRemoteSession(); return; }
   if (e.target.closest('#hostEndRemoteBtn')){ endRemoteSession(); return; }
   if (e.target.closest('#hostCopyLinkBtn')){ copyText(shareUrlFor(hostSession.invite_code)); return; }
-  if (e.target.closest('#hostShareBannerBtn')){ shareBanner(); return; }
   if (e.target.closest('#hostCopyCodeBtn')){ copyText(hostSession.invite_code); return; }
   if (e.target.closest('#cohostEnableBtn')){ enableCohostAccess(); return; }
   if (e.target.closest('#cohostCopyLinkBtn')){ if (hostCohostCode) copyText(cohostUrlFor(hostSession.invite_code, hostCohostCode)); return; }
