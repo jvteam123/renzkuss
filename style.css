@@ -3126,6 +3126,21 @@ html[data-theme="dark"] .generate-match-nav .generate-match-orb{
 .wizard-fixed-duo-head{margin-bottom:.65rem}.wizard-fixed-duo-head b{display:block;font-size:.88rem}.wizard-fixed-duo-head small{display:block;color:var(--slate);font-size:.73rem;line-height:1.4;margin-top:.2rem}
 .wizard-fixed-duo-sub[hidden]{display:none!important}
 .wizard-fixed-duo-sub .fixed-duo-add-row select{background:var(--paper);border-color:var(--line)}
+/* Per-court skill level list shown on wizard step 1 once Skill Levels is
+   switched on — mirrors the courtNameRows level select in Settings, just
+   without the name field (courts aren't renamed here). */
+.wizard-court-levels{margin-top:.9rem;padding:.85rem;border:1px solid var(--line);border-radius:14px;background:var(--paper-2)}
+.wizard-court-levels[hidden]{display:none!important}
+.wizard-court-levels-head{margin-bottom:.65rem}
+.wizard-court-levels-head b{display:block;font-size:.88rem}
+.wizard-court-levels-head small{display:block;color:var(--slate);font-size:.73rem;line-height:1.4;margin-top:.2rem}
+.wizard-court-levels-list{display:flex;flex-direction:column;gap:.5rem;max-height:200px;overflow-y:auto}
+.wizard-court-level-row{display:flex;align-items:center;justify-content:space-between;gap:.6rem;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:.5rem .65rem}
+.wizard-court-level-row span{font-size:.86rem;font-weight:700;min-width:0}
+.wizard-court-level-row select.wizard-court-level-select{
+  flex-shrink:0;max-width:9rem;border:1.5px solid var(--line);border-radius:8px;
+  padding:.45rem .45rem;font-size:.76rem;
+}
 .wizard-summary{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;background:var(--paper-2);border:1px solid var(--line);border-radius:14px;padding:.75rem}
 .wizard-summary div{display:flex;justify-content:space-between;gap:.5rem;padding:.45rem .55rem}.wizard-summary span{color:var(--slate);font-size:.76rem}.wizard-summary b{font-size:.78rem}
 .wizard-hint,.wizard-final-note{color:var(--slate);font-size:.76rem;line-height:1.45;margin:.75rem 0 0}.wizard-final-note{background:var(--turf-pale);border-radius:12px;padding:.7rem .8rem}
