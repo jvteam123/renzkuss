@@ -188,7 +188,7 @@ function defaultCourts(n){
 
 function freshState(){
   return {
-    session: { name: 'PaddleStack', createdAt: Date.now(), gameSize: 4, soundOn: true, notifyCallsEnabled: true, status: 'active', targetGamesEnabled: false, targetGamesPerPlayer: 7, avoidRepeatTeammates: false, fixedDuos: [], scoringEnabled: true, winningScore: 11, autoStartEnabled: true, autoStartMinutes: 1, matchingStyle: 'winnersLosers', skillLevelsEnabled: false, cohostPermissions: { allowSwap: true, allowSubstitution: true } }, // status: 'active' | 'ended'; matchingStyle: 'balanced' | 'skillSeparated' | 'winnersLosers'; skillLevelsEnabled: off by default — everyone plays Open Play until turned on; autoStartMinutes: how long an open, ready court waits before auto-starting (default 1 minute); soundOn: on-site voice announcement only; notifyCallsEnabled: phone notifications on call-up, independent of soundOn; cohostPermissions: what a co-host device is allowed to do beyond start/score — both default ON, host can turn either off per-session (see setCohostPermission); createdAt: when this session was created, used only for the viewer dashboard's "Session Time" stat — a saved session from before this field existed just won't show an accurate elapsed time, which is harmless
+    session: { name: 'PaddleStack', club: '', description: '', createdAt: Date.now(), gameSize: 4, soundOn: true, notifyCallsEnabled: true, status: 'active', targetGamesEnabled: false, targetGamesPerPlayer: 7, avoidRepeatTeammates: false, fixedDuos: [], scoringEnabled: true, winningScore: 11, autoStartEnabled: true, autoStartMinutes: 1, matchingStyle: 'winnersLosers', skillLevelsEnabled: false, cohostPermissions: { allowSwap: true, allowSubstitution: true } }, // status: 'active' | 'ended'; matchingStyle: 'balanced' | 'skillSeparated' | 'winnersLosers'; skillLevelsEnabled: off by default — everyone plays Open Play until turned on; autoStartMinutes: how long an open, ready court waits before auto-starting (default 1 minute); soundOn: on-site voice announcement only; notifyCallsEnabled: phone notifications on call-up, independent of soundOn; cohostPermissions: what a co-host device is allowed to do beyond start/score — both default ON, host can turn either off per-session (see setCohostPermission); createdAt: when this session was created, used only for the viewer dashboard's "Session Time" stat — a saved session from before this field existed just won't show an accurate elapsed time, which is harmless; club/description: optional, set via the "Go live" session-name prompt — club shows on the shared-link preview banner, description rides along whenever the live link is copied/shared
     courts: defaultCourts(2),
     arrivals: [],        // {id, name, addedAt} — added but not yet checked in; not part of the live queue
     stack: [],           // {id, name, joinedAt, tag: 'new'|'queued'}
@@ -4801,6 +4801,8 @@ $('#importFile').addEventListener('change', async (e) => {
     if (!parsed.session.winningScore || parsed.session.winningScore < 1) parsed.session.winningScore = 11;
     if (typeof parsed.session.autoStartEnabled !== 'boolean') parsed.session.autoStartEnabled = true;
     if (!Number.isFinite(parsed.session.autoStartMinutes) || parsed.session.autoStartMinutes < 1) parsed.session.autoStartMinutes = 1;
+    if (typeof parsed.session.club !== 'string') parsed.session.club = '';
+    if (typeof parsed.session.description !== 'string') parsed.session.description = '';
     normalizeCohostPermissions(parsed.session);
     parsed.courts.forEach(c => { if (!('score' in c)) c.score = null; });
     if (!parsed.playerLevels || typeof parsed.playerLevels !== 'object') parsed.playerLevels = {};
@@ -5098,12 +5100,19 @@ const cohostPinCancelBtn = $('#cohostPinCancelBtn');
 let cohostPinResolve = null;
 /* Returns a Promise<string|null> — the 4 digits entered, or null if the
    person cancelled/dismissed. Doesn't judge correctness itself; the caller
-   (enterCoHostMode) compares against the real PIN. */
-function openCohostPinPrompt(sessionName){
+   (enterCoHostMode) compares against the real PIN. `attempt`/`maxAttempts`
+   (both optional) are shown in the subtitle so a person retrying after a
+   miss can see how many tries they have left. */
+function openCohostPinPrompt(sessionName, attempt, maxAttempts){
   if (!cohostPinOverlay) return Promise.resolve(null);
   return new Promise((resolve) => {
     cohostPinResolve = resolve;
-    if (cohostPinSubtitle) cohostPinSubtitle.textContent = 'Ask the host for the 4-digit PIN to finish joining \u201c' + (sessionName || 'this match') + '\u201d.';
+    if (cohostPinSubtitle){
+      const base = 'Ask the host for the 4-digit PIN to finish joining \u201c' + (sessionName || 'this match') + '\u201d.';
+      cohostPinSubtitle.textContent = (attempt && maxAttempts && attempt > 1)
+        ? base + ' (Attempt ' + attempt + ' of ' + maxAttempts + ')'
+        : base;
+    }
     if (cohostPinInput) cohostPinInput.value = '';
     cohostPinOverlay.hidden = false;
     setTimeout(() => { if (cohostPinInput) cohostPinInput.focus(); }, 0);
@@ -6040,12 +6049,32 @@ async function enterCoHostMode(inviteCode, cohostCodeVal, opts){
   // granting access on a FRESH link click. An auto-resume of an
   // already-accepted credential (opts.skipConfirm) was already PIN-checked
   // the first time, so it isn't asked again on every reload.
+  //
+  // A wrong guess doesn't abort the join outright — the person gets up to
+  // COHOST_PIN_MAX_ATTEMPTS tries (re-prompted each time) before giving up,
+  // with a toast after every attempt: a warning naming how many tries are
+  // left on a miss, or a success notice the moment the PIN checks out.
   const requiredPin = fetched.state && fetched.state.session && fetched.state.session.cohostPin;
   if (requiredPin && !opts.skipConfirm){
-    const enteredPin = await openCohostPinPrompt(fetched.session_name);
-    if (enteredPin === null) return false; // cancelled
-    if (enteredPin !== requiredPin){
-      toast('Incorrect PIN \u2014 ask the host for the 4-digit code', 'warning');
+    const COHOST_PIN_MAX_ATTEMPTS = 4;
+    let pinVerified = false;
+    for (let attempt = 1; attempt <= COHOST_PIN_MAX_ATTEMPTS; attempt++){
+      const enteredPin = await openCohostPinPrompt(fetched.session_name, attempt, COHOST_PIN_MAX_ATTEMPTS);
+      if (enteredPin === null){ saveCohostSession(null); return false; } // cancelled
+      if (enteredPin === requiredPin){
+        pinVerified = true;
+        toast('PIN correct \u2014 joining as co-host', 'success');
+        break;
+      }
+      const remaining = COHOST_PIN_MAX_ATTEMPTS - attempt;
+      if (remaining > 0){
+        toast('Incorrect PIN \u2014 ' + remaining + (remaining === 1 ? ' attempt' : ' attempts') + ' left', 'warning');
+      } else {
+        toast('Incorrect PIN \u2014 too many attempts. Ask the host to resend the link', 'warning');
+      }
+    }
+    if (!pinVerified){
+      saveCohostSession(null);
       return false;
     }
   }
@@ -6387,6 +6416,8 @@ function cohostShareUrlFor(inviteCode, cohostCodeVal){
 const sessionNameOverlay = $('#sessionNameOverlay');
 const sessionNameForm = $('#sessionNameForm');
 const sessionNameInput = $('#sessionNameInput');
+const sessionClubInput = $('#sessionClubInput');
+const sessionDescriptionInput = $('#sessionDescriptionInput');
 const sessionNameError = $('#sessionNameError');
 const sessionNameSubmitBtn = $('#sessionNameSubmitBtn');
 const sessionNameCancelBtn = $('#sessionNameCancelBtn');
@@ -6408,11 +6439,13 @@ async function isSessionNameTaken(name){
   }
 }
 
-function openSessionNamePrompt(defaultName){
+function openSessionNamePrompt(defaultName, defaultClub, defaultDescription){
   return new Promise((resolve) => {
     sessionNameResolve = resolve;
     sessionNameError.hidden = true;
     sessionNameInput.value = defaultName || '';
+    if (sessionClubInput) sessionClubInput.value = defaultClub || '';
+    if (sessionDescriptionInput) sessionDescriptionInput.value = defaultDescription || '';
     sessionNameSubmitBtn.disabled = false;
     sessionNameSubmitBtn.textContent = '\uD83D\uDD34 Go live';
     sessionNameOverlay.hidden = false;
@@ -6446,7 +6479,9 @@ if (sessionNameForm) sessionNameForm.addEventListener('submit', async (e) => {
       sessionNameError.hidden = false;
       return;
     }
-    closeSessionNamePrompt(name);
+    const club = sessionClubInput ? sessionClubInput.value.trim() : '';
+    const description = sessionDescriptionInput ? sessionDescriptionInput.value.trim() : '';
+    closeSessionNamePrompt({ name, club, description });
   }finally{
     sessionNameSubmitBtn.disabled = false;
     sessionNameSubmitBtn.textContent = '\uD83D\uDD34 Go live';
@@ -6805,8 +6840,10 @@ function renderHostPanel(){
       <span class="host-live-badge${hostReconnecting ? ' host-live-badge--reconnecting' : ''}">${hostReconnecting ? '🟡 Reconnecting…' : '🔴 Live now'}</span>
       ${hostReconnecting ? `<p class="host-live-note" style="margin-top:.3rem">Lost the connection to the server — retrying automatically. Viewers may see a slightly stale score until this reconnects; no need to stop and restart.</p>` : ''}
       <div class="host-invite-code" id="hostInviteCodeText">${esc(hostSession.invite_code)}</div>
+      ${state.session.club ? `<p class="host-live-note" style="margin-top:.2rem">Club: <b>${esc(state.session.club)}</b> \u2014 shown on the link preview banner.</p>` : ''}
       <div class="host-qr-box" id="hostQrBox"></div>
       <div class="host-live-actions">
+        <button type="button" class="btn ghost sm" id="hostShareBtn">Share</button>
         <button type="button" class="btn ghost sm" id="hostCopyLinkBtn">Copy link</button>
         <button type="button" class="btn ghost sm" id="hostCopyCodeBtn">Copy code</button>
       </div>
@@ -7205,6 +7242,29 @@ async function copyText(text){
   catch(e){ toast('Could not copy — select and copy manually'); }
 }
 
+/* ---- Share text: whenever a live/spectator link is copied or shared,
+   fold in the optional session description set in the "Go live" prompt
+   (see openSessionNamePrompt) so whoever receives the link sees it, same
+   as the native share sheet's "text" field below. `state` here is
+   whichever session this device currently has loaded — the host's own,
+   or a spectator's polled snapshot — both carry session.description. ---- */
+function shareLinkText(url){
+  const description = state.session && state.session.description;
+  return description ? `${description}\n${url}` : url;
+}
+async function shareInvite(code){
+  const url = shareUrlFor(code);
+  const session = state.session || {};
+  const title = session.club ? `${session.name || 'PaddleStack'} \u2014 ${session.club}` : (session.name || 'PaddleStack \u2014 Live match');
+  const text = session.description || (session.club ? `Hosted by ${session.club} \u2014 watch live on PaddleStack` : 'Watch this live PaddleStack session');
+  if (navigator.share){
+    try{ await navigator.share({ title, text, url }); }
+    catch(e){ /* user dismissed the native share sheet — nothing to do */ }
+  } else {
+    copyText(`${text}\n${url}`);
+  }
+}
+
 $('#hostOnlineBtn').addEventListener('click', openHostOverlay);
 $('#callOutTopBtn').addEventListener('click', openCallOutOverlay);
 $('#hostDone').addEventListener('click', () => { hostOverlay.hidden = true; });
@@ -7218,9 +7278,11 @@ hostOverlay.addEventListener('click', (e) => {
   if (e.target.closest('#hostManageAccountBtn')){ openAccountDashboard(); return; }
   if (e.target.closest('#hostGoLiveBtn')){
     (async () => {
-      const name = await openSessionNamePrompt(state.session.name || '');
-      if (name === null) return; // cancelled
-      state.session.name = name;
+      const result = await openSessionNamePrompt(state.session.name || '', state.session.club || '', state.session.description || '');
+      if (result === null) return; // cancelled
+      state.session.name = result.name;
+      state.session.club = result.club;
+      state.session.description = result.description;
       persist();
       startHosting();
     })();
@@ -7230,10 +7292,12 @@ hostOverlay.addEventListener('click', (e) => {
   if (e.target.closest('#hostNewSessionGoLiveBtn')){
     (async () => {
       if (!(await showConfirm('This clears the stack, courts, blocks, and rankings — but keeps your list of player names so you can re-add them quickly. This cannot be undone.', {title: 'Start a new session?', confirmLabel: 'Start new session', danger: true}))) return;
-      const name = await openSessionNamePrompt('');
-      if (name === null) return; // cancelled
+      const result = await openSessionNamePrompt('', '', '');
+      if (result === null) return; // cancelled
       startFreshSessionKeepingRoster();
-      state.session.name = name;
+      state.session.name = result.name;
+      state.session.club = result.club;
+      state.session.description = result.description;
       persist();
       lastStoppedHost = null;
       startHosting();
@@ -7250,7 +7314,8 @@ hostOverlay.addEventListener('click', (e) => {
   }
   if (e.target.closest('#hostResumeBtn')){ resumeRemoteSession(); return; }
   if (e.target.closest('#hostEndRemoteBtn')){ endRemoteSession(); return; }
-  if (e.target.closest('#hostCopyLinkBtn')){ copyText(shareUrlFor(hostSession.invite_code)); return; }
+  if (e.target.closest('#hostShareBtn')){ shareInvite(hostSession.invite_code); return; }
+  if (e.target.closest('#hostCopyLinkBtn')){ copyText(shareLinkText(shareUrlFor(hostSession.invite_code))); return; }
   if (e.target.closest('#hostCopyCodeBtn')){ copyText(hostSession.invite_code); return; }
   if (e.target.closest('#cohostEnableBtn')){ enableCohostAccess(); return; }
   if (e.target.closest('#cohostCopyLinkBtn')){ if (hostCohostCode) copyText(cohostShareUrlFor(hostSession.invite_code, hostCohostCode)); return; }
@@ -7519,15 +7584,7 @@ function enterViewerMode(code){
   const shareBtn = $('#viewerShareBtn');
   if (shareBtn){
     shareBtn.hidden = false;
-    shareBtn.addEventListener('click', async () => {
-      const url = shareUrlFor(code);
-      if (navigator.share){
-        try{ await navigator.share({ title: 'PaddleStack \u2014 Live match', text: 'Watch this live PaddleStack session', url }); }
-        catch(e){ /* user dismissed the native share sheet — nothing to do */ }
-      } else {
-        copyText(url);
-      }
-    });
+    shareBtn.addEventListener('click', () => shareInvite(code));
   }
 
   /* ---- Notifications: player calls only ----
@@ -8254,6 +8311,8 @@ function renderCourtsStatsBar(){
     if (typeof state.session.autoStartEnabled !== 'boolean') state.session.autoStartEnabled = true;
     if (!Number.isFinite(state.session.autoStartMinutes) || state.session.autoStartMinutes < 1) state.session.autoStartMinutes = 1;
     if (state.session.matchingStyle !== 'balanced' && state.session.matchingStyle !== 'skillSeparated' && state.session.matchingStyle !== 'winnersLosers') state.session.matchingStyle = 'winnersLosers';
+    if (typeof state.session.club !== 'string') state.session.club = '';
+    if (typeof state.session.description !== 'string') state.session.description = '';
     normalizeCohostPermissions(state.session);
     if (typeof state.session.skillLevelsEnabled !== 'boolean') state.session.skillLevelsEnabled = false;
     if (typeof state.session.notifyCallsEnabled !== 'boolean') state.session.notifyCallsEnabled = true;
