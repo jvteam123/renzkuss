@@ -1691,9 +1691,22 @@ html[data-theme="dark"] .toast-progress{background:#fff}
   .paddle .avatar{width:26px;height:26px;font-size:.62rem}
 }
 
+/* Desktop/tablet-landscape equivalent of the mobile bottom-nav "Generate"
+   orb button. The bottom nav (and its Generate button) is display:none
+   above 880px, so without this there was no way to open the Generate
+   Match wizard at all on desktop widths — this mirrors the same click
+   handler and ready/end-session label swap via JS. */
+.generate-match-desktop-btn{
+  display:flex;align-items:center;gap:.4rem;font-weight:800;
+}
+.generate-match-desktop-btn svg{width:15px;height:15px}
+.generate-match-desktop-btn.is-end-session{background:var(--danger);color:#fff}
+.generate-match-desktop-btn.is-end-session:hover{background:var(--danger)}
+
 /* ---------- Mobile / narrow tablet portrait ---------- */
 .mobile-tabs{display:none}
 @media (max-width:880px){
+  .generate-match-desktop-btn{display:none}
   .app-shell{grid-template-columns:1fr;padding-bottom:calc(64px + env(safe-area-inset-bottom))}
   .stack-rail{
     position:static;height:auto;min-height:0;border-right:none;border-bottom:1px solid var(--line);
@@ -2118,6 +2131,7 @@ body.cohost-mode .court-name{ pointer-events:none; }
    we just strip out the controls. */
 body.viewer-mode .stack-rail,
 body.viewer-mode .mobile-tabs,
+body.viewer-mode #generateMatchDesktopBtn,
 body.viewer-mode #hostOnlineBtn,
 body.viewer-mode #settingsBtn,
 body.viewer-mode #callOutTopBtn,
