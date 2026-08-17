@@ -388,6 +388,19 @@
     </div>
 
     <section class="wizard-step active" data-wizard-step="1">
+      <div class="field settings-card accent-gold wizard-skill-card">
+        <div class="settings-card-head">
+          <span class="settings-card-icon"><svg viewBox="0 0 24 24"><use href="#i-trophy"/></svg></span>
+          <div class="settings-card-head-text">
+            <label style="margin:0">Skill Levels</label>
+          </div>
+          <label class="switch" style="margin-left:auto">
+            <input type="checkbox" id="wizardSkillLevels">
+            <span class="track"></span>
+          </label>
+        </div>
+        <p class="add-hint" style="padding:0">Off by default — everyone plays Open Play together. Turn on to assign Beginner, Intermediate, Advanced, etc. to players and courts.</p>
+      </div>
       <div class="wizard-step-title"><span>01</span><div><strong>How many courts?</strong><small>Choose how many matches you want to start.</small></div></div>
       <div class="wizard-court-grid" id="wizardCourtChoices">
         <button type="button" data-courts="1">1</button><button type="button" data-courts="2">2</button><button type="button" data-courts="3">3</button><button type="button" data-courts="4">4</button><button type="button" data-courts="5">5</button><button type="button" data-courts="6">6</button>
@@ -406,9 +419,9 @@
     <section class="wizard-step" data-wizard-step="3">
       <div class="wizard-step-title"><span>03</span><div><strong>Matching rules</strong><small>Use the same matching styles already available in Settings.</small></div></div>
       <div class="wizard-style-list" id="wizardStyleChoices">
-        <button type="button" class="wizard-style active" data-style="balanced"><b>Balance</b><small>Fair teams and turns with fewer repeat partners.</small></button>
-        <button type="button" class="wizard-style" data-style="skillSeparated"><b>Skill</b><small>Keep similar skill levels together when skill levels are enabled.</small></button>
-        <button type="button" class="wizard-style" data-style="winnersLosers"><b>Winner / Loser</b><small>Winners play winners and losers play losers.</small></button>
+        <button type="button" class="wizard-style active" data-style="balanced"><b>Balanced <span class="wizard-style-tag">Recommended</span></b><small>Fair teams and turns, with fewer repeat partners.<br>Best for most open play.</small></button>
+        <button type="button" class="wizard-style" data-style="skillSeparated"><b>Skill Separated</b><small>Keeps similar skill levels together, even if a court has to wait.<br>Best when skill levels vary widely.</small></button>
+        <button type="button" class="wizard-style" data-style="winnersLosers"><b>Winners / Losers</b><small>Winners play winners. Losers play losers.<br>Best for competitive open play.</small></button>
       </div>
       <div class="wizard-toggle-grid">
         <label class="wizard-toggle-card"><span><b>Avoid Repeating Teammates</b><small>Prioritize players who have not been teammates yet.</small></span><input type="checkbox" id="wizardAvoidRepeat"><i class="track"></i></label>
