@@ -506,6 +506,7 @@
       <div class="checkin-modal-toolbar">
         <button type="button" class="checkin-all-btn" id="checkInAllBtn">Check in all</button>
       </div>
+      <p class="add-hint wizard-hold-note" id="checkInWizardHoldNote" hidden>⏳ Generate Match setup is open — finish or close it first, then check players in so the queue it builds from doesn't shift underneath it.</p>
       <div class="arrivals-list" id="arrivalsList"></div>
       <p class="stack-empty" id="arrivalsEmptyNote">Nobody's waiting to check in right now.</p>
     </div>
@@ -1077,6 +1078,30 @@
         <button type="button" class="btn ghost" id="cohostPinCancelBtn">Cancel</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- End Session modal — replaces the Generate button once matches have
+     been generated at least once this session (see #generateMatchNav).
+     Placed BEFORE #confirmOverlay in the DOM so that when the "clear all
+     players" option opens a follow-up confirm (see endSessionClearBtn),
+     that confirm dialog stacks visually on top of this one, matching the
+     same DOM-order convention #settingsOverlay etc. already rely on. -->
+<div class="overlay" id="endSessionOverlay" hidden>
+  <div class="modal end-session-modal" role="alertdialog" aria-modal="true" aria-labelledby="endSessionTitle">
+    <h3 id="endSessionTitle">End this session?</h3>
+    <p class="confirm-message">Courts, the queue, and blocks will be cleared either way. Choose what happens to your saved player list.</p>
+    <div class="modal-actions end-session-actions">
+      <button type="button" class="btn ghost" id="endSessionKeepBtn">
+        <strong>End &amp; keep known players</strong>
+        <small>Clears the stack, courts &amp; blocks — your saved player list stays so you can re-add them fast.</small>
+      </button>
+      <button type="button" class="btn danger" id="endSessionClearBtn">
+        <strong>End &amp; clear all players</strong>
+        <small>Clears everything, including your saved player list. Starts totally fresh.</small>
+      </button>
+      <button type="button" class="btn ghost" id="endSessionCancelBtn">Cancel</button>
+    </div>
   </div>
 </div>
 
