@@ -2005,7 +2005,12 @@ function wizardDefaults(){
     avoidRepeat: !!state.session.avoidRepeatTeammates,
     fixedDuos: Array.isArray(state.session.fixedDuos) ? state.session.fixedDuos.map(d => ({a:d.a,b:d.b})) : [],
     scoring: state.session.scoringEnabled !== false,
-    skillLevels: !!state.session.skillLevelsEnabled
+    skillLevels: !!state.session.skillLevelsEnabled,
+    // Per-court level, seeded from each existing court's current level (falls
+    // back to 'Open' for any court beyond today's count) — same values the
+    // Settings court rows show, just editable here too so a host doesn't have
+    // to hop into Settings right after generating.
+    courtLevels: Array.from({length:6}, (_,i) => (state.courts[i] && PLAYER_LEVELS.includes(state.courts[i].level)) ? state.courts[i].level : 'Open')
   };
 }
 function renderWizardFixedDuoOptions(){
@@ -2027,6 +2032,24 @@ function renderWizardFixedDuoList(){
       <button type="button" class="rm-del" data-wizard-duo-idx="${i}" aria-label="Remove fixed duo of ${esc(duo.a)} and ${esc(duo.b)}"><svg viewBox="0 0 24 24"><use href="#i-x"/></svg></button>
     </div>`).join('');
 }
+function renderWizardCourtLevels(){
+  const wrap = $('#wizardCourtLevels');
+  const list = $('#wizardCourtLevelsList');
+  if (!wrap || !list || !generateWizardDraft) return;
+  wrap.hidden = !generateWizardDraft.skillLevels;
+  if (!generateWizardDraft.skillLevels) return;
+  const n = generateWizardDraft.courts;
+  const levels = generateWizardDraft.courtLevels || (generateWizardDraft.courtLevels = []);
+  list.innerHTML = Array.from({length:n}, (_,i) => {
+    const lvl = PLAYER_LEVELS.includes(levels[i]) ? levels[i] : 'Open';
+    const name = (state.courts[i] && state.courts[i].name) || ('Court ' + (i+1));
+    return `
+    <div class="wizard-court-level-row">
+      <span>${esc(name)}</span>
+      <select class="wizard-court-level-select ${levelClass(lvl)}" data-wizard-court-level-idx="${i}" aria-label="${esc(name)} skill level">${levelSelectOptionsHtml(lvl)}</select>
+    </div>`;
+  }).join('');
+}
 function renderGenerateWizard(){
   if (!generateMatchOverlay || !generateWizardDraft) return;
   document.querySelectorAll('[data-wizard-step]').forEach(el => el.classList.toggle('active', Number(el.dataset.wizardStep) === generateWizardStep));
@@ -2039,6 +2062,7 @@ function renderGenerateWizard(){
   document.querySelectorAll('#wizardMatchTypeChoices [data-size]').forEach(b => b.classList.toggle('active', Number(b.dataset.size) === generateWizardDraft.gameSize));
   document.querySelectorAll('#wizardStyleChoices [data-style]').forEach(b => b.classList.toggle('active', b.dataset.style === generateWizardDraft.matchingStyle));
   if (wizardSkillLevels) wizardSkillLevels.checked = generateWizardDraft.skillLevels;
+  renderWizardCourtLevels();
   wizardAvoidRepeat.checked = generateWizardDraft.avoidRepeat;
   const wizardFixedDuoSub = $('#wizardFixedDuoSub');
   if (wizardFixedDuoSub) wizardFixedDuoSub.hidden = !generateWizardDraft.avoidRepeat;
@@ -2097,6 +2121,11 @@ async function generateMatchesFromWizard(){
   state.session.autoStartEnabled = false;
   state.session.generationReady = true;
   await applyWizardCourtCount(d.courts);
+  // Apply the per-court levels picked in step 1 (only meaningful once Skill
+  // Levels is on — otherwise every court just stays 'Open', same as today).
+  if (d.skillLevels && Array.isArray(d.courtLevels)){
+    state.courts.forEach((c,i) => { c.level = PLAYER_LEVELS.includes(d.courtLevels[i]) ? d.courtLevels[i] : 'Open'; });
+  }
   state.courts.forEach(c => { if (c.status === 'open') { c.openedAt = null; c.previewOrder = null; c.previewSubMap = null; } });
   persist();
   let started = 0;
@@ -2221,6 +2250,15 @@ if (wizardSkillLevels) wizardSkillLevels.addEventListener('change', () => {
   if (!generateWizardDraft) return;
   generateWizardDraft.skillLevels = wizardSkillLevels.checked;
   renderGenerateWizard();
+});
+const wizardCourtLevelsList = $('#wizardCourtLevelsList');
+if (wizardCourtLevelsList) wizardCourtLevelsList.addEventListener('change', (e) => {
+  const select = e.target.closest('select[data-wizard-court-level-idx]');
+  if (!select || !generateWizardDraft) return;
+  const idx = Number(select.dataset.wizardCourtLevelIdx);
+  const lvl = PLAYER_LEVELS.includes(select.value) ? select.value : 'Open';
+  (generateWizardDraft.courtLevels || (generateWizardDraft.courtLevels = []))[idx] = lvl;
+  select.className = `wizard-court-level-select ${levelClass(lvl)}`;
 });
 if (wizardAvoidRepeat) wizardAvoidRepeat.addEventListener('change', () => {
   if (!generateWizardDraft) return;
