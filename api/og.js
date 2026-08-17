@@ -26,6 +26,10 @@ export default async function handler(req) {
   const isCohost = searchParams.get('role') === 'cohost';
   const isGeneric = !code && !isCohost;
 
+  const club = (
+    searchParams.get('club') || ''
+  ).slice(0, 60);
+
   const name = (
     searchParams.get('name') ||
     (
@@ -259,7 +263,23 @@ export default async function handler(req) {
           }
         },
         name
-      )
+      ),
+
+      club
+        ? h(
+            'div',
+            {
+              style: {
+                display: 'flex',
+                fontSize: 26,
+                fontWeight: 700,
+                opacity: 0.78,
+                marginTop: 12
+              }
+            },
+            club
+          )
+        : h('div', { style: { display: 'none' } })
     );
   }
 
