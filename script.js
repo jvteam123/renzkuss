@@ -6480,8 +6480,19 @@ async function deleteAccountSession(id){
   ))) return;
   accountDashBusyId = id; renderAccountDashboard();
   try{
-    const res = await sbFetch(`/rest/v1/hosted_sessions?id=eq.${id}`, { method: 'DELETE' }, true);
+    const res = await sbFetch(
+      `/rest/v1/hosted_sessions?id=eq.${id}`,
+      { method: 'DELETE', headers: { 'Prefer': 'return=representation' } },
+      true
+    );
     if (!res.ok) throw new Error();
+    const deletedRows = await res.json().catch(() => []);
+    if (!Array.isArray(deletedRows) || deletedRows.length === 0){
+      // Request succeeded but no row was actually removed — almost always
+      // an RLS DELETE policy silently blocking it. Surface this instead of
+      // lying to the user with a "Deleted" toast.
+      throw new Error('Delete was blocked by server permissions (nothing was actually removed)');
+    }
     accountSessions = accountSessions.filter(r => r.id !== id);
     toast('Deleted');
   }catch(e){
