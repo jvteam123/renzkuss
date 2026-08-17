@@ -2213,6 +2213,18 @@ body.viewer-mode .courts-stats-bar{ order:6; }
 }
 #sessionNameForm input:focus{border-color:var(--turf);background:var(--surface)}
 #sessionNameForm .host-error{margin:.6rem 0 0;text-align:left}
+#sessionNameForm textarea{
+  width:100%;border:1.5px solid var(--line);border-radius:var(--radius-sm);
+  padding:.6rem .75rem;font-size:.88rem;background:var(--court);color:var(--ink);
+  text-align:left;resize:vertical;font-family:inherit;
+}
+#sessionNameForm textarea:focus{border-color:var(--turf);background:var(--surface)}
+.session-name-field-label{
+  display:block;font-size:.78rem;font-weight:700;color:var(--slate);
+  margin:.75rem 0 .35rem;text-align:left;text-transform:uppercase;letter-spacing:.03em;
+}
+.session-name-field-label:first-of-type{margin-top:0}
+.session-name-optional{font-weight:500;text-transform:none;letter-spacing:0;opacity:.7}
 #sessionNameForm .modal-actions{margin-top:.9rem}
 
 /* ---------- Account dashboard modal ---------- */
