@@ -1247,7 +1247,13 @@ function buildSwapInfo(naturalNames, chosenNames, forcedDuo){
   };
 }
 
-/* ================= Session lock (End session / Resume) ================= */
+/* ================= Session lock (Resume) =================
+   The explicit "End session" trigger (button + endSession()) was removed —
+   sessions are no longer locked by a manual action from Settings. This
+   lock/resume machinery stays in place purely so a session that was
+   already marked 'ended' before this update (or via an older synced
+   device/backup) can still be reviewed and resumed normally; nothing new
+   can set state.session.status to 'ended' going forward. */
 function isSessionEnded(){ return state.session.status === 'ended'; }
 
 function applySessionLockUI(){
@@ -1262,32 +1268,8 @@ function applySessionLockUI(){
       ? 'Session ended — the stack is locked. Resume the session to keep adding players.'
       : 'Add players in the order they arrive. First in, first up.';
   }
-  updateEndSessionBtn();
 }
 
-function updateEndSessionBtn(){
-  const btn = $('#endSessionBtn');
-  if (!btn) return;
-  const iconStyle = 'width:13px;height:13px;vertical-align:-2px;margin-right:.35rem';
-  if (isSessionEnded()){
-    btn.innerHTML = `<svg viewBox="0 0 24 24" style="${iconStyle}"><use href="#i-play"/></svg>Resume session`;
-    btn.classList.remove('warn'); btn.classList.add('solid-turf');
-  } else {
-    btn.innerHTML = `<svg viewBox="0 0 24 24" style="${iconStyle}"><use href="#i-lock"/></svg>End session (keep all records)`;
-    btn.classList.remove('solid-turf'); btn.classList.add('warn');
-  }
-}
-
-async function endSession(){
-  if (isCoHostRestricted()) return;
-  if (!(await showConfirm('No new matches can be started and the stack will be locked, but the stack, courts, history and rankings all stay exactly as they are for review. You can resume anytime.', {title: 'End this session?', confirmLabel: 'End session'}))) return;
-  state.session.status = 'ended';
-  persist();
-  applySessionLockUI();
-  renderAll();
-  settingsOverlay.hidden = true;
-  toast('Session ended — all records kept for review');
-}
 function resumeSession(){
   if (isCoHostRestricted()) return;
   state.session.status = 'active';
@@ -2048,7 +2030,10 @@ function hostAccountRowHTML(){
         <span>Signed in as <b>${esc(email)}</b></span>
         ${suspended ? '<span class="host-status-badge suspended">Suspended</span>' : ''}
       </div>
-      <button type="button" class="btn ghost sm" id="hostSignOutBtn">Log out</button>
+      <div class="host-account-actions">
+        <button type="button" class="btn ghost sm" id="hostManageAccountBtn">Manage account</button>
+        <button type="button" class="btn ghost sm" id="hostSignOutBtn">Log out</button>
+      </div>
     </div>
   `;
 }
@@ -3993,7 +3978,7 @@ function matchFullRowHtml(h){
   const showSwap = state.session.avoidRepeatTeammates && h.swapInfo;
   return `<div class="match-full-row">
     <div class="match-full-head">
-      <span class="match-full-court">${esc(h.courtName)}</span>
+      <span class="match-full-court"><svg viewBox="0 0 24 24"><use href="#i-court"/></svg>${esc(h.courtName)}</span>
       <span class="match-full-when">${fmtDateTime(h.endTime)}</span>
     </div>
     <div class="match-full-teams">
@@ -4086,9 +4071,9 @@ function renderMatchHistoryList(){
   const filtered = state.history.filter(matchMatchesFilters);
   const anyFilterActive = matchHistoryFilters.search || matchHistoryFilters.court !== 'all' || matchHistoryFilters.result !== 'all' || matchHistoryFilters.level !== 'all';
   matchHistoryFullList.innerHTML = state.history.length === 0
-    ? '<div class="history-row" style="justify-content:center">No games finished yet.</div>'
+    ? '<div class="match-history-empty">No games finished yet.</div>'
     : (filtered.length === 0
-        ? '<div class="history-row" style="justify-content:center">No matches found — try a different filter.</div>'
+        ? '<div class="match-history-empty">No matches found — try a different filter.</div>'
         : filtered.map(matchFullRowHtml).join(''));
   matchHistoryCountEl.textContent = state.history.length === 0
     ? ''
@@ -4617,9 +4602,6 @@ const tabMoreNavBtn = $('#tabMoreNav');
 if (tabMoreNavBtn) tabMoreNavBtn.addEventListener('click', openSettings);
 $('#settingsDone').addEventListener('click', () => { settingsOverlay.hidden = true; renderAll(); persist(); });
 
-$('#endSessionBtn').addEventListener('click', () => {
-  if (isSessionEnded()) resumeSession(); else endSession();
-});
 resumeSessionBtn.addEventListener('click', () => { resumeSession(); });
 
 gameSizeSeg.addEventListener('click', (e) => {
@@ -5680,6 +5662,7 @@ async function startHosting(){
                                                   // instead of showing a stale one
     saveHostSession({ id: row.id, invite_code: row.invite_code });
     lastStoppedHost = null;
+    enforceSessionHistoryLimit(); // fire-and-forget: prune anything beyond the 10 most recent
     toast('You\u2019re live \u2014 share the code or QR to invite viewers');
   }catch(e){
     // The client-side checks above are just a UX nicety — the real limit,
@@ -6270,6 +6253,247 @@ function cohostUrlFor(inviteCode, cohostCodeVal){
   return location.origin + location.pathname + '?join=' + encodeURIComponent(inviteCode) + '&cohost=' + encodeURIComponent(cohostCodeVal);
 }
 
+/* ================= Session name prompt (asked before "Go live") =================
+   A themed replacement for window.prompt() — resolves with the trimmed name
+   the host typed, or null if they cancelled. Checks this host's own
+   hosted_sessions for a name collision (case-insensitive) before resolving,
+   so "Go live" never silently creates two sessions with the same name. */
+const sessionNameOverlay = $('#sessionNameOverlay');
+const sessionNameForm = $('#sessionNameForm');
+const sessionNameInput = $('#sessionNameInput');
+const sessionNameError = $('#sessionNameError');
+const sessionNameSubmitBtn = $('#sessionNameSubmitBtn');
+const sessionNameCancelBtn = $('#sessionNameCancelBtn');
+let sessionNameResolve = null;
+
+async function isSessionNameTaken(name){
+  if (!authSession) return false;
+  try{
+    const res = await sbFetch(
+      `/rest/v1/hosted_sessions?host_id=eq.${authSession.user.id}&session_name=ilike.${encodeURIComponent(name)}&select=id&limit=1`,
+      { method: 'GET' },
+      true
+    );
+    if (!res.ok) return false; // fail open — a network hiccup here shouldn't block going live
+    const data = await res.json().catch(() => []);
+    return Array.isArray(data) && data.length > 0;
+  }catch(e){
+    return false;
+  }
+}
+
+function openSessionNamePrompt(defaultName){
+  return new Promise((resolve) => {
+    sessionNameResolve = resolve;
+    sessionNameError.hidden = true;
+    sessionNameInput.value = defaultName || '';
+    sessionNameSubmitBtn.disabled = false;
+    sessionNameSubmitBtn.textContent = '\uD83D\uDD34 Go live';
+    sessionNameOverlay.hidden = false;
+    setTimeout(() => { sessionNameInput.focus(); sessionNameInput.select(); }, 30);
+  });
+}
+function closeSessionNamePrompt(result){
+  sessionNameOverlay.hidden = true;
+  const resolve = sessionNameResolve;
+  sessionNameResolve = null;
+  if (resolve) resolve(result);
+}
+if (sessionNameCancelBtn) sessionNameCancelBtn.addEventListener('click', () => closeSessionNamePrompt(null));
+if (sessionNameOverlay) sessionNameOverlay.addEventListener('click', (e) => { if (e.target === sessionNameOverlay) closeSessionNamePrompt(null); });
+if (sessionNameForm) sessionNameForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = sessionNameInput.value.trim();
+  sessionNameError.hidden = true;
+  if (!name){
+    sessionNameError.textContent = 'Enter a session name.';
+    sessionNameError.hidden = false;
+    sessionNameInput.focus();
+    return;
+  }
+  sessionNameSubmitBtn.disabled = true;
+  sessionNameSubmitBtn.innerHTML = '<span class="btn-spinner" aria-hidden="true"></span>Checking\u2026';
+  try{
+    const taken = await isSessionNameTaken(name);
+    if (taken){
+      sessionNameError.textContent = 'Session name already exists \u2014 pick a different name.';
+      sessionNameError.hidden = false;
+      return;
+    }
+    closeSessionNamePrompt(name);
+  }finally{
+    sessionNameSubmitBtn.disabled = false;
+    sessionNameSubmitBtn.textContent = '\uD83D\uDD34 Go live';
+  }
+});
+
+/* ================= Account dashboard (Host Online \u2192 Manage account) =================
+   Every hosted_sessions row this account owns, newest first, capped at
+   SESSION_HISTORY_LIMIT — older rows are pruned automatically right after a
+   new one is created (see enforceSessionHistoryLimit, called from
+   startHosting). "Load" pulls a saved session's snapshot onto this device;
+   "Delete" removes the row outright. */
+const SESSION_HISTORY_LIMIT = 10;
+const accountDashOverlay = $('#accountDashOverlay');
+const accountDashList = $('#accountDashList');
+const accountDashCount = $('#accountDashCount');
+let accountSessions = null; // null = not loaded yet (shows skeleton)
+let accountDashBusyId = null; // id of the row currently being loaded/deleted
+
+// Deletes whatever's left beyond the SESSION_HISTORY_LIMIT most-recent rows
+// for this host. Fire-and-forget from startHosting right after a new
+// session is created — never awaited on the "you're live" critical path.
+async function enforceSessionHistoryLimit(){
+  if (!authSession) return;
+  try{
+    const res = await sbFetch(
+      `/rest/v1/hosted_sessions?host_id=eq.${authSession.user.id}&select=id,created_at&order=created_at.desc`,
+      { method: 'GET' },
+      true
+    );
+    const data = await res.json().catch(() => []);
+    if (!Array.isArray(data) || data.length <= SESSION_HISTORY_LIMIT) return;
+    const excess = data.slice(SESSION_HISTORY_LIMIT); // oldest rows beyond the 10 most recent
+    for (const row of excess){
+      await sbFetch(`/rest/v1/hosted_sessions?id=eq.${row.id}`, { method: 'DELETE' }, true).catch(() => {});
+    }
+  }catch(e){}
+}
+
+function fmtDashDate(iso){
+  if (!iso) return '';
+  try{ return new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
+  catch(e){ return ''; }
+}
+
+function accountSessionRowHTML(row){
+  const busy = accountDashBusyId === row.id;
+  const isLive = row.status === 'live';
+  const name = row.session_name ? esc(row.session_name) : 'Untitled session';
+  return `
+    <div class="account-dash-row${isLive ? ' is-live' : ''}">
+      <div class="account-dash-row-main">
+        <span class="account-dash-status-dot" aria-hidden="true"></span>
+        <div class="account-dash-row-text">
+          <span class="account-dash-name">${name}</span>
+          <span class="account-dash-meta">${isLive ? '\uD83D\uDD34 Live now' : '\u23F8 Ended'} &middot; code ${esc(row.invite_code)} &middot; ${fmtDashDate(row.created_at)}</span>
+        </div>
+      </div>
+      <div class="account-dash-row-actions">
+        ${busy
+          ? `<span class="account-dash-busy"><span class="btn-spinner" aria-hidden="true"></span>Working\u2026</span>`
+          : `<button type="button" class="btn ghost sm" data-act="dash-load" data-id="${row.id}">Load</button>
+             <button type="button" class="btn danger sm" data-act="dash-delete" data-id="${row.id}">Delete</button>`}
+      </div>
+    </div>
+  `;
+}
+
+function renderAccountDashboard(){
+  if (!accountDashList) return;
+  if (accountSessions === null){
+    accountDashList.innerHTML = `<div class="host-skeleton" style="width:85%"></div><div class="host-skeleton" style="width:60%"></div><div class="host-skeleton" style="width:70%"></div>`;
+    if (accountDashCount) accountDashCount.textContent = '';
+    return;
+  }
+  if (accountDashCount) accountDashCount.textContent = `${accountSessions.length} / ${SESSION_HISTORY_LIMIT} saved`;
+  accountDashList.innerHTML = accountSessions.length === 0
+    ? `<div class="account-dash-empty">No saved sessions yet \u2014 go live once and it\u2019ll show up here.</div>`
+    : accountSessions.map(accountSessionRowHTML).join('');
+}
+
+async function refreshAccountSessions(){
+  if (!authSession){ accountSessions = []; renderAccountDashboard(); return; }
+  try{
+    const res = await sbFetch(
+      `/rest/v1/hosted_sessions?host_id=eq.${authSession.user.id}&select=id,invite_code,session_name,status,created_at,updated_at&order=created_at.desc&limit=${SESSION_HISTORY_LIMIT}`,
+      { method: 'GET' },
+      true
+    );
+    const data = await res.json().catch(() => []);
+    accountSessions = Array.isArray(data) ? data : [];
+  }catch(e){
+    accountSessions = [];
+  }
+  renderAccountDashboard();
+}
+
+function openAccountDashboard(){
+  if (!authSession) return;
+  accountSessions = null;
+  accountDashBusyId = null;
+  renderAccountDashboard();
+  accountDashOverlay.hidden = false;
+  refreshAccountSessions();
+}
+
+async function loadAccountSession(id){
+  if (!accountSessions) return;
+  const row = accountSessions.find(r => r.id === id);
+  if (!row) return;
+  if (!(await showConfirm(
+    `This will replace this device\u2019s current stack, courts and history with the saved session \u201c${row.session_name || 'Untitled session'}\u201d. This cannot be undone.`,
+    { title: 'Load this session?', confirmLabel: 'Load' }
+  ))) return;
+  accountDashBusyId = id; renderAccountDashboard();
+  try{
+    const res = await sbFetch(`/rest/v1/hosted_sessions?id=eq.${id}&select=id,invite_code,session_name,status,state`, { method: 'GET' }, true);
+    const data = await res.json().catch(() => []);
+    const full = Array.isArray(data) ? data[0] : null;
+    if (!full || !full.state) throw new Error('That saved session could not be found \u2014 it may have just been removed.');
+    state = full.state;
+    await persist(true); // immediate=true: about to reload the UI straight from this write
+    renderRosterList();
+    renderAll();
+    if (full.status === 'live'){
+      saveHostSession({ id: full.id, invite_code: full.invite_code });
+      remoteLiveSession = null;
+      lastStoppedHost = null;
+      updateHostIndicator();
+      toast('Loaded \u2014 you\u2019re controlling this live match again');
+    } else {
+      toast('Session loaded');
+    }
+    accountDashOverlay.hidden = true;
+  }catch(e){
+    toast(e.message || 'Could not load that session', 'error');
+  }finally{
+    accountDashBusyId = null;
+    renderAccountDashboard();
+    renderHostPanel();
+  }
+}
+
+async function deleteAccountSession(id){
+  if (!accountSessions) return;
+  const row = accountSessions.find(r => r.id === id);
+  if (!row) return;
+  if (!(await showConfirm(
+    `Delete the saved session \u201c${row.session_name || 'Untitled session'}\u201d? This cannot be undone.`,
+    { title: 'Delete session?', confirmLabel: 'Delete', danger: true }
+  ))) return;
+  accountDashBusyId = id; renderAccountDashboard();
+  try{
+    const res = await sbFetch(`/rest/v1/hosted_sessions?id=eq.${id}`, { method: 'DELETE' }, true);
+    if (!res.ok) throw new Error();
+    accountSessions = accountSessions.filter(r => r.id !== id);
+    toast('Deleted');
+  }catch(e){
+    toast('Could not delete that session', 'error');
+  }finally{
+    accountDashBusyId = null;
+    renderAccountDashboard();
+  }
+}
+
+if (accountDashOverlay) accountDashOverlay.addEventListener('click', (e) => {
+  if (e.target === accountDashOverlay || e.target.closest('#accountDashDone')){ accountDashOverlay.hidden = true; return; }
+  const loadBtn = e.target.closest('[data-act="dash-load"]');
+  if (loadBtn){ loadAccountSession(loadBtn.dataset.id); return; }
+  const delBtn = e.target.closest('[data-act="dash-delete"]');
+  if (delBtn){ deleteAccountSession(delBtn.dataset.id); return; }
+});
+
 function renderHostPanel(){
   if (!hostPanelBody) return;
 
@@ -6765,12 +6989,26 @@ hostOverlay.addEventListener('click', (e) => {
   const tabBtn = e.target.closest('button[data-tab]');
   if (tabBtn){ hostPanelMode = tabBtn.dataset.tab; hostErrorMsg = ''; renderHostPanel(); return; }
   if (e.target.closest('#hostSignOutBtn')){ signOutEverywhere(); return; }
-  if (e.target.closest('#hostGoLiveBtn')){ startHosting(); return; }
+  if (e.target.closest('#hostManageAccountBtn')){ openAccountDashboard(); return; }
+  if (e.target.closest('#hostGoLiveBtn')){
+    (async () => {
+      const name = await openSessionNamePrompt(state.session.name || '');
+      if (name === null) return; // cancelled
+      state.session.name = name;
+      persist();
+      startHosting();
+    })();
+    return;
+  }
   if (e.target.closest('#hostResumeStoppedBtn')){ resumeHostingSameLink(); return; }
   if (e.target.closest('#hostNewSessionGoLiveBtn')){
     (async () => {
       if (!(await showConfirm('This clears the stack, courts, blocks, and rankings — but keeps your list of player names so you can re-add them quickly. This cannot be undone.', {title: 'Start a new session?', confirmLabel: 'Start new session', danger: true}))) return;
+      const name = await openSessionNamePrompt('');
+      if (name === null) return; // cancelled
       startFreshSessionKeepingRoster();
+      state.session.name = name;
+      persist();
       lastStoppedHost = null;
       startHosting();
     })();
