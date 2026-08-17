@@ -4488,7 +4488,6 @@ function openSettings(){
   renderCourtNameRows();
   if ($('#rosterSearchInput')) $('#rosterSearchInput').value = '';
   renderRosterManageList('');
-  updateEndSessionBtn();
   settingsOverlay.hidden = false;
 }
 
