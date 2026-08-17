@@ -4903,6 +4903,41 @@ function setMobileTab(tab){ // 'stack' | 'courts'
 $('#tabStack').addEventListener('click', () => setMobileTab('stack'));
 $('#tabCourts').addEventListener('click', () => setMobileTab('courts'));
 
+/* ================= Quick Generate Match =================
+   Mobile-first primary action. It commits every currently ready open court
+   in court order, using the same queue allocator as the normal Start Game
+   buttons. No new matching logic is introduced, so the existing fairness,
+   fixed-duo, skill and winners/losers rules remain the single source of truth. */
+function generateReadyMatches(){
+  if (viewerMode) return;
+  if (isSessionEnded()){
+    toast('Session has ended — resume it to generate new matches');
+    return;
+  }
+  const readyIds = state.courts
+    .filter(c => c.status === 'open')
+    .map(c => c.id);
+  let started = 0;
+  for (const id of readyIds){
+    const court = state.courts.find(c => c.id === id);
+    if (!court || court.status !== 'open') continue;
+    const before = court.status;
+    callNext(court);
+    if (court.status === 'playing' && before === 'open') started++;
+  }
+  setMobileTab('courts');
+  if (started === 0){
+    toast('Add enough players to generate a match', 'warning');
+  } else if (started === 1){
+    toast('Match generated');
+  } else {
+    toast(`${started} matches generated`);
+  }
+}
+const generateMatchNavBtn = $('#generateMatchNav');
+if (generateMatchNavBtn) generateMatchNavBtn.addEventListener('click', generateReadyMatches);
+
+
 /* ================= Host Online (Supabase) =================
    Lets someone create a free account and broadcast a read-only view of
    their courts + queue to a code or QR code — no account needed to watch.
