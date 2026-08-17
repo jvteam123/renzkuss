@@ -1284,7 +1284,12 @@ function renderStack(){
   stackCountPill.textContent = state.stack.length + ' in stack';
   stackList.innerHTML = '';
   if (state.stack.length === 0){
-    stackList.innerHTML = '<div class="stack-empty">The stack is empty.<br>Tap "Add Player" to get the queue going.</div>';
+    stackList.innerHTML = `<div class="stack-empty">
+      The queue is empty.<br>Tap "Add Player" to get the queue started, or watch live games hosted by others.
+      <button type="button" class="btn ghost sm stack-empty-scan-btn" id="stackEmptyScanBtn">
+        <svg viewBox="0 0 24 24"><use href="#i-qr"/></svg>Scan QR Code
+      </button>
+    </div>`;
     return;
   }
   const gameSize = state.session.gameSize;
@@ -6972,6 +6977,89 @@ const watchCodeBtn = $('#watchCodeBtn');
 const watchCodeInput = $('#watchCodeInput');
 if (watchCodeBtn) watchCodeBtn.addEventListener('click', goWatchCode);
 if (watchCodeInput) watchCodeInput.addEventListener('keydown', (e) => { if (e.key === 'Enter'){ e.preventDefault(); goWatchCode(); } });
+
+/* ================= QR scan (empty-queue "Scan QR Code") =================
+   Opens the device camera and watches for a QR carrying a join code — either
+   the bare 6-character code or a full join link like the one drawn in the
+   host's own QR box (?join=CODE). Uses the native BarcodeDetector API; on
+   browsers that don't support it, falls back to pointing the person at the
+   manual code field instead of failing silently. */
+const qrScanOverlay = $('#qrScanOverlay');
+const qrScanVideo = $('#qrScanVideo');
+const qrScanStatus = $('#qrScanStatus');
+const qrScanCancelBtn = $('#qrScanCancelBtn');
+let qrScanStream = null;
+let qrScanRAF = null;
+let qrScanDetector = null;
+let qrScanActive = false;
+
+function resolveJoinCodeFromText(text){
+  if (!text) return null;
+  const trimmed = String(text).trim();
+  const m = trimmed.match(/[?&]join=([^&#]+)/i);
+  let candidate = m ? decodeURIComponent(m[1]) : trimmed;
+  candidate = candidate.trim().toUpperCase();
+  return INVITE_CODE_RE.test(candidate) ? candidate : null;
+}
+
+function closeQrScan(){
+  qrScanActive = false;
+  if (qrScanRAF) cancelAnimationFrame(qrScanRAF);
+  qrScanRAF = null;
+  if (qrScanStream){ qrScanStream.getTracks().forEach(t => t.stop()); qrScanStream = null; }
+  if (qrScanVideo) qrScanVideo.srcObject = null;
+  if (qrScanOverlay) qrScanOverlay.hidden = true;
+}
+
+async function qrScanTick(){
+  if (!qrScanActive) return;
+  try{
+    if (qrScanVideo.readyState >= 2){
+      const codes = await qrScanDetector.detect(qrScanVideo);
+      if (codes && codes.length){
+        const code = resolveJoinCodeFromText(codes[0].rawValue);
+        if (code){
+          qrScanStatus.textContent = 'Found it \u2014 joining\u2026';
+          closeQrScan();
+          location.href = location.pathname + '?join=' + encodeURIComponent(code);
+          return;
+        }
+      }
+    }
+  }catch(e){}
+  qrScanRAF = requestAnimationFrame(qrScanTick);
+}
+
+async function openQrScan(){
+  if (!qrScanOverlay) return;
+  if (!('BarcodeDetector' in window)){
+    toast('QR scanning isn\u2019t supported on this browser \u2014 enter the code instead', 'error');
+    return;
+  }
+  if (navigator.onLine === false){
+    toast('You\u2019re offline \u2014 watching a live session needs an internet connection.', 'error');
+    return;
+  }
+  if (qrScanStatus) qrScanStatus.textContent = 'Starting camera\u2026';
+  qrScanOverlay.hidden = false;
+  qrScanActive = true;
+  try{
+    qrScanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    qrScanVideo.srcObject = qrScanStream;
+    await qrScanVideo.play().catch(() => {});
+    qrScanDetector = new BarcodeDetector({ formats: ['qr_code'] });
+    if (qrScanStatus) qrScanStatus.textContent = 'Point your camera at the QR code';
+    qrScanTick();
+  }catch(e){
+    if (qrScanStatus) qrScanStatus.textContent = '';
+    toast('Couldn\u2019t access the camera \u2014 check permissions and try again', 'error');
+    closeQrScan();
+  }
+}
+
+if (qrScanCancelBtn) qrScanCancelBtn.addEventListener('click', closeQrScan);
+if (qrScanOverlay) qrScanOverlay.addEventListener('click', (e) => { if (e.target === qrScanOverlay) closeQrScan(); });
+if (stackList) stackList.addEventListener('click', (e) => { if (e.target.closest('#stackEmptyScanBtn')) openQrScan(); });
 
 async function copyText(text){
   try{ await navigator.clipboard.writeText(text); toast('Copied'); }
