@@ -1993,6 +1993,7 @@ const wizardSummary = $('#wizardSummary');
 const wizardAvoidRepeat = $('#wizardAvoidRepeat');
 const wizardFixedDuo = $('#wizardFixedDuo');
 const wizardScoring = $('#wizardScoring');
+const wizardSkillLevels = $('#wizardSkillLevels');
 let generateWizardStep = 1;
 let generateWizardDraft = null;
 
@@ -2003,7 +2004,8 @@ function wizardDefaults(){
     matchingStyle: getMatchingStyle(),
     avoidRepeat: !!state.session.avoidRepeatTeammates,
     fixedDuos: Array.isArray(state.session.fixedDuos) ? state.session.fixedDuos.map(d => ({a:d.a,b:d.b})) : [],
-    scoring: state.session.scoringEnabled !== false
+    scoring: state.session.scoringEnabled !== false,
+    skillLevels: !!state.session.skillLevelsEnabled
   };
 }
 function renderWizardFixedDuoOptions(){
@@ -2036,6 +2038,7 @@ function renderGenerateWizard(){
   document.querySelectorAll('#wizardCourtChoices button').forEach(b => b.classList.toggle('active', Number(b.dataset.courts) === generateWizardDraft.courts));
   document.querySelectorAll('#wizardMatchTypeChoices [data-size]').forEach(b => b.classList.toggle('active', Number(b.dataset.size) === generateWizardDraft.gameSize));
   document.querySelectorAll('#wizardStyleChoices [data-style]').forEach(b => b.classList.toggle('active', b.dataset.style === generateWizardDraft.matchingStyle));
+  if (wizardSkillLevels) wizardSkillLevels.checked = generateWizardDraft.skillLevels;
   wizardAvoidRepeat.checked = generateWizardDraft.avoidRepeat;
   const wizardFixedDuoSub = $('#wizardFixedDuoSub');
   if (wizardFixedDuoSub) wizardFixedDuoSub.hidden = !generateWizardDraft.avoidRepeat;
@@ -2047,9 +2050,9 @@ function renderGenerateWizard(){
   generateWizardBack.disabled = generateWizardStep === 1;
   generateWizardNext.textContent = generateWizardStep === 4 ? '⚡ Generate Match' : 'Continue';
   if (generateWizardStep === 4){
-    const styleLabel = generateWizardDraft.matchingStyle === 'balanced' ? 'Balance' : generateWizardDraft.matchingStyle === 'skillSeparated' ? 'Skill' : 'Winner / Loser';
+    const styleLabel = generateWizardDraft.matchingStyle === 'balanced' ? 'Balanced' : generateWizardDraft.matchingStyle === 'skillSeparated' ? 'Skill Separated' : 'Winners / Losers';
     const duoCount = (generateWizardDraft.fixedDuos || []).length;
-    wizardSummary.innerHTML = `<div><span>Courts</span><b>${generateWizardDraft.courts}</b></div><div><span>Match type</span><b>${generateWizardDraft.gameSize === 4 ? '2v2 Doubles' : '1v1 Singles'}</b></div><div><span>Matching style</span><b>${styleLabel}</b></div><div><span>Avoid repeating teammates</span><b>${generateWizardDraft.avoidRepeat ? 'ON' : 'OFF'}</b></div><div><span>Fixed duos</span><b>${generateWizardDraft.avoidRepeat ? (duoCount ? `${duoCount} selected` : 'None') : 'OFF'}</b></div><div><span>Scoring</span><b>${generateWizardDraft.scoring ? 'ON' : 'OFF'}</b></div>`;
+    wizardSummary.innerHTML = `<div><span>Skill levels</span><b>${generateWizardDraft.skillLevels ? 'ON' : 'OFF'}</b></div><div><span>Courts</span><b>${generateWizardDraft.courts}</b></div><div><span>Match type</span><b>${generateWizardDraft.gameSize === 4 ? '2v2 Doubles' : '1v1 Singles'}</b></div><div><span>Matching style</span><b>${styleLabel}</b></div><div><span>Avoid repeating teammates</span><b>${generateWizardDraft.avoidRepeat ? 'ON' : 'OFF'}</b></div><div><span>Fixed duos</span><b>${generateWizardDraft.avoidRepeat ? (duoCount ? `${duoCount} selected` : 'None') : 'OFF'}</b></div><div><span>Scoring</span><b>${generateWizardDraft.scoring ? 'ON' : 'OFF'}</b></div>`;
   }
 }
 function openGenerateWizard(){
@@ -2089,6 +2092,7 @@ async function generateMatchesFromWizard(){
   state.session.avoidRepeatTeammates = d.avoidRepeat;
   state.session.fixedDuosEnabled = d.avoidRepeat && (d.fixedDuos || []).length > 0;
   state.session.scoringEnabled = d.scoring;
+  state.session.skillLevelsEnabled = !!d.skillLevels;
   state.session.fixedDuos = d.avoidRepeat ? (d.fixedDuos || []).map(x => ({a:x.a,b:x.b})) : [];
   state.session.autoStartEnabled = false;
   state.session.generationReady = true;
@@ -2197,6 +2201,11 @@ document.addEventListener('click', e => {
     return;
   }
 });
+if (wizardSkillLevels) wizardSkillLevels.addEventListener('change', () => {
+  if (!generateWizardDraft) return;
+  generateWizardDraft.skillLevels = wizardSkillLevels.checked;
+  renderGenerateWizard();
+});
 if (wizardAvoidRepeat) wizardAvoidRepeat.addEventListener('change', () => {
   if (!generateWizardDraft) return;
   generateWizardDraft.avoidRepeat = wizardAvoidRepeat.checked;
@@ -2206,7 +2215,11 @@ if (wizardAvoidRepeat) wizardAvoidRepeat.addEventListener('change', () => {
   }
   renderGenerateWizard();
 });
-if (wizardScoring) wizardScoring.addEventListener('change', () => { if (generateWizardDraft) generateWizardDraft.scoring = wizardScoring.checked; });
+if (wizardScoring) wizardScoring.addEventListener('change', () => {
+  if (!generateWizardDraft) return;
+  generateWizardDraft.scoring = wizardScoring.checked;
+  renderGenerateWizard(); // was previously missing — the step 4 summary's "Scoring: ON/OFF" line never reflected the toggle until Back/Continue re-rendered the step
+});
 if (generateWizardBack) generateWizardBack.addEventListener('click', () => { if (generateWizardStep > 1){ generateWizardStep--; renderGenerateWizard(); } });
 if (generateWizardNext) generateWizardNext.addEventListener('click', () => { if (generateWizardStep < 4){ generateWizardStep++; renderGenerateWizard(); } else generateMatchesFromWizard(); });
 
@@ -4000,6 +4013,21 @@ function renderUpNext(){
     return;
   }
   const gameSize = state.session.gameSize;
+  // Same rule as the open court cards (see computeOpenCourtQueue): nothing
+  // gets grouped into a "next match" preview until the host has actually
+  // run Generate Match at least once. Without this, checking players in
+  // was enough to see them paired off into On Deck groups on their own —
+  // looking like the app had started assigning matches before any wizard
+  // setup happened, even though nothing had actually started.
+  if (!state.session.generationReady){
+    historyList.innerHTML = state.stack.length === 0
+      ? '<div class="ondeck-empty">The stack is empty — add players to fill the next match.</div>'
+      : '<div class="ondeck-empty">Run Generate Match to build the next matchups — checking players in only adds them to the queue.</div>';
+    if (expandBtn) expandBtn.hidden = true;
+    upNextGroupClaimedIds = new Set();
+    updateViewerUpNext();
+    return;
+  }
   // Whatever the open court cards above are already previewing doesn't need
   // repeating here — start the "on deck" view from whoever's left after that.
   const openQueue = computeOpenCourtQueue(gameSize);
