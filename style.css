@@ -928,6 +928,27 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
   .court-top>.court-level-badge{order:3;margin-left:auto}
 }
 
+/* --- Mobile: court cards run edge-to-edge in a single column here, so the
+   desktop sizing (tuned for a multi-column grid with room to spare) just
+   reads as an oversized card — a fixed 310px min-height even when there's
+   no timer/last-result to fill it, generous padding on both sides, and
+   font sizes picked for a wider column. Trim all of that down so the card
+   hugs its actual content instead of forcing extra scroll per court. */
+@media (max-width:640px){
+  .courts-main{padding:.9rem .8rem 3rem}
+  .courts-grid{grid-template-columns:1fr;gap:.9rem}
+  .court-card{padding:0 1rem 1rem;min-height:0}
+  .court-card::before{margin:0 -1rem;height:6px}
+  .court-top{padding-top:.85rem}
+  .court-name{font-size:1.08rem}
+  .matchup{min-height:0;margin:.9rem 0 .75rem}
+  .avatar{width:32px;height:32px;font-size:.78rem}
+  .player-name-txt{font-size:.98rem}
+  .timer{font-size:1.35rem;margin-bottom:.5rem}
+  .court-cta{padding:.6rem;font-size:.85rem}
+  .court-cta-row .court-cta{padding:.55rem .6rem}
+}
+
 .last-result{
   font-size:.72rem;color:var(--slate);padding:.4rem .6rem;background:var(--court);border-radius:8px;
   margin-bottom:.6rem;display:flex;align-items:center;gap:.35rem;
@@ -3166,181 +3187,3 @@ html[data-theme="dark"] .generate-match-nav .generate-match-orb{
   padding:.65rem .8rem;margin:0 0 .75rem;color:var(--gold-ink);font-weight:600;
 }
 .arrival-checkin-btn:disabled{opacity:.45;cursor:not-allowed}
-
-
-/* ================= Compact Court Cards — Mobile =================
-   Keeps the full desktop court-card design, but makes each mobile card
-   significantly shorter and easier to scan.  No JS/HTML changes required. */
-@media (max-width:640px){
-  .courts-grid{
-    grid-template-columns:1fr;
-    gap:.7rem;
-  }
-
-  .court-card{
-    min-height:0;
-    padding:0 .8rem .8rem;
-    border-radius:12px;
-  }
-
-  .court-card::before{
-    height:4px;
-    margin:0 -.8rem;
-  }
-
-  .court-top{
-    gap:.3rem;
-    padding-top:.65rem;
-  }
-
-  .court-name-wrap{
-    gap:.3rem;
-  }
-
-  .court-name-wrap svg{
-    width:14px;
-    height:14px;
-  }
-
-  .court-name{
-    font-size:1rem;
-  }
-
-  .status-badge{
-    font-size:.6rem;
-    padding:.25rem .45rem;
-  }
-
-  .status-badge::before{
-    width:5px;
-    height:5px;
-  }
-
-  .court-top-right{
-    gap:.3rem;
-  }
-
-  .timer-chip{
-    font-size:.58rem;
-    padding:.2rem .4rem;
-  }
-
-  .matchup{
-    margin:.65rem 0 .55rem;
-    min-height:88px;
-  }
-
-  .matchup .team{
-    gap:.25rem;
-  }
-
-  .matchup .vs-divider{
-    margin:0 .55rem;
-  }
-
-  .vs-divider::after{
-    font-size:.55rem;
-    padding:.12rem .25rem;
-  }
-
-  .player-row{
-    gap:.3rem;
-  }
-
-  .avatar{
-    width:30px;
-    height:30px;
-    font-size:.72rem;
-  }
-
-  .player-name-txt{
-    font-size:.9rem;
-    line-height:1.15;
-  }
-
-  .player-actions-row{
-    gap:.2rem;
-    row-gap:.2rem;
-    min-height:19px;
-  }
-
-  .player-preview-btn,
-  .player-swap-btn{
-    height:19px;
-    padding:0 .38rem;
-    margin-top:1px;
-    font-size:.55rem;
-  }
-
-  .player-preview-btn svg,
-  .player-swap-btn svg{
-    width:9px;
-    height:9px;
-  }
-
-  .games-chip{
-    font-size:.54rem;
-  }
-
-  .empty-slot{
-    font-size:.7rem;
-  }
-
-  .last-result{
-    font-size:.65rem;
-    padding:.32rem .45rem;
-    margin-bottom:.45rem;
-  }
-
-  .undo-result-btn{
-    font-size:.55rem;
-    padding:.2rem .4rem;
-  }
-
-  .timer{
-    font-size:1.3rem;
-    margin-bottom:.45rem;
-  }
-
-  .scoreboard-live{
-    padding:.5rem;
-    margin-bottom:.45rem;
-  }
-}
-
-/* Extra-tight phones: preserve readability without letting the card grow
-   from action controls or header wrapping. */
-@media (max-width:380px){
-  .court-card{
-    padding-left:.7rem;
-    padding-right:.7rem;
-    padding-bottom:.7rem;
-  }
-
-  .court-card::before{
-    margin-left:-.7rem;
-    margin-right:-.7rem;
-  }
-
-  .court-top{
-    padding-top:.55rem;
-  }
-
-  .court-name{
-    font-size:.94rem;
-  }
-
-  .matchup{
-    margin:.55rem 0 .45rem;
-  }
-
-  .player-name-txt{
-    font-size:.84rem;
-  }
-
-  .avatar{
-    width:28px;
-    height:28px;
-    font-size:.68rem;
-  }
-}
