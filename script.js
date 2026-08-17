@@ -487,6 +487,7 @@ const addPlayerOverlay = $('#addPlayerOverlay');
 const addPlayerTabBtn = $('#addPlayerTabBtn');
 const checkInOverlay = $('#checkInOverlay');
 const checkInTabBtn = $('#checkInTabBtn');
+const wizardHoldNote = $('#checkInWizardHoldNote');
 
 /* ================= Toasts ================= */
 const TOAST_ICONS = {
@@ -1863,12 +1864,29 @@ $('#bulkAddBtn').addEventListener('click', async function(){
   await addNamesToArrivals(names, addLevelSelect ? addLevelSelect.value : 'Open');
 });
 
+/* Whether the Generate Match wizard is currently open. Checked-in players
+   land straight in the live stack, and every open court's "up next"
+   preview is recomputed from that stack on every render (see
+   renderCourts()). If a check-in landed while the wizard was mid-setup,
+   that player could get pulled into a court's preview slot for a match
+   the host hadn't generated yet — then Generate Match would run against
+   a queue that had shifted under it, producing a court/on-deck line-up
+   that didn't match what the host saw when they opened the wizard (in
+   the worst case, showing the same player as both "already in a court"
+   and still "up next"). Simplest fix: check-ins wait for the wizard to
+   finish (or be closed) instead of racing its in-progress draft. */
+function isGenerateWizardOpen(){
+  const el = document.getElementById('generateMatchOverlay');
+  return !!(el && !el.hidden);
+}
 /* ---- Check-in: moves a waiting arrival into the live stack ---- */
 async function checkInArrival(id){
   if (isCoHostRestricted()) return;
+  if (isGenerateWizardOpen()){ toast('Finish or close the Generate Match wizard before checking players in'); return; }
   const entry = state.arrivals.find(a => a.id === id);
   if (!entry) return;
   if (!(await showConfirm('Add ' + entry.name + ' to the live stack now?', {title: 'Check in ' + entry.name + '?', confirmLabel: 'Check in'}))) return;
+  if (isGenerateWizardOpen()){ toast('Finish or close the Generate Match wizard before checking players in'); return; } // opened mid-confirm
   // Re-find by id (not a cached index) after the await: the arrivals array
   // can change while this confirm is open — e.g. a synced state update
   // from a live-hosted session arriving mid-dialog — so an index captured
@@ -1884,11 +1902,13 @@ async function checkInArrival(id){
 }
 async function checkInAllArrivals(){
   if (isCoHostRestricted()) return;
+  if (isGenerateWizardOpen()){ toast('Finish or close the Generate Match wizard before checking players in'); return; }
   if (state.arrivals.length === 0) return;
   const idsAtOpen = new Set(state.arrivals.map(a => a.id));
   const names = state.arrivals.map(a => a.name);
   const label = names.length > 1 ? names.length + ' players' : names[0];
   if (!(await showConfirm('Add ' + label + ' to the live stack now?', {title: 'Check in ' + label + '?', confirmLabel: 'Check in'}))) return;
+  if (isGenerateWizardOpen()){ toast('Finish or close the Generate Match wizard before checking players in'); return; } // opened mid-confirm
   // Only act on the arrivals that were actually present when this dialog
   // opened (matched by id, not a blanket "clear everything") — the list
   // can change while the confirm is open, and blindly wiping state.arrivals
@@ -1927,17 +1947,19 @@ function renderArrivals(){
     badge.textContent = state.arrivals.length;
     badge.hidden = state.arrivals.length === 0;
   }
+  const wizardOpen = isGenerateWizardOpen();
   if (checkInTabBtn) checkInTabBtn.classList.toggle('has-waiting', state.arrivals.length > 0 && !isSessionEnded());
-  if (allBtn) allBtn.disabled = state.arrivals.length === 0 || isSessionEnded();
+  if (allBtn) allBtn.disabled = state.arrivals.length === 0 || isSessionEnded() || wizardOpen;
   if (emptyNote) emptyNote.hidden = state.arrivals.length > 0;
   listEl.innerHTML = state.arrivals.map(entry => `
     <div class="arrival-row" data-id="${entry.id}">
       <span class="arrival-name">${esc(entry.name)}</span>
       <button type="button" class="level-badge ${levelClass(getPlayerLevel(entry.name))}" data-act="cycle-level" data-name="${esc(entry.name)}" title="Change skill level">${esc(levelLabel(getPlayerLevel(entry.name)))}</button>
-      <button type="button" class="arrival-checkin-btn" data-act="checkin" data-id="${entry.id}">Check in</button>
+      <button type="button" class="arrival-checkin-btn" data-act="checkin" data-id="${entry.id}" ${wizardOpen ? 'disabled title="Finish the Generate Match wizard first"' : ''}>Check in</button>
       <button type="button" class="arrival-remove-btn" data-act="remove" data-id="${entry.id}" aria-label="Remove ${esc(entry.name)}"><svg viewBox="0 0 24 24"><use href="#i-x"/></svg></button>
     </div>
   `).join('');
+  if (wizardHoldNote) wizardHoldNote.hidden = !wizardOpen;
 }
 const arrivalsListEl = $('#arrivalsList');
 if (arrivalsListEl){
@@ -2036,8 +2058,12 @@ function openGenerateWizard(){
   generateWizardStep = 1;
   generateMatchOverlay.hidden = false;
   renderGenerateWizard();
+  renderArrivals(); // reflect the check-in hold (see isGenerateWizardOpen)
 }
-function closeGenerateWizard(){ if (generateMatchOverlay) generateMatchOverlay.hidden = true; }
+function closeGenerateWizard(){
+  if (generateMatchOverlay) generateMatchOverlay.hidden = true;
+  renderArrivals(); // release the check-in hold now that the wizard's closed
+}
 async function applyWizardCourtCount(target){
   target = Math.max(1, Math.min(24, Number(target) || 1));
   while (state.courts.length < target){
@@ -2082,7 +2108,61 @@ async function generateMatchesFromWizard(){
   if (!started) toast('No complete match could be generated from the checked-in queue', 'warning');
   else toast(started === 1 ? '1 match generated' : `${started} matches generated`);
 }
-if (generateMatchNav) generateMatchNav.addEventListener('click', openGenerateWizard);
+
+/* ---- Generate Match nav button doubles as "End Session" ----
+   Once Generate Match has run at least once this session (tracked by the
+   existing state.session.generationReady flag), the bottom-nav button
+   swaps from "Generate" to "End Session" instead of reopening the wizard.
+   Ending presents a choice — clear the saved player list too, or keep it —
+   rather than silently picking one, since hosts run both a one-off pickup
+   session and a recurring club night through this same button. */
+const generateMatchNavLabel = generateMatchNav ? generateMatchNav.querySelector('span:last-child') : null;
+const generateMatchNavOrbIcon = generateMatchNav ? generateMatchNav.querySelector('.generate-match-orb use') : null;
+const endSessionOverlay = $('#endSessionOverlay');
+const endSessionKeepBtn = $('#endSessionKeepBtn');
+const endSessionClearBtn = $('#endSessionClearBtn');
+const endSessionCancelBtn = $('#endSessionCancelBtn');
+function hasActiveGeneratedSession(){
+  return !!state.session.generationReady && !isSessionEnded();
+}
+function renderGenerateNav(){
+  if (!generateMatchNav) return;
+  const ready = hasActiveGeneratedSession();
+  generateMatchNav.classList.toggle('is-end-session', ready);
+  generateMatchNav.setAttribute('aria-label', ready ? 'End Session' : 'Generate Match');
+  if (generateMatchNavLabel) generateMatchNavLabel.textContent = ready ? 'End Session' : 'Generate';
+  if (generateMatchNavOrbIcon) generateMatchNavOrbIcon.setAttribute('href', ready ? '#i-x' : '#i-bolt');
+}
+function openEndSessionPrompt(){
+  if (isCoHostRestricted() || viewerMode) return;
+  if (!endSessionOverlay) return;
+  endSessionOverlay.hidden = false;
+}
+function closeEndSessionPrompt(){ if (endSessionOverlay) endSessionOverlay.hidden = true; }
+function endSessionAndReset({ clearRoster }){
+  startFreshSessionKeepingRoster();
+  if (clearRoster){
+    state.roster = [];
+    renderRosterList();
+  }
+  state.session.generationReady = false;
+  persist();
+  closeEndSessionPrompt();
+  renderGenerateNav();
+  toast(clearRoster ? 'Session ended — players cleared' : 'Session ended — known players kept');
+}
+if (endSessionKeepBtn) endSessionKeepBtn.addEventListener('click', () => endSessionAndReset({ clearRoster: false }));
+if (endSessionClearBtn) endSessionClearBtn.addEventListener('click', async () => {
+  if (!(await showConfirm('This also erases your saved player list, not just the current queue. This cannot be undone.', {title: 'Clear all saved players too?', confirmLabel: 'End & clear all', danger: true}))) return;
+  endSessionAndReset({ clearRoster: true });
+});
+if (endSessionCancelBtn) endSessionCancelBtn.addEventListener('click', closeEndSessionPrompt);
+if (endSessionOverlay) endSessionOverlay.addEventListener('click', e => { if (e.target === endSessionOverlay) closeEndSessionPrompt(); });
+
+if (generateMatchNav) generateMatchNav.addEventListener('click', () => {
+  if (hasActiveGeneratedSession()) openEndSessionPrompt();
+  else openGenerateWizard();
+});
 if (generateWizardClose) generateWizardClose.addEventListener('click', closeGenerateWizard);
 if (generateMatchOverlay) generateMatchOverlay.addEventListener('click', e => { if (e.target === generateMatchOverlay) closeGenerateWizard(); });
 document.addEventListener('click', e => {
@@ -8340,6 +8420,7 @@ function renderAll(){
   renderUpNext();
   renderArrivals();
   renderQuickAdd();
+  renderGenerateNav();
 }
 
 // Quick-glance totals shown under "Up next" on the Courts tab — players
