@@ -928,27 +928,6 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
   .court-top>.court-level-badge{order:3;margin-left:auto}
 }
 
-/* --- Mobile: court cards run edge-to-edge in a single column here, so the
-   desktop sizing (tuned for a multi-column grid with room to spare) just
-   reads as an oversized card — a fixed 310px min-height even when there's
-   no timer/last-result to fill it, generous padding on both sides, and
-   font sizes picked for a wider column. Trim all of that down so the card
-   hugs its actual content instead of forcing extra scroll per court. */
-@media (max-width:640px){
-  .courts-main{padding:.9rem .8rem 3rem}
-  .courts-grid{grid-template-columns:1fr;gap:.9rem}
-  .court-card{padding:0 1rem 1rem;min-height:0}
-  .court-card::before{margin:0 -1rem;height:6px}
-  .court-top{padding-top:.85rem}
-  .court-name{font-size:1.08rem}
-  .matchup{min-height:0;margin:.9rem 0 .75rem}
-  .avatar{width:32px;height:32px;font-size:.78rem}
-  .player-name-txt{font-size:.98rem}
-  .timer{font-size:1.35rem;margin-bottom:.5rem}
-  .court-cta{padding:.6rem;font-size:.85rem}
-  .court-cta-row .court-cta{padding:.55rem .6rem}
-}
-
 .last-result{
   font-size:.72rem;color:var(--slate);padding:.4rem .6rem;background:var(--court);border-radius:8px;
   margin-bottom:.6rem;display:flex;align-items:center;gap:.35rem;
@@ -2613,29 +2592,46 @@ html[data-theme="dark"] .mobile-tabs button.active{
      two cramped halves, so the internal spacing/type scale can stay close
      to the desktop "enterprise" sizing — legible at arm's length, still
      comfortably clear of the safe-area/tab-bar chrome below. */
-  .court-card{padding:0 1rem .9rem;min-height:0;border-radius:18px}
-  .court-card::before{margin:0 -1rem}
-  .court-top{padding-top:.85rem;gap:.4rem}
-  .court-name{font-size:1.05rem}
-  .level-badge{font-size:.62rem;padding:.14rem .5rem}
-  .status-badge{font-size:.64rem;padding:.28rem .55rem}
-  .last-result{padding:.55rem .65rem;margin-bottom:.55rem;font-size:.74rem;gap:.4rem}
-  .last-result svg{width:14px;height:14px}
-  .undo-result-btn{font-size:.64rem;padding:.28rem .55rem}
-  .matchup{margin:.7rem 0 .6rem;min-height:0;gap:.6rem}
-  .matchup .team{gap:.35rem}
-  .player-col{gap:.3rem}
+  .court-card{padding:0 .85rem .75rem;min-height:0;border-radius:16px}
+  .court-card::before{margin:0 -.85rem;height:6px}
+  .court-top{padding-top:.7rem;gap:.35rem}
+  .court-name{font-size:1rem}
+  .level-badge{font-size:.6rem;padding:.12rem .45rem}
+  .status-badge{font-size:.62rem;padding:.26rem .5rem}
+  .last-result{padding:.5rem .6rem;margin-bottom:.5rem;font-size:.7rem;gap:.35rem}
+  .last-result svg{width:13px;height:13px}
+  .undo-result-btn{font-size:.62rem;padding:.24rem .5rem}
+  .matchup{margin:.55rem 0 .5rem;min-height:0;gap:.5rem}
+  .matchup .team{gap:.3rem}
+  .player-col{gap:.25rem}
   .player-row{margin-bottom:0}
-  .avatar{width:34px;height:34px;font-size:.8rem}
-  .player-name-txt{font-size:.98rem;line-height:1.16}
-  .games-chip{font-size:.62rem}
-  .court-cta-row{gap:.5rem}
-  .court-cta-row .court-cta{min-height:var(--touch);padding:.6rem .5rem}
-  .court-cta-row .court-cta .cta-icon{font-size:1rem}
-  html[data-theme="dark"] .court-cta-row .court-cta .cta-title{font-size:.76rem}
-  html[data-theme="dark"] .court-cta-row .court-cta .cta-sub{font-size:.64rem}
-  .timer{font-size:1.4rem;margin-bottom:.5rem}
-  .scoreboard-live{padding:.55rem .65rem;margin-bottom:.55rem}
+  .avatar{width:30px;height:30px;font-size:.74rem}
+  .player-name-txt{font-size:.92rem;line-height:1.14}
+  .games-chip{font-size:.6rem}
+  .player-preview-btn,.player-swap-btn,.player-sub-btn{height:34px}
+  .court-cta-row{gap:.45rem}
+  .court-cta-row .court-cta{min-height:var(--touch);padding:.55rem .45rem}
+  .court-cta-row .court-cta .cta-icon{font-size:.95rem}
+  .court-cta-row .court-cta .cta-title{font-size:.78rem}
+  .court-cta-row .court-cta .cta-sub{font-size:.64rem}
+  html[data-theme="dark"] .court-cta-row .court-cta .cta-title{font-size:.74rem}
+  html[data-theme="dark"] .court-cta-row .court-cta .cta-sub{font-size:.62rem}
+  .timer{font-size:1.2rem;margin-bottom:.4rem}
+  .scoreboard-live{padding:.5rem .6rem;margin-bottom:.5rem}
+
+  /* --- Dark-theme parity ---
+     html[data-theme="dark"] selectors carry higher specificity (an
+     attribute selector) than the plain classes above, so without a
+     matching override here the *unconditional* desktop-sized dark rules
+     (card padding 1.3rem, CTA min-height 64px, etc. — set higher up in
+     the file, outside any media query) keep winning the cascade even on
+     a narrow phone. That's why dark mode looked noticeably bigger than
+     light mode at the same width: light had nothing fighting the mobile
+     shrink, dark did. Re-declare the same mobile values here, scoped to
+     dark, so both themes end up the same size on mobile. */
+  html[data-theme="dark"] .court-card{padding:0 .85rem .75rem}
+  html[data-theme="dark"] .court-top{padding-top:.7rem}
+  html[data-theme="dark"] .court-cta-row .court-cta{padding:.55rem .45rem;min-height:var(--touch)}
 }
 @container court (max-width:360px){
   .matchup{gap:.4rem}
