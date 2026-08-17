@@ -12,7 +12,7 @@
       This does NOT add true push-from-server delivery — a viewer tab still
       has to be open and polling for that part to work. */
 
-const CACHE_VERSION = 'v13'; // bumped: network-first fetches now use {cache:'no-store'} so a plain
+const CACHE_VERSION = 'v14'; // bumped: network-first fetches now use {cache:'no-store'} so a plain
 // tab (not just incognito) actually sees fresh script.js/style.css/index.html after a deploy,
 // instead of the browser's own HTTP cache quietly serving a stale copy underneath the SW.
 const CACHE_NAME = 'renzku-shell-' + CACHE_VERSION;
