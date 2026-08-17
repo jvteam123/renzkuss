@@ -411,8 +411,18 @@
         <button type="button" class="wizard-style" data-style="winnersLosers"><b>Winner / Loser</b><small>Winners play winners and losers play losers.</small></button>
       </div>
       <div class="wizard-toggle-grid">
-        <label class="wizard-toggle-card"><span><b>Avoid Repeating</b><small>Prioritize new teammate pairings.</small></span><input type="checkbox" id="wizardAvoidRepeat"><i class="track"></i></label>
-        <label class="wizard-toggle-card"><span><b>Fixed Duo</b><small>Respect your saved fixed-duo pairings.</small></span><input type="checkbox" id="wizardFixedDuo"><i class="track"></i></label>
+        <label class="wizard-toggle-card"><span><b>Avoid Repeating Teammates</b><small>Prioritize players who have not been teammates yet.</small></span><input type="checkbox" id="wizardAvoidRepeat"><i class="track"></i></label>
+      </div>
+      <div class="wizard-fixed-duo-sub" id="wizardFixedDuoSub" hidden>
+        <div class="wizard-fixed-duo-head">
+          <div><b>Fixed Duo</b><small>Same as Settings. Lock two selected players as permanent teammates for this generation.</small></div>
+        </div>
+        <div class="fixed-duo-add-row">
+          <select id="wizardFixedDuoNameA"><option value="">Player A…</option></select>
+          <select id="wizardFixedDuoNameB"><option value="">Player B…</option></select>
+          <button type="button" class="btn ghost sm" id="wizardFixedDuoAddBtn">Add</button>
+        </div>
+        <div class="fixed-duo-list" id="wizardFixedDuoList"></div>
       </div>
     </section>
 
