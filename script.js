@@ -510,20 +510,25 @@ function inferToastType(msg){
 // Toasts used to pop up a full message bubble (icon + text) for every minor
 // action, which reads as noisy over a long session. Now it's just a brief,
 // silent progress bar — a "something happened" pulse with no text to read,
-// no color-coded icon, nothing demanding attention. `msg`/`type` are still
-// accepted (and every existing call site still passes them) so nothing else
-// needs to change, but they're no longer displayed.
-function toast(msg, type){
+// no color-coded icon, nothing demanding attention, UNLESS the call site
+// opts into `{detailed:true}` as a third argument — reserved for moments
+// where the host genuinely needs to read what happened (e.g. Generate
+// Match's outcomes), in which case a real icon+message bubble shows for
+// longer instead of the silent pulse.
+function toast(msg, type, opts){
   const kind = type || inferToastType(msg);
+  const detailed = !!(opts && opts.detailed);
   const el = document.createElement('div');
-  el.className = 'toast toast-' + kind;
-  el.innerHTML = '<span class="toast-progress"></span>';
+  el.className = 'toast toast-' + kind + (detailed ? ' toast-text' : '');
+  el.innerHTML = detailed
+    ? `<span class="toast-icon">${TOAST_ICONS[kind] || TOAST_ICONS.info}</span><span class="toast-msg">${esc(msg)}</span>`
+    : '<span class="toast-progress"></span>';
   toastWrap.appendChild(el);
   requestAnimationFrame(() => el.classList.add('show'));
   setTimeout(() => {
     el.classList.remove('show');
     setTimeout(() => el.remove(), 250);
-  }, 900);
+  }, detailed ? 3200 : 900);
 }
 
 /* ================= Confirm dialog (replaces native confirm()) =================
@@ -2081,6 +2086,10 @@ function renderGenerateWizard(){
 }
 function openGenerateWizard(){
   if (viewerMode || isSessionEnded()) { toast('Match generation is unavailable right now'); return; }
+  if (!state.stack.length){
+    toast('No players checked in yet — check players in before generating a match', 'warning', {detailed:true});
+    return;
+  }
   generateWizardDraft = wizardDefaults();
   generateWizardStep = 1;
   generateMatchOverlay.hidden = false;
@@ -2110,36 +2119,44 @@ async function applyWizardCourtCount(target){
 async function generateMatchesFromWizard(){
   const d = generateWizardDraft;
   if (!d) return;
-  if (state.stack.length < d.gameSize){ toast(`Need at least ${d.gameSize} checked-in players to generate a match`, 'warning'); return; }
-  state.session.gameSize = d.gameSize;
-  state.session.matchingStyle = d.matchingStyle;
-  state.session.avoidRepeatTeammates = d.avoidRepeat;
-  state.session.fixedDuosEnabled = d.avoidRepeat && (d.fixedDuos || []).length > 0;
-  state.session.scoringEnabled = d.scoring;
-  state.session.skillLevelsEnabled = !!d.skillLevels;
-  state.session.fixedDuos = d.avoidRepeat ? (d.fixedDuos || []).map(x => ({a:x.a,b:x.b})) : [];
-  state.session.autoStartEnabled = false;
-  state.session.generationReady = true;
-  await applyWizardCourtCount(d.courts);
-  // Apply the per-court levels picked in step 1 (only meaningful once Skill
-  // Levels is on — otherwise every court just stays 'Open', same as today).
-  if (d.skillLevels && Array.isArray(d.courtLevels)){
-    state.courts.forEach((c,i) => { c.level = PLAYER_LEVELS.includes(d.courtLevels[i]) ? d.courtLevels[i] : 'Open'; });
+  if (state.stack.length < d.gameSize){
+    toast(`Need at least ${d.gameSize} checked-in players to generate a match`, 'warning', {detailed:true});
+    return;
   }
-  state.courts.forEach(c => { if (c.status === 'open') { c.openedAt = null; c.previewOrder = null; c.previewSubMap = null; } });
-  persist();
-  let started = 0;
-  for (const court of state.courts){
-    if (court.status !== 'open') continue;
-    const before = court.status;
-    callNext(court);
-    if (before !== court.status && court.status === 'playing') started++;
+  try{
+    state.session.gameSize = d.gameSize;
+    state.session.matchingStyle = d.matchingStyle;
+    state.session.avoidRepeatTeammates = d.avoidRepeat;
+    state.session.fixedDuosEnabled = d.avoidRepeat && (d.fixedDuos || []).length > 0;
+    state.session.scoringEnabled = d.scoring;
+    state.session.skillLevelsEnabled = !!d.skillLevels;
+    state.session.fixedDuos = d.avoidRepeat ? (d.fixedDuos || []).map(x => ({a:x.a,b:x.b})) : [];
+    state.session.autoStartEnabled = false;
+    state.session.generationReady = true;
+    await applyWizardCourtCount(d.courts);
+    // Apply the per-court levels picked in step 1 (only meaningful once Skill
+    // Levels is on — otherwise every court just stays 'Open', same as today).
+    if (d.skillLevels && Array.isArray(d.courtLevels)){
+      state.courts.forEach((c,i) => { c.level = PLAYER_LEVELS.includes(d.courtLevels[i]) ? d.courtLevels[i] : 'Open'; });
+    }
+    state.courts.forEach(c => { if (c.status === 'open') { c.openedAt = null; c.previewOrder = null; c.previewSubMap = null; } });
+    persist();
+    let started = 0;
+    for (const court of state.courts){
+      if (court.status !== 'open') continue;
+      const before = court.status;
+      callNext(court);
+      if (before !== court.status && court.status === 'playing') started++;
+    }
+    closeGenerateWizard();
+    setMobileTab('courts');
+    renderAll();
+    if (!started) toast('No complete match could be generated from the checked-in queue', 'warning', {detailed:true});
+    else toast(started === 1 ? '1 match generated' : `${started} matches generated`, 'success', {detailed:true});
+  } catch (err){
+    console.error('generateMatchesFromWizard failed:', err);
+    toast('Something went wrong generating the match — please try again', 'error', {detailed:true});
   }
-  closeGenerateWizard();
-  setMobileTab('courts');
-  renderAll();
-  if (!started) toast('No complete match could be generated from the checked-in queue', 'warning');
-  else toast(started === 1 ? '1 match generated' : `${started} matches generated`);
 }
 
 /* ---- Generate Match nav button doubles as "End Session" ----
