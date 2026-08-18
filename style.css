@@ -2210,6 +2210,13 @@ body.viewer-mode .viewer-conn-card{ order:1; }
 body.viewer-mode .history{ order:2; display:block !important; margin:0 0 1.1rem; }
 body.viewer-mode .viewer-courts-header{ order:3; }
 body.viewer-mode .courts-grid{ order:4; }
+/* Swipe-dot page hint has no order of its own by default, so without this
+   it falls back to order:0 and jumps to the very top of the flex column —
+   above even the "Up next" panel (order:1/2) — instead of sitting under
+   the court cards it's meant to indicate the page position for. It's a
+   child of .courts-main right after .courts-grid in the markup, so tying
+   it to the same order value keeps it directly beneath the cards. */
+body.viewer-mode .courts-swipe-dots{ order:4; }
 body.viewer-mode .viewer-blocks-panel{ order:5; }
 body.viewer-mode .courts-stats-bar{ order:6; }
 
@@ -2532,9 +2539,10 @@ html[data-theme="dark"] .player-sub-btn{background:var(--sub-amber);border-color
     display:none;
   }
   .player-preview-btn,.player-swap-btn,.player-sub-btn{
-    flex:0 0 auto;padding:0 .6rem;gap:0;
+    flex:0 0 auto;width:38px;height:38px;padding:0;gap:0;
   }
-  body.viewer-mode .player-preview-btn{padding:0 .6rem}
+  .player-preview-btn svg,.player-swap-btn svg,.player-sub-btn svg{width:19px;height:19px}
+  body.viewer-mode .player-preview-btn{padding:0;width:38px}
 }
 
 /* Spectators only ever see the INFO button (SWAP/SUB are host-only and get
