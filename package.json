@@ -2,6 +2,9 @@
   "name": "paddlestack",
   "private": true,
   "version": "1.0.0",
+  "scripts": {
+    "build": "echo \"Static site — no build step required\""
+  },
   "dependencies": {
     "@vercel/og": "^1.0.1"
   }
