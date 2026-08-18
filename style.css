@@ -996,6 +996,14 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
 .sbl-btn:hover:not(:disabled){background:rgba(255,255,255,.16)}
 .sbl-btn:disabled{opacity:.28;cursor:default}
 
+.court-next-up{
+  font-size:.7rem;color:var(--slate);background:var(--court);border:1px solid var(--line);
+  border-radius:8px;padding:.4rem .6rem;margin-bottom:.6rem;display:flex;align-items:center;gap:.35rem;
+}
+.court-next-up svg{width:12px;height:12px;flex-shrink:0;color:var(--info-blue)}
+.court-next-up span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html[data-theme="dark"] .court-next-up{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.1)}
+
 .court-cta{
   margin-top:auto;width:100%;border:none;border-radius:var(--radius-sm);
   padding:.7rem;font-weight:800;font-size:.88rem;cursor:pointer;letter-spacing:.01em;
@@ -1032,6 +1040,8 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
   font-family:var(--font-mono);letter-spacing:.01em;
 }
 
+.court-card-skeleton{cursor:default;pointer-events:none}
+.court-card-skeleton:hover{box-shadow:var(--shadow-sm);transform:none}
 .courts-empty{
   padding:3rem 1rem;text-align:center;color:var(--slate);border:1.5px dashed var(--line);
   border-radius:var(--radius);
@@ -1648,6 +1658,14 @@ html[data-theme="dark"] .toast-progress{background:#fff}
 .toast.toast-text .toast-icon{width:19px;height:19px;flex-shrink:0;margin-top:1px}
 .toast.toast-text .toast-icon svg{width:100%;height:100%;display:block}
 .toast.toast-text .toast-msg{font-size:.82rem;font-weight:700;color:var(--ink);line-height:1.35}
+.toast.toast-text .toast-body{display:flex;flex-direction:column;gap:.35rem;min-width:0}
+.toast.toast-text .toast-action{
+  align-self:flex-start;font-family:var(--font-mono);font-size:.66rem;font-weight:700;
+  text-transform:uppercase;letter-spacing:.03em;color:var(--info-blue-deep);
+  background:none;border:none;padding:0;cursor:pointer;text-decoration:underline;
+}
+.toast.toast-text .toast-action:hover{color:var(--info-blue)}
+html[data-theme="dark"] .toast.toast-text .toast-action{color:#8FB3FF}
 .toast.toast-text.toast-success{border-color:var(--turf)}
 .toast.toast-text.toast-success .toast-icon{color:var(--turf-deep)}
 .toast.toast-text.toast-warning{border-color:var(--gold-deep)}
@@ -2666,6 +2684,24 @@ html[data-theme="dark"] .mobile-tabs button.active{
 @container court (max-width:360px){
   .matchup{gap:.4rem}
 }
+/* ---- Swipe position dots ----
+   The courts grid becomes a one-card-per-swipe horizontal scroller below
+   880px (see above), with only a sliver of the next card peeking in as a
+   hint. That's easy to miss with more than a couple of courts, so show a
+   small dot row underneath tracking which court is currently in view. */
+.courts-swipe-dots{
+  display:none;justify-content:center;align-items:center;gap:.4rem;margin:.7rem 0 .2rem;
+}
+@media (max-width:880px){
+  .courts-swipe-dots:not([hidden]){display:flex}
+}
+.courts-swipe-dots .dot{
+  width:6px;height:6px;border-radius:50%;background:var(--line);
+  transition:background .15s,transform .15s;flex-shrink:0;
+}
+.courts-swipe-dots .dot.active{background:var(--turf);transform:scale(1.35)}
+html[data-theme="dark"] .courts-swipe-dots .dot{background:#25365A}
+html[data-theme="dark"] .courts-swipe-dots .dot.active{background:var(--turf)}
 /* A team column this narrow (~half of a real half-of-6"-phone card) can't
    fit three icon+label pills side by side — go icon-only there. Buttons
    stay the exact same tap targets and data-act handlers, just smaller and
@@ -3206,6 +3242,32 @@ html[data-theme="dark"] .generate-match-nav .generate-match-orb{
 .end-session-actions .btn small{font-weight:500;color:var(--slate);line-height:1.4}
 .end-session-actions .btn.danger small{color:var(--danger)}
 #endSessionCancelBtn{align-items:center}
+
+/* ================= Session recap modal ================= */
+.session-recap-modal{text-align:center}
+.recap-trophy{width:34px;height:34px;color:var(--gold);margin:0 auto .5rem;display:block}
+.recap-stats-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(84px,1fr));gap:.6rem;
+  margin:1rem 0;
+}
+.recap-stat{
+  background:var(--paper-2);border:1px solid var(--line);border-radius:14px;
+  padding:.9rem .5rem;display:flex;flex-direction:column;align-items:center;gap:.2rem;
+}
+.recap-stat-num{font-size:1.4rem;font-weight:900;color:var(--ink)}
+.recap-stat-label{font-size:.68rem;color:var(--slate);font-weight:600;text-transform:uppercase;letter-spacing:.02em}
+.recap-mvp{
+  display:flex;align-items:center;gap:.5rem;justify-content:center;text-align:left;
+  background:var(--gold-pale);border-radius:12px;padding:.65rem .8rem;margin-bottom:.9rem;
+  font-size:.8rem;color:var(--ink);
+}
+.recap-mvp svg{width:18px;height:18px;color:var(--gold-ink,var(--gold));flex-shrink:0}
+.session-recap-modal .modal-actions{display:flex;gap:.6rem}
+.session-recap-modal .modal-actions .btn{flex:1}
+@media (max-width:480px){
+  .recap-stats-grid{grid-template-columns:repeat(auto-fit,minmax(72px,1fr))}
+  .recap-stat-num{font-size:1.2rem}
+}
 
 /* ================= Check-in hold note (Generate wizard in progress) ================= */
 .wizard-hold-note{
