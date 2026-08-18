@@ -2330,10 +2330,35 @@ function endSessionAndReset({ clearRoster }){
     state.roster = [];
     renderRosterList();
   }
+  // Ending a session should return the court setup AND every session
+  // setting (auto-start timing, matching style, target games, scoring,
+  // sound, skill levels, fixed duos, cohost permissions) back to their
+  // factory defaults — the same set Settings > Restore Defaults resets —
+  // not just clear the active queue/courts. This was previously missing,
+  // so a renamed/relevelled court (or a tweaked setting) silently carried
+  // over into the "new" session. Session identity (name), lifecycle
+  // status, and the createdAt timestamp startFreshSessionKeepingRoster
+  // just set are kept as-is.
+  state.courts.forEach((c, i) => {
+    c.name = 'Court ' + (i + 1);
+    c.level = 'Open';
+  });
+  const defaultSession = freshState().session;
+  state.session = {
+    ...defaultSession,
+    name: state.session.name,
+    status: state.session.status,
+    createdAt: state.session.createdAt,
+  };
   state.session.generationReady = false;
   persist();
   closeEndSessionPrompt();
   renderGenerateNav();
+  renderAll();
+  // If Settings happens to be open behind the End Session prompt, refresh
+  // its fields so the reset court names/levels/settings show immediately
+  // instead of only on the next open.
+  if (settingsOverlay && !settingsOverlay.hidden) openSettings();
   if (recap) openSessionRecap(recap, clearRoster ? 'Done — players cleared' : 'Done — known players kept');
   else toast(clearRoster ? 'Session ended — players cleared' : 'Session ended — known players kept');
 }
