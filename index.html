@@ -99,7 +99,7 @@
   <div class="spacer"></div>
   <span class="pill" id="stackCountPill">0 in stack</span>
   <span class="pill live-pill" id="liveHostPill" hidden>🔴 LIVE</span>
-  <button class="btn solid-turf generate-match-desktop-btn" id="generateMatchDesktopBtn" type="button" aria-label="Generate Match"><svg viewBox="0 0 24 24" id="generateMatchDesktopIcon"><use href="#i-bolt"/></svg><span id="generateMatchDesktopLabel">Generate Match</span></button>
+  <button class="btn solid-turf generate-match-desktop-btn" id="generateMatchDesktopBtn" type="button" aria-label="Generate Match" title="Generate Match (shortcut: G)"><svg viewBox="0 0 24 24" id="generateMatchDesktopIcon"><use href="#i-bolt"/></svg><span id="generateMatchDesktopLabel">Generate Match</span></button>
   <button class="icon-btn" id="installAppBtn" aria-label="Install app for offline use" title="Install app for offline use" hidden><svg viewBox="0 0 24 24"><use href="#i-download"/></svg></button>
   <button class="icon-btn" id="hostOnlineBtn" aria-label="Host or watch a live match online"><svg viewBox="0 0 24 24"><use href="#i-cloud"/></svg></button>
   <button class="icon-btn" id="callOutTopBtn" aria-label="Call a player"><svg viewBox="0 0 24 24"><use href="#i-bell"/></svg></button>
@@ -292,6 +292,7 @@
       <button type="button" class="btn solid-turf sm" id="viewerConnRetryBtn" hidden>Retry now</button>
     </div>
     <div class="courts-grid" id="courtsGrid"></div>
+    <div class="courts-swipe-dots" id="courtsSwipeDots" hidden></div>
     <details class="history" open>
       <summary>
         <svg class="history-summary-icon-default" viewBox="0 0 24 24"><use href="#i-clock"/></svg>
@@ -1033,6 +1034,7 @@
     </div>
     <div class="match-history-list" id="matchHistoryFullList"></div>
     <div class="modal-actions">
+      <button class="btn ghost" id="matchHistoryExportBtn">Export CSV</button>
       <button class="btn primary" id="matchHistoryDone">Done</button>
     </div>
   </div>
@@ -1119,6 +1121,19 @@
         <small>Clears everything, including your saved player list. Starts totally fresh.</small>
       </button>
       <button type="button" class="btn ghost" id="endSessionCancelBtn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="sessionRecapOverlay" hidden>
+  <div class="modal session-recap-modal" role="alertdialog" aria-modal="true" aria-labelledby="sessionRecapTitle">
+    <svg class="recap-trophy" viewBox="0 0 24 24"><use href="#i-trophy"/></svg>
+    <h3 id="sessionRecapTitle">Session recap</h3>
+    <div class="recap-stats-grid" id="recapStatsGrid"></div>
+    <div class="recap-mvp" id="recapMvp" hidden></div>
+    <div class="modal-actions">
+      <button type="button" class="btn ghost" id="recapShareBtn">Share recap</button>
+      <button type="button" class="btn primary" id="recapDoneBtn">Done</button>
     </div>
   </div>
 </div>
