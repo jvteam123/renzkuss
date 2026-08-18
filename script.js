@@ -517,18 +517,43 @@ function inferToastType(msg){
 // longer instead of the silent pulse.
 function toast(msg, type, opts){
   const kind = type || inferToastType(msg);
-  const detailed = !!(opts && opts.detailed);
+  const detailed = !!(opts && (opts.detailed || opts.action));
   const el = document.createElement('div');
   el.className = 'toast toast-' + kind + (detailed ? ' toast-text' : '');
-  el.innerHTML = detailed
-    ? `<span class="toast-icon">${TOAST_ICONS[kind] || TOAST_ICONS.info}</span><span class="toast-msg">${esc(msg)}</span>`
-    : '<span class="toast-progress"></span>';
+  let dismissTimer = null;
+  const scheduleDismiss = (ms) => {
+    clearTimeout(dismissTimer);
+    dismissTimer = setTimeout(() => {
+      el.classList.remove('show');
+      setTimeout(() => el.remove(), 250);
+    }, ms);
+  };
+  if (detailed){
+    const action = opts && opts.action; // { label, onClick }
+    el.innerHTML = `<span class="toast-icon">${TOAST_ICONS[kind] || TOAST_ICONS.info}</span>` +
+      `<span class="toast-body"><span class="toast-msg">${esc(msg)}</span>` +
+      (action ? `<button type="button" class="toast-action">${esc(action.label)}</button>` : '') +
+      `</span>`;
+    if (action){
+      const btn = el.querySelector('.toast-action');
+      // A toast with an action stays up a little longer and pauses its own
+      // dismissal on hover/focus, so a host reaching for "Undo" doesn't have
+      // it vanish out from under the tap.
+      btn.addEventListener('click', () => {
+        clearTimeout(dismissTimer);
+        try{ action.onClick(); }catch(e){ console.error('toast action failed:', e); }
+        el.classList.remove('show');
+        setTimeout(() => el.remove(), 250);
+      });
+      el.addEventListener('mouseenter', () => clearTimeout(dismissTimer));
+      el.addEventListener('mouseleave', () => scheduleDismiss(3200));
+    }
+  } else {
+    el.innerHTML = '<span class="toast-progress"></span>';
+  }
   toastWrap.appendChild(el);
   requestAnimationFrame(() => el.classList.add('show'));
-  setTimeout(() => {
-    el.classList.remove('show');
-    setTimeout(() => el.remove(), 250);
-  }, detailed ? 3200 : 900);
+  scheduleDismiss(detailed ? ((opts && opts.action) ? 5000 : 3200) : 900);
 }
 
 /* ================= Confirm dialog (replaces native confirm()) =================
@@ -1900,9 +1925,19 @@ async function checkInArrival(id){
   const idx = state.arrivals.findIndex(a => a.id === id);
   if (idx === -1) return; // arrival was removed/checked in elsewhere while this was open
   state.arrivals.splice(idx, 1);
-  state.stack.push({ id: nextId('p'), name: entry.name, joinedAt: Date.now(), tag: 'new' });
+  const stackEntry = { id: nextId('p'), name: entry.name, joinedAt: Date.now(), tag: 'new' };
+  state.stack.push(stackEntry);
   checkBlockFlush();
-  toast(entry.name + ' checked in and added to the stack');
+  toast(entry.name + ' checked in and added to the stack', 'success', { action: {
+    label: 'Undo',
+    onClick: () => {
+      const si = state.stack.findIndex(p => p.id === stackEntry.id);
+      if (si !== -1) state.stack.splice(si, 1);
+      state.arrivals.unshift(entry);
+      renderAll(); persist();
+      toast(entry.name + ' moved back to arrivals', 'info', {detailed:true});
+    }
+  }});
   renderAll(); persist();
 }
 async function checkInAllArrivals(){
@@ -1938,8 +1973,15 @@ async function removeArrival(id){
   // pre-await index isn't safe to reuse here.
   const idx = state.arrivals.findIndex(a => a.id === id);
   if (idx === -1) return;
-  state.arrivals.splice(idx, 1);
-  toast(name + ' removed');
+  const [removed] = state.arrivals.splice(idx, 1);
+  toast(name + ' removed', 'success', { action: {
+    label: 'Undo',
+    onClick: () => {
+      state.arrivals.splice(Math.min(idx, state.arrivals.length), 0, removed);
+      renderAll(); persist();
+      toast(name + ' restored to arrivals', 'info', {detailed:true});
+    }
+  }});
   renderAll(); persist();
 }
 function renderArrivals(){
@@ -2203,7 +2245,86 @@ function openEndSessionPrompt(){
   endSessionOverlay.hidden = false;
 }
 function closeEndSessionPrompt(){ if (endSessionOverlay) endSessionOverlay.hidden = true; }
+/* ---- Session recap ----
+   startFreshSessionKeepingRoster() (called below) wipes state.history and
+   state.playerStats immediately, so any recap has to be captured from the
+   live state *before* that reset runs — there's no reconstructing it
+   afterward. Shown only when at least one match was actually played;
+   ending an empty/just-started session skips straight to the toast. */
+function formatRecapDuration(ms){
+  if (ms == null || ms <= 0) return null;
+  const totalMin = Math.round(ms / 60000);
+  const h = Math.floor(totalMin / 60), m = totalMin % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+function buildSessionRecap(){
+  const matches = state.history.length;
+  if (matches === 0) return null;
+  let earliest = Infinity, latest = 0;
+  state.history.forEach(h => {
+    if (h.startTime && h.startTime < earliest) earliest = h.startTime;
+    if (h.endTime && h.endTime > latest) latest = h.endTime;
+  });
+  const durationMs = (isFinite(earliest) && latest > earliest) ? (latest - earliest) : null;
+  const playerEntries = Object.entries(state.playerStats).filter(([,s]) => s && s.games > 0);
+  let mvp = null;
+  playerEntries.forEach(([name, s]) => {
+    if (!mvp || s.wins > mvp.wins || (s.wins === mvp.wins && s.games > mvp.games)) mvp = { name, wins: s.wins, games: s.games };
+  });
+  return { matches, playerCount: playerEntries.length, durationMs, mvp };
+}
+let pendingRecap = null;
+function openSessionRecap(recap, closeLabel){
+  const overlay = $('#sessionRecapOverlay');
+  const grid = $('#recapStatsGrid');
+  if (!overlay || !grid) return;
+  pendingRecap = recap;
+  const dur = formatRecapDuration(recap.durationMs);
+  grid.innerHTML = `
+    <div class="recap-stat"><span class="recap-stat-num">${recap.matches}</span><span class="recap-stat-label">${recap.matches === 1 ? 'Match' : 'Matches'} played</span></div>
+    <div class="recap-stat"><span class="recap-stat-num">${recap.playerCount}</span><span class="recap-stat-label">${recap.playerCount === 1 ? 'Player' : 'Players'}</span></div>
+    ${dur ? `<div class="recap-stat"><span class="recap-stat-num">${esc(dur)}</span><span class="recap-stat-label">Duration</span></div>` : ''}
+  `;
+  const mvpEl = $('#recapMvp');
+  if (mvpEl){
+    if (recap.mvp && recap.playerCount > 1){
+      mvpEl.hidden = false;
+      mvpEl.innerHTML = `<svg viewBox="0 0 24 24"><use href="#i-trophy"/></svg><span><b>${esc(recap.mvp.name)}</b> \u2014 MVP with ${recap.mvp.wins} ${recap.mvp.wins === 1 ? 'win' : 'wins'} in ${recap.mvp.games} ${recap.mvp.games === 1 ? 'game' : 'games'}</span>`;
+    } else {
+      mvpEl.hidden = true;
+    }
+  }
+  const doneBtn = $('#recapDoneBtn');
+  if (doneBtn) doneBtn.textContent = closeLabel || 'Done';
+  overlay.hidden = false;
+}
+function closeSessionRecap(){
+  const overlay = $('#sessionRecapOverlay');
+  if (overlay) overlay.hidden = true;
+  pendingRecap = null;
+}
+$('#recapDoneBtn')?.addEventListener('click', closeSessionRecap);
+$('#sessionRecapOverlay')?.addEventListener('click', e => { if (e.target.id === 'sessionRecapOverlay') closeSessionRecap(); });
+$('#recapShareBtn')?.addEventListener('click', async () => {
+  if (!pendingRecap) return;
+  const dur = formatRecapDuration(pendingRecap.durationMs);
+  const lines = [
+    `${pendingRecap.matches} ${pendingRecap.matches === 1 ? 'match' : 'matches'} played`,
+    `${pendingRecap.playerCount} ${pendingRecap.playerCount === 1 ? 'player' : 'players'}`,
+  ];
+  if (dur) lines.push(`${dur} of play`);
+  if (pendingRecap.mvp) lines.push(`MVP: ${pendingRecap.mvp.name} (${pendingRecap.mvp.wins}-${pendingRecap.mvp.games - pendingRecap.mvp.wins} win-loss)`);
+  const text = `PaddleStack session recap\n${lines.join('\n')}`;
+  if (navigator.share){
+    try{ await navigator.share({ title: 'Session recap', text }); }
+    catch(e){ /* user dismissed the native share sheet — nothing to do */ }
+  } else {
+    copyText(text);
+  }
+});
+
 function endSessionAndReset({ clearRoster }){
+  const recap = buildSessionRecap();
   startFreshSessionKeepingRoster();
   if (clearRoster){
     state.roster = [];
@@ -2213,7 +2334,8 @@ function endSessionAndReset({ clearRoster }){
   persist();
   closeEndSessionPrompt();
   renderGenerateNav();
-  toast(clearRoster ? 'Session ended — players cleared' : 'Session ended — known players kept');
+  if (recap) openSessionRecap(recap, clearRoster ? 'Done — players cleared' : 'Done — known players kept');
+  else toast(clearRoster ? 'Session ended — players cleared' : 'Session ended — known players kept');
 }
 if (endSessionKeepBtn) endSessionKeepBtn.addEventListener('click', () => endSessionAndReset({ clearRoster: false }));
 if (endSessionClearBtn) endSessionClearBtn.addEventListener('click', async () => {
@@ -2227,6 +2349,30 @@ function handleGenerateMatchTrigger(){
   if (hasActiveGeneratedSession()) openEndSessionPrompt();
   else openGenerateWizard();
 }
+
+/* ---- Desktop keyboard shortcuts ----
+   "G" — same as clicking the Generate Match / End Session nav button.
+   "N" — starts the first court that's ready to go (same as clicking its
+   "Start Game" button), a quick way to call the next match without
+   reaching for the mouse. Both bail out while typing in any field, while
+   an overlay/modal is open, or in viewer mode — spectators and anyone
+   filling in a text box shouldn't have single letters do anything. */
+document.addEventListener('keydown', (e) => {
+  if (viewerMode || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+  const tag = (e.target && e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select' || (e.target && e.target.isContentEditable)) return;
+  if (document.querySelector('.overlay:not([hidden])')) return;
+  const key = e.key.toLowerCase();
+  if (key === 'g'){
+    e.preventDefault();
+    handleGenerateMatchTrigger();
+  } else if (key === 'n'){
+    const btn = document.querySelector('.court-cta.call:not(:disabled)');
+    if (btn){ e.preventDefault(); btn.click(); }
+    else toast('No court is ready to start right now', 'info', {detailed:true});
+  }
+});
+
 if (generateMatchNav) generateMatchNav.addEventListener('click', handleGenerateMatchTrigger);
 if (generateMatchDesktopBtn) generateMatchDesktopBtn.addEventListener('click', handleGenerateMatchTrigger);
 if (generateWizardClose) generateWizardClose.addEventListener('click', closeGenerateWizard);
@@ -2452,6 +2598,25 @@ function teamColHtml(names, side, gameSize, swapCtx, subBaseIdx){
    open court's "next up" preview and to decide exactly who gets called when
    a specific court's "Call next" is clicked — keeping the two in sync so a
    court never calls a different group of players than what it just showed. */
+/* ---- "Up next on this court" (playing courts only) ----
+   Open courts already preview their next matchup inline (see
+   computeOpenCourtQueue above), but a currently-playing court shows
+   nothing about who's queued for it once the game ends — the host has
+   to leave the card and check the global "Up next" list instead. This
+   gives a lightweight, best-effort peek: if this court finished right
+   now, who from the stack (matching its skill level) would likely fill
+   it. It's approximate — it doesn't account for other courts finishing
+   around the same moment and claiming the same players first — so it's
+   presented as a hint, not a guarantee. */
+function previewNextForCourt(court, gameSize){
+  if (!state.session.generationReady || court.status !== 'playing') return null;
+  const alreadyPlaying = new Set();
+  state.courts.forEach(c => { if (c.status === 'playing' && Array.isArray(c.players)) c.players.forEach(n => { if (n) alreadyPlaying.add(n); }); });
+  const courtLevel = court.level || 'Open';
+  const pool = state.stack.filter(e => !alreadyPlaying.has(e.name) && levelsMatch(getPlayerLevel(e.name), courtLevel));
+  if (pool.length < gameSize) return null;
+  return selectMatchEntries(gameSize, pool).map(e => e.name);
+}
 function computeOpenCourtQueue(gameSize){
   const queue = new Map();
   // Checked-in players must remain in the main queue until the host explicitly
@@ -3395,10 +3560,66 @@ subList.addEventListener('click', (e) => {
 $('#subCancel').addEventListener('click', closeSubOverlay);
 subOverlay.addEventListener('click', (e) => { if (e.target === subOverlay) closeSubOverlay(); });
 
+/* ---- Swipe position dots (mobile court carousel) ---- */
+const courtsSwipeDots = $('#courtsSwipeDots');
+let swipeDotsScrollBound = false;
+function renderCourtsSwipeDots(){
+  if (!courtsSwipeDots) return;
+  const n = state.courts.length;
+  if (n < 2){ courtsSwipeDots.hidden = true; courtsSwipeDots.innerHTML = ''; return; }
+  courtsSwipeDots.hidden = false;
+  courtsSwipeDots.innerHTML = state.courts.map((_, i) => `<span class="dot${i === 0 ? ' active' : ''}" data-dot-idx="${i}"></span>`).join('');
+  updateCourtsSwipeDots();
+  if (!swipeDotsScrollBound && courtsGrid){
+    swipeDotsScrollBound = true;
+    let raf = null;
+    courtsGrid.addEventListener('scroll', () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => { raf = null; updateCourtsSwipeDots(); });
+    }, { passive:true });
+  }
+}
+function updateCourtsSwipeDots(){
+  if (!courtsSwipeDots || courtsSwipeDots.hidden || !courtsGrid) return;
+  const cards = courtsGrid.querySelectorAll('.court-card');
+  if (!cards.length) return;
+  // Whichever card's left edge is closest to the scroller's own left edge
+  // is the one currently "in view" (each card scroll-snaps to that edge).
+  const gridLeft = courtsGrid.getBoundingClientRect().left;
+  let closest = 0, closestDist = Infinity;
+  cards.forEach((card, i) => {
+    const dist = Math.abs(card.getBoundingClientRect().left - gridLeft);
+    if (dist < closestDist){ closestDist = dist; closest = i; }
+  });
+  courtsSwipeDots.querySelectorAll('.dot').forEach((dot, i) => dot.classList.toggle('active', i === closest));
+}
+courtsSwipeDots && courtsSwipeDots.addEventListener('click', (e) => {
+  const dot = e.target.closest('.dot[data-dot-idx]');
+  if (!dot) return;
+  const cards = courtsGrid.querySelectorAll('.court-card');
+  const target = cards[Number(dot.dataset.dotIdx)];
+  if (target) target.scrollIntoView({ behavior:'smooth', inline:'start', block:'nearest' });
+});
+
 function renderCourts(){
   courtsGrid.innerHTML = '';
   if (state.courts.length === 0){
-    courtsGrid.innerHTML = '<div class="courts-empty">No courts yet. Add some in Settings.</div>';
+    // A viewer who hasn't received any snapshot yet (see viewerConnCard
+    // above) has genuinely nothing to show — "No courts yet, add some in
+    // Settings" is both wrong (they can't add courts) and looks like a
+    // real, settled state rather than a still-loading one. Show a couple
+    // of skeleton placeholders instead so it reads as "loading", not
+    // "empty", until the first real snapshot lands.
+    const connCard = document.getElementById('viewerConnCard');
+    const isConnecting = viewerMode && connCard && !connCard.hidden;
+    courtsGrid.innerHTML = isConnecting
+      ? Array.from({length:2}).map(() => `<div class="court-card court-card-skeleton">
+          <div class="host-skeleton" style="width:38%;height:18px;margin-top:1.05rem"></div>
+          <div class="host-skeleton" style="width:100%;height:70px;margin-top:1rem"></div>
+          <div class="host-skeleton" style="width:60%;height:14px;margin-top:.9rem"></div>
+        </div>`).join('')
+      : '<div class="courts-empty">No courts yet. Add some in Settings.</div>';
+    if (courtsSwipeDots){ courtsSwipeDots.hidden = true; courtsSwipeDots.innerHTML = ''; }
     return;
   }
   const gameSize = state.session.gameSize;
@@ -3551,6 +3772,10 @@ function renderCourts(){
         ${swapHint}
         ${scoreboard}
         ${timerBlock}
+        ${(() => {
+          const nextNames = previewNextForCourt(court, gameSize);
+          return nextNames ? `<div class="court-next-up"><svg viewBox="0 0 24 24"><use href="#i-clock"/></svg><span>Up next: ${nextNames.map(esc).join(', ')}</span></div>` : '';
+        })()}
         <div class="court-cta-row">
           <button type="button" class="court-cta pause" data-act="pause"><span class="cta-icon">${court.pauseStart ? '▶' : '⏸'}</span><span class="cta-text"><span class="cta-title">${court.pauseStart ? 'Resume' : 'Pause'}</span><span class="cta-sub">${court.pauseStart ? 'Continue the clock' : 'Stop the clock'}</span></span></button>
           <button type="button" class="court-cta end" data-act="end"><span class="cta-icon">⏹</span><span class="cta-text"><span class="cta-title">End Game</span><span class="cta-sub">Record the result</span></span></button>
@@ -3560,6 +3785,7 @@ function renderCourts(){
     }
     courtsGrid.appendChild(card);
   });
+  renderCourtsSwipeDots();
 }
 
 /* ---- Player details preview ----
@@ -3815,7 +4041,7 @@ function undoLastResult(courtId){
   if (!lastUndo || lastUndo.courtId !== courtId) return;
   let restored;
   try{ restored = JSON.parse(lastUndo.snapshot); }
-  catch(e){ toast('Could not undo — snapshot was corrupted'); lastUndo = null; return; }
+  catch(e){ toast('Could not undo — snapshot was corrupted', 'error', {detailed:true}); lastUndo = null; return; }
   state = restored;
   lastUndo = null;
   const court = state.courts.find(c => c.id === courtId);
@@ -4435,6 +4661,52 @@ function refreshMatchHistoryFilterOptions(){
   matchHistoryResultCustomSelect.close(); matchHistoryResultCustomSelect.render();
   matchHistoryLevelCustomSelect.close(); matchHistoryLevelCustomSelect.render();
 }
+
+/* ---- Match history CSV export ----
+   Exports whatever's currently filtered/searched (not necessarily the
+   full history) so "search for Alice, then export" gives just Alice's
+   games — matching what the host is actually looking at on screen. */
+function csvCell(v){
+  const s = v == null ? '' : String(v);
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function matchHistoryToCsv(rows){
+  const header = ['Date','Time','Court','Team A','Team B','Winner','Score A','Score B','Duration (min)'];
+  const lines = [header.map(csvCell).join(',')];
+  rows.forEach(h => {
+    const start = h.startTime ? new Date(h.startTime) : null;
+    const durMin = (h.startTime && h.endTime) ? Math.max(0, Math.round((h.endTime - h.startTime) / 60000)) : '';
+    const winnerLabel = h.winnerNames ? h.winnerNames.join(' & ') : (h.winner === 'a' ? (h.teamA||[]).join(' & ') : h.winner === 'b' ? (h.teamB||[]).join(' & ') : '');
+    lines.push([
+      start ? start.toLocaleDateString() : '',
+      start ? start.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '',
+      h.courtName || '',
+      (h.teamA || []).join(' & '),
+      (h.teamB || []).join(' & '),
+      winnerLabel,
+      h.scoreA != null ? h.scoreA : '',
+      h.scoreB != null ? h.scoreB : '',
+      durMin
+    ].map(csvCell).join(','));
+  });
+  return lines.join('\r\n');
+}
+$('#matchHistoryExportBtn')?.addEventListener('click', () => {
+  const rows = state.history.filter(matchMatchesFilters);
+  if (!rows.length){ toast('No matches to export' + (state.history.length ? ' — try clearing your filters' : ''), 'warning', {detailed:true}); return; }
+  const csv = matchHistoryToCsv(rows);
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = `paddlestack-match-history-${stamp}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast(`Exported ${rows.length} match${rows.length === 1 ? '' : 'es'} to CSV`, 'success', {detailed:true});
+});
 
 // Re-renders just the list + count — safe to call on every keystroke since
 // it never touches the filter dropdowns/search input themselves, so focus
@@ -6267,7 +6539,7 @@ async function checkHostStillLive(){
       saveHostSession(null);
       updateHostIndicator();
       renderHostPanel();
-      toast('Your hosted match ended \u2014 it was idle for a while, so it auto-stopped. Go live again to keep sharing.', 'info');
+      toast('Your hosted match ended \u2014 it was idle for a while, so it auto-stopped. Go live again to keep sharing.', 'info', {detailed:true});
       return false;
     }
     setHostReconnecting(false); // this request reached the server, so we're clearly connected
@@ -7543,7 +7815,7 @@ async function openQrScan(){
     return;
   }
   if (navigator.onLine === false){
-    toast('You\u2019re offline \u2014 watching a live session needs an internet connection.', 'error');
+    toast('You\u2019re offline \u2014 watching a live session needs an internet connection.', 'error', {detailed:true});
     return;
   }
   if (qrScanStatus) qrScanStatus.textContent = 'Starting camera\u2026';
