@@ -5435,6 +5435,12 @@ function startFreshSessionKeepingRoster(){
   state.opponentHistory = {};
   state.upNextSubMap = {};
   state.session.status = 'active';
+  // Session Time on the spectator dashboard is computed from this
+  // timestamp (see the ~line-8839 stat4 block) — without resetting it
+  // here, "End session (keep players) -> start new" left the old
+  // createdAt in place and the clock kept counting up from the *original*
+  // session instead of restarting at 0 for the new one.
+  state.session.createdAt = Date.now();
   state.courts.forEach(c => { c.status = 'open'; c.players = []; c.startTime = null; c.lastResult = null; c.swapInfo = null; c.previewOrder = null; c.previewSubMap = null; c.openedAt = Date.now(); });
   persist();
   applySessionLockUI();
