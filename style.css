@@ -1633,6 +1633,36 @@ html[data-theme="dark"] .toast-progress{background:#fff}
 @keyframes toast-shrink{from{transform:scaleX(1)}to{transform:scaleX(0)}}
 @media (prefers-reduced-motion:reduce){.toast-progress{animation:none;display:none}}
 
+/* ---- "Detailed" toast: icon + readable message ----
+   Most actions use the silent pulse above, but a few moments (Generate
+   Match's outcomes especially) need an actual message the host can read —
+   no players checked in, nothing could be generated, a match was
+   generated, or something went wrong. Opt-in per call site via
+   toast(msg, type, {detailed:true}) rather than changing the default. */
+.toast.toast-text{
+  pointer-events:auto;width:auto;height:auto;max-width:min(88vw,380px);
+  border-radius:12px;padding:.7rem .9rem;background:var(--surface);
+  border:1.5px solid var(--line);box-shadow:var(--shadow-md);
+  display:flex;align-items:flex-start;gap:.55rem;text-align:left;
+}
+.toast.toast-text .toast-icon{width:19px;height:19px;flex-shrink:0;margin-top:1px}
+.toast.toast-text .toast-icon svg{width:100%;height:100%;display:block}
+.toast.toast-text .toast-msg{font-size:.82rem;font-weight:700;color:var(--ink);line-height:1.35}
+.toast.toast-text.toast-success{border-color:var(--turf)}
+.toast.toast-text.toast-success .toast-icon{color:var(--turf-deep)}
+.toast.toast-text.toast-warning{border-color:var(--gold-deep)}
+.toast.toast-text.toast-warning .toast-icon{color:var(--gold-ink)}
+.toast.toast-text.toast-error{border-color:var(--danger)}
+.toast.toast-text.toast-error .toast-icon{color:var(--danger)}
+.toast.toast-text.toast-info{border-color:var(--info-blue-deep)}
+.toast.toast-text.toast-info .toast-icon{color:var(--info-blue)}
+html[data-theme="dark"] .toast.toast-text{background:#101B30;border-color:#1C283F}
+html[data-theme="dark"] .toast.toast-text .toast-msg{color:#fff}
+@media (max-width:480px){
+  .toast.toast-text{max-width:92vw;padding:.6rem .8rem}
+  .toast.toast-text .toast-msg{font-size:.78rem}
+}
+
 /* ---------- Large screens: keep the shell from over-stretching ---------- */
 @media (min-width:1440px){
   .app-shell{max-width:1680px;margin:0 auto}
