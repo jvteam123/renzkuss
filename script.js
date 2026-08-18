@@ -7077,9 +7077,24 @@ if (sessionNameForm) sessionNameForm.addEventListener('submit', async (e) => {
   try{
     const taken = await isSessionNameTaken(name);
     if (taken){
-      sessionNameError.textContent = 'Session name already exists \u2014 pick a different name.';
-      sessionNameError.hidden = false;
-      return;
+      sessionNameSubmitBtn.disabled = false;
+      sessionNameSubmitBtn.textContent = '\uD83D\uDD34 Go live';
+      // A recurring club night (e.g. "Tuesday Night Open Play") reuses the
+      // same name every week on purpose — isSessionNameTaken() matches
+      // against this host's *entire* history, including sessions that
+      // ended long ago, so that pattern used to hit a hard "already
+      // exists, pick a different name" wall every single time. Ask instead
+      // of blocking: if it really is the same recurring event, let it
+      // through; if it was an accidental collision, they can still rename.
+      const proceedAnyway = await showConfirm(
+        `You\u2019ve used the name \u201c${name}\u201d before. If this is the same recurring session (e.g. a weekly night), that\u2019s fine \u2014 go ahead and reuse it.`,
+        { title: 'Session name already used', confirmLabel: 'Use this name', cancelLabel: 'Pick a different name' }
+      );
+      if (!proceedAnyway){
+        sessionNameInput.focus();
+        sessionNameInput.select();
+        return;
+      }
     }
     const club = sessionClubInput ? sessionClubInput.value.trim() : '';
     const description = sessionDescriptionInput ? sessionDescriptionInput.value.trim() : '';
