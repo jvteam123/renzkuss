@@ -2547,7 +2547,7 @@ html[data-theme="dark"] .mobile-tabs{
 }
 html[data-theme="dark"] .mobile-tabs button{color:#5B6B87}
 html[data-theme="dark"] .mobile-tabs button.active{
-  background:var(--turf);color:#fff;
+  background:#25406E;color:#fff;
 }
 @media (max-width:880px){
   .mobile-tabs button{font-size:.66rem;padding:.6rem .3rem}
