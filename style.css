@@ -196,9 +196,9 @@ button,a,.icon-btn,.panel-action-btn,.btn,select,[role="button"]{
 }
 .topbar .logo::before{
   content:'';position:absolute;inset:-6px;border-radius:50%;
-  background:radial-gradient(circle, rgba(252,209,22,.35) 0%, transparent 70%);
+  background:radial-gradient(circle, rgba(252,209,22,.25) 0%, transparent 70%);
 }
-.topbar .logo svg{width:30px;height:38px;color:var(--gold);position:relative}
+.topbar .logo img{width:34px;height:34px;border-radius:9px;position:relative;display:block}
 .topbar .brand-block{
   display:flex;flex-direction:column;gap:.05rem;
   max-width:40vw;overflow:hidden;
@@ -2491,8 +2491,8 @@ html[data-theme="dark"] .games-chip{color:#66748F;font-size:.68rem;letter-spacin
 }
 .team-b .player-actions-row{flex-direction:row;justify-content:flex-start}
 .player-preview-btn,.player-swap-btn,.player-sub-btn{
-  flex:1 1 0;min-width:0;height:38px;padding:0 .3rem;border-radius:11px;
-  font-size:.72rem;font-weight:800;letter-spacing:.02em;margin-left:0;gap:.3rem;
+  flex:1 1 0;min-width:0;height:38px;padding:0 .45rem;border-radius:11px;
+  font-size:.74rem;font-weight:800;letter-spacing:.02em;margin-left:0;gap:.3rem;
   overflow:hidden;
 }
 .player-preview-btn .action-label,.player-swap-btn .action-label,.player-sub-btn .action-label{
@@ -2502,16 +2502,15 @@ html[data-theme="dark"] .games-chip{color:#66748F;font-size:.68rem;letter-spacin
 @container court (max-width:360px){
   .player-actions-row{width:100%}
 }
-/* A team column comfortably fits full "Info"/"Swap"/"Sub" labels once it
-   has ~130px+ to work with (3 pills + gaps + icons) — true on desktop even
-   though the *court card* itself may be well under the old 360px cutoff
-   this used to key off of. Below that, drop to a tighter icon+short-label
-   size before finally going icon-only (handled further down). */
-@container team (min-width:130px){
-  .player-preview-btn,.player-swap-btn,.player-sub-btn{
-    padding:0 .45rem;font-size:.74rem;gap:.3rem;
-  }
-}
+/* The readable icon+"Info"/"Swap"/"Sub" sizing above is now the default —
+   it used to only apply once a @container query confirmed the team column
+   had 130px+ to work with, but a browser/WebView with partial or no
+   container-query support silently skipped that query and got stuck on a
+   cramped fallback, truncating every label to "I…"/"S…"/"S…" even on a
+   full-width tablet/desktop card with plenty of room. Container queries
+   are now used only to shrink things down on genuinely narrow phone-card
+   team columns (below), so a browser that can't evaluate them just keeps
+   the roomy, always-legible default instead of failing into illegible. */
 html[data-theme="dark"] .player-preview-btn{background:var(--info-blue);border-color:var(--info-blue-deep);box-shadow:none}
 html[data-theme="dark"] .player-swap-btn{background:var(--swap-orange);border-color:var(--swap-orange-deep);box-shadow:none}
 html[data-theme="dark"] .player-sub-btn{background:var(--sub-amber);border-color:var(--sub-amber-deep);color:#241C02;box-shadow:none}
