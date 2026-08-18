@@ -2515,6 +2515,28 @@ html[data-theme="dark"] .player-preview-btn{background:var(--info-blue);border-c
 html[data-theme="dark"] .player-swap-btn{background:var(--swap-orange);border-color:var(--swap-orange-deep);box-shadow:none}
 html[data-theme="dark"] .player-sub-btn{background:var(--sub-amber);border-color:var(--sub-amber-deep);color:#241C02;box-shadow:none}
 
+/* ---- Desktop/tablet: icon-only Info/Swap/Sub ----
+   Above the mobile swipe breakpoint the grid can show two or more court
+   cards per row, so each team column is nowhere near the full card width
+   — the "roomy" icon+label sizing above then truncates every label to
+   "I…"/"S…"/"S…" instead of just not fitting. Rather than chase that with
+   more container-query thresholds, drop the labels entirely once we're in
+   pointer/desktop territory: the icons are distinct, each button still
+   carries a title tooltip and full aria-label for hover/screen readers,
+   and this matches the icon-only treatment narrow phone cards already get
+   below, just without shrinking the tap target. */
+@media (min-width:881px){
+  .player-preview-btn .action-label,
+  .player-swap-btn .action-label,
+  .player-sub-btn .action-label{
+    display:none;
+  }
+  .player-preview-btn,.player-swap-btn,.player-sub-btn{
+    flex:0 0 auto;padding:0 .6rem;gap:0;
+  }
+  body.viewer-mode .player-preview-btn{padding:0 .6rem}
+}
+
 /* Spectators only ever see the INFO button (SWAP/SUB are host-only and get
    display:none above) — without SWAP/SUB to share the row with, the
    flex:1 1 0 sizing above stretches INFO into one giant full-width pill.
