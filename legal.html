@@ -72,7 +72,7 @@
 <body>
 <div class="wrap">
   <a class="back-link" href="index.html">&larr; Back to PaddleStack</a>
-  <h1>Disclaimer, Terms of Use &amp; Feedback</h1>
+  <h1>Disclaimer, Terms of Use, Privacy &amp; Feedback</h1>
   <p class="subtitle">PaddleStack — queue, court, and matchup manager for pickleball sessions.</p>
 
   <div class="card">
@@ -83,6 +83,17 @@
     <p>This application is provided "as is" without warranties of any kind. Match generation, queue management, player rotation, scoring, notifications, and other features may occasionally contain bugs, errors, or unexpected behavior. Users and session hosts are responsible for reviewing and confirming generated matchups, player assignments, scores, and other information before relying on them during play.</p>
     <p>The application is not responsible for injuries, disputes, scheduling issues, incorrect player assignments, lost data, service interruptions, or other consequences resulting from the use of the application.</p>
     <p>By using this application, you acknowledge and agree that you are responsible for how you use the application and for verifying important information before taking action.</p>
+  </div>
+
+  <div class="card" id="privacy">
+    <h2>Privacy Policy</h2>
+    <p>This app is built to run mostly on your own device. Most session data — players, queues, courts, match history, and settings — is stored locally in your browser's storage and is never sent anywhere unless you choose to "Go live."</p>
+    <p><b>If you create an account (only needed to host live):</b> we store your email address, password (hashed by our authentication provider, Supabase — we never see it in plain text), account status (admin/suspended), your daily hosting limit, and your credit balance. If you submit a credit purchase request, we store the amount, package selected, and the payment receipt image you upload, so it can be manually reviewed and approved.</p>
+    <p><b>If you host a live session:</b> your session name, courts, queue, and match state are stored on our server (Supabase) for as long as the session is live or you choose to keep it, so spectators and co-hosts can view or interact with it. Anyone with your invite link or code can view this data; anyone with a co-host code can also make changes. A device ID (a random value stored in your browser, not tied to your identity) is used to recognize your device for login-session and co-host handoff purposes.</p>
+    <p><b>If you spectate or check in as a player:</b> no account is required. If you enable phone notifications for call-ups, your browser's notification permission is used locally — we don't collect a list of subscribers server-side beyond what's needed to show your name in the live session while it's active.</p>
+    <p><b>Security checks:</b> the login/signup form uses hCaptcha (a third-party bot-detection widget) to prevent automated abuse. hCaptcha may process technical data (like your IP address and browser characteristics) under its own privacy policy when the widget loads.</p>
+    <p><b>What we don't do:</b> we don't run ads, sell data to third parties, or use analytics/tracking scripts to profile you across other sites.</p>
+    <p><b>Your control:</b> you can export or erase your local session data at any time from Settings. To request deletion of your account or associated server-side data, email us using the link below.</p>
   </div>
 
   <div class="card">
