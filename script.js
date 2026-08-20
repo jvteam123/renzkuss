@@ -5714,6 +5714,32 @@ const HOST_POLL_INTERVAL_MS = 2500; // same cadence as COHOST_POLL_INTERVAL_MS b
 let hostPollTimer = null;
 let hostPollFn = null;      // lets the global online/visibility/pageshow handlers trigger an
                              // immediate re-poll, same pattern as cohostPollFn/viewerPollFn
+/* Small "Synced Xs ago" line under the LIVE badge in the host panel — reuses
+   lastHostStateAt (already tracked below for a different purpose: knowing
+   whether an incoming poll is actually newer than what this device just
+   sent) since "the last time this device's state matched the server" is
+   exactly what a synced-ago readout wants, whether that sync was this
+   device pushing out or pulling in a co-host's change. Updates the text
+   node directly on a 1s tick rather than going through the full
+   renderHostPanel() — that function rebuilds the entire panel's innerHTML,
+   which would blow away focus/scroll position while someone has an input
+   open in there, for a label that doesn't need anything else on the panel
+   to change. */
+function formatSyncedAgo(ms){
+  if (!ms) return '';
+  const secs = Math.max(0, Math.round((Date.now() - ms) / 1000));
+  if (secs < 3) return 'Synced just now';
+  if (secs < 60) return `Synced ${secs}s ago`;
+  const mins = Math.round(secs / 60);
+  if (mins < 60) return `Synced ${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  return `Synced ${hrs}h ago`;
+}
+setInterval(() => {
+  const el = document.getElementById('hostSyncedAgo');
+  if (el && hostSession && !hostReconnecting) el.textContent = formatSyncedAgo(lastHostStateAt);
+}, 1000);
+
 let lastHostStateAt = 0;    // most recent updated_at (ms) this device has actually applied from
                              // the server — stops a slow/late poll response from clobbering a
                              // newer local edit, and stops this device from re-adopting the very
@@ -7509,6 +7535,7 @@ function renderHostPanel(){
     ${hostAccountRowHTML()}
     <div class="host-live-card">
       <span class="host-live-badge${hostReconnecting ? ' host-live-badge--reconnecting' : ''}">${hostReconnecting ? '🟡 Reconnecting…' : '🔴 Live now'}</span>
+      ${!hostReconnecting ? `<span class="host-synced-ago" id="hostSyncedAgo">${formatSyncedAgo(lastHostStateAt)}</span>` : ''}
       ${hostReconnecting ? `<p class="host-live-note" style="margin-top:.3rem">Lost the connection to the server — retrying automatically. Viewers may see a slightly stale score until this reconnects; no need to stop and restart.</p>` : ''}
       <div class="host-invite-code" id="hostInviteCodeText">${esc(hostSession.invite_code)}</div>
       ${state.session.club ? `<p class="host-live-note" style="margin-top:.2rem">Club: <b>${esc(state.session.club)}</b> \u2014 shown on the link preview banner.</p>` : ''}
