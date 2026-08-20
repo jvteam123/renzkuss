@@ -4881,14 +4881,37 @@ if (viewerNotifyBtn) viewerNotifyBtn.addEventListener('click', async () => {
 });
 $('#matchHistoryDone').addEventListener('click', () => { matchHistoryOverlay.hidden = true; });
 
-/* ================= About modal ================= */
+/* ================= About modal =================
+   On Android (and as an installed PWA especially), the hardware/gesture
+   back button doesn't know this overlay exists — with no history entry
+   to consume, "back" falls through to closing the whole app instead of
+   just dismissing the modal. Fix: push a history entry when the modal
+   opens, so back consumes that entry (via popstate) and just closes the
+   modal. If the modal is dismissed some other way (Done button, tapping
+   the backdrop, Escape) we still owe the browser a matching history.back()
+   to remove the entry we pushed, so back/forward stays in sync — but we
+   skip that step when we're already responding to a popstate, since the
+   entry's gone by then. */
 const aboutOverlay = $('#aboutOverlay');
-function openAbout(){ aboutOverlay.hidden = false; }
-function closeAbout(){ aboutOverlay.hidden = true; }
+let aboutHistoryPushed = false;
+function openAbout(){
+  aboutOverlay.hidden = false;
+  history.pushState({ modal: 'about' }, '');
+  aboutHistoryPushed = true;
+}
+function closeAbout(fromPopState){
+  if (aboutOverlay.hidden) return;
+  aboutOverlay.hidden = true;
+  if (aboutHistoryPushed){
+    aboutHistoryPushed = false;
+    if (!fromPopState) history.back();
+  }
+}
 $('#aboutBtn').addEventListener('click', openAbout);
-$('#aboutDone').addEventListener('click', closeAbout);
-aboutOverlay.addEventListener('click', (e) => { if (e.target === aboutOverlay) closeAbout(); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !aboutOverlay.hidden) closeAbout(); });
+$('#aboutDone').addEventListener('click', () => closeAbout(false));
+aboutOverlay.addEventListener('click', (e) => { if (e.target === aboutOverlay) closeAbout(false); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !aboutOverlay.hidden) closeAbout(false); });
+window.addEventListener('popstate', () => { if (!aboutOverlay.hidden) closeAbout(true); });
 
 /* ================= Live timers ================= */
 setInterval(() => {
