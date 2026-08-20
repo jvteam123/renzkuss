@@ -2359,6 +2359,7 @@ body.viewer-mode .courts-stats-bar{ order:6; }
 }
 .host-live-badge--stopped{background:var(--line);color:var(--slate)}
 .host-live-badge--reconnecting{background:var(--gold-pale);color:var(--gold-ink);animation:live-pulse 1s ease-in-out infinite}
+.host-synced-ago{display:block;font-size:.72rem;color:var(--slate);margin-top:.35rem}
 .host-invite-code{
   font-family:var(--font-mono);font-size:1.6rem;font-weight:700;letter-spacing:.12em;
   color:var(--turf-deep);background:var(--turf-pale);border-radius:var(--radius-sm);
