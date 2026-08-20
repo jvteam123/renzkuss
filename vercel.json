@@ -1,4 +1,5 @@
 {
+  "outputDirectory": ".",
   "rewrites": [
     { "source": "/s/:code", "destination": "/api/share?code=:code" },
     { "source": "/cs/:invite/:secret", "destination": "/api/share-cohost?invite=:invite&secret=:secret" }
