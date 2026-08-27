@@ -182,7 +182,7 @@ function cyclePlayerLevel(name){
 function defaultCourts(n){
   return Array.from({length:n}, (_, i) => ({
     id: 'c'+(i+1), name: 'Court '+(i+1), level: 'Open', status:'open', players: [], startTime: null, lastResult: null, swapInfo: null, score: null,
-    previewOrder: null, previewSubMap: null, openedAt: Date.now(), pauseStart: null, pausedMs: 0
+    previewOrder: null, previewSubMap: null, originalPlayers: null, substitutionLog: [], matchReason: [], openedAt: Date.now(), pauseStart: null, pausedMs: 0
   }));
 }
 
@@ -194,7 +194,7 @@ function freshState(){
     stack: [],           // {id, name, joinedAt, tag: 'new'|'queued'}
     winnersBlock: [],     // {id, name, joinedAt, tag} — accumulates until gameSize, then flushes to stack as a group (or sooner, if the group's too small to ever fill both blocks — see checkBlockFlush)
     losersBlock: [],      // same shape — accumulates until gameSize, then flushes to stack as a group (or sooner, if the group's too small to ever fill both blocks — see checkBlockFlush)
-    history: [],          // {id, courtName, teamA, teamB, winner, startTime, endTime}
+    history: [],          // {id, courtName, teamA, teamB, winner, startTime, endTime, substitutionLog}
     playerStats: {},      // name -> {wins, games}
     teammateHistory: {},   // "nameA||nameB" (sorted) -> number of times paired as teammates this session
     opponentHistory: {},   // "nameA||nameB" (sorted) -> number of times faced each other as opponents this session
@@ -902,7 +902,7 @@ function selectMatchEntries(gameSize, sourceStack){
     const indexed = stack.map((entry, idx) => ({
       entry, idx, games: getGamesPlayed(entry.name)
     }));
-    indexed.sort((a, b) => (a.games - b.games) || (a.idx - b.idx));
+    indexed.sort((a, b) => (a.games - b.games) || (getFairnessScore(b.entry.name) - getFairnessScore(a.entry.name)) || (a.idx - b.idx));
     const chosen = indexed.slice(0, gameSize);
     chosen.sort((a, b) => a.idx - b.idx); // restore original stack (FIFO) order for display/team-split
     base = chosen.map(c => c.entry);
@@ -1359,6 +1359,8 @@ function renderStack(){
       const winChip = (stats && stats.wins > 0) ? `<span class="win-chip">🏆${stats.wins}</span>` : '';
       const games = stats ? (stats.games || 0) : 0;
       const gamesChip = gamesChipHtml(games);
+      const waitReason = getWaitingReason(entry);
+      const waitChip = waitReason ? `<span class="wait-reason-chip">Waiting — ${esc(waitReason)}</span>` : '';
       const tag = entry.tag === 'queued' ? '<span class="tag-pill queued">Queued</span>' : '<span class="tag-pill new">New</span>';
       const levelBadge = `<button type="button" class="level-badge ${levelClass(getPlayerLevel(entry.name))}" data-act="cycle-level" data-name="${esc(entry.name)}" title="Change skill level">${esc(levelLabel(getPlayerLevel(entry.name)))}</button>`;
       row.innerHTML = `
@@ -1366,7 +1368,7 @@ function renderStack(){
         ${avatarHtml(entry.name)}
         <span class="name-col">
           <span class="name">${esc(entry.name)}${winChip}</span>
-          <span class="sub-row">${tag}${levelBadge}${gamesChip}</span>
+          <span class="sub-row">${tag}${levelBadge}${gamesChip}${waitChip}</span>
         </span>
         <span class="reorder">
           <button type="button" data-act="up" aria-label="Move up"><svg viewBox="0 0 24 24"><use href="#i-up"/></svg></button>
@@ -2146,7 +2148,7 @@ async function applyWizardCourtCount(target){
   target = Math.max(1, Math.min(24, Number(target) || 1));
   while (state.courts.length < target){
     const n = state.courts.length + 1;
-    state.courts.push({ id: nextId('c'), name: 'Court ' + n, level: 'Open', status:'open', players:[], startTime:null, lastResult:null, swapInfo:null, score:null, previewOrder:null, previewSubMap:null, openedAt: null, pauseStart: null, pausedMs: 0 });
+    state.courts.push({ id: nextId('c'), name: 'Court ' + n, level: 'Open', status:'open', players:[], startTime:null, lastResult:null, swapInfo:null, score:null, previewOrder:null, previewSubMap:null, originalPlayers:null, substitutionLog:[], matchReason:[], openedAt: null, pauseStart: null, pausedMs: 0 });
   }
   while (state.courts.length > target){
     const last = state.courts[state.courts.length - 1];
@@ -2158,6 +2160,89 @@ async function applyWizardCourtCount(target){
     state.courts.pop();
   }
 }
+function getAllActivePlayerNames(){
+  const names = new Set();
+  state.stack.forEach(e => names.add(e.name));
+  state.winnersBlock.forEach(e => names.add(e.name));
+  state.losersBlock.forEach(e => names.add(e.name));
+  state.courts.forEach(c => (c.players || []).forEach(n => names.add(n)));
+  Object.keys(state.playerStats || {}).forEach(n => names.add(n));
+  return [...names];
+}
+function getFairnessScore(name){
+  const all = getAllActivePlayerNames();
+  const stats = getStats(name);
+  const games = Number(stats.games || 0);
+  const minGames = all.length ? Math.min(...all.map(n => Number(getStats(n).games || 0))) : games;
+  const maxGames = all.length ? Math.max(...all.map(n => Number(getStats(n).games || 0))) : games;
+  const gameFair = maxGames === minGames ? 1 : 1 - ((games - minGames) / Math.max(1, maxGames - minGames));
+  const entry = state.stack.find(e => e.name === name);
+  const waitMs = entry ? Math.max(0, Date.now() - (entry.joinedAt || Date.now())) : 0;
+  const waits = state.stack.map(e => Math.max(0, Date.now() - (e.joinedAt || Date.now())));
+  const maxWait = waits.length ? Math.max(...waits) : waitMs;
+  const waitFair = maxWait ? waitMs / maxWait : 1;
+  return Math.round(Math.max(0, Math.min(1, (gameFair * .65) + (waitFair * .35))) * 100);
+}
+function getWaitingReason(entry){
+  if (!entry) return '';
+  if (state.winnersBlock.some(e => e.id === entry.id)) return 'Winners block';
+  if (state.losersBlock.some(e => e.id === entry.id)) return 'Losers block';
+  if (state.session.skillLevelsEnabled && state.courts.some(c => c.status === 'open' && c.level !== 'Open' && !levelsMatch(getPlayerLevel(entry.name), c.level))) return 'Skill level';
+  return 'FIFO';
+}
+function explainMatch(matchNames){
+  const reasons = [];
+  const names = matchNames || [];
+  const games = names.map(n => Number(getStats(n).games || 0));
+  if (games.length && Math.max(...games) - Math.min(...games) <= 1) reasons.push('Similar game count');
+  const teams = state.session.gameSize === 2 ? [names] : splitTeams(names);
+  if (teams.length >= 2){
+    const repeatTeam = teams.some(t => t.length > 1 && teammateCount(t[0], t[1]) > 0);
+    if (!repeatTeam) reasons.push('No repeated teammates');
+    if ((state.session.fixedDuos || []).some(d => names.includes(d.a) && names.includes(d.b) && teams.some(t => t.includes(d.a) && t.includes(d.b)))) reasons.push('Fixed duo preserved');
+    if (state.session.skillLevelsEnabled && teams.every(t => t.every(n => levelsMatch(getPlayerLevel(n), state.courts.find(c => c.players.includes(n))?.level || 'Open')))) reasons.push('Skill level matched');
+    const waitingEntries = state.stack.filter(e => names.includes(e.name));
+    const allWaits = state.stack.map(e => Date.now() - (e.joinedAt || Date.now()));
+    const selectedMaxWait = waitingEntries.length ? Math.max(...waitingEntries.map(e => Date.now() - (e.joinedAt || Date.now()))) : 0;
+    const overallMaxWait = allWaits.length ? Math.max(...allWaits) : 0;
+    if (waitingEntries.length && selectedMaxWait >= overallMaxWait - 1000) reasons.push('Longest waiting players prioritized');
+    const repeatOpp = teams[0].some(a => teams[1].some(b => opponentCount(a,b) > 0));
+    if (!repeatOpp) reasons.push('Previous opponents avoided');
+  }
+  return reasons;
+}
+function validateGeneratedMatches(beforeState, generatedCourtIds){
+  const issues = [];
+  const seen = new Map();
+  const expectedSize = state.session.gameSize;
+  state.courts.forEach(c => {
+    if (!generatedCourtIds.has(c.id) || c.status !== 'playing') return;
+    const players = c.players || [];
+    if (players.length !== expectedSize) issues.push(`${c.name} has ${players.length} players; expected ${expectedSize}`);
+    players.forEach(name => {
+      seen.set(name, (seen.get(name) || 0) + 1);
+      if (state.stack.some(e => e.name === name) || state.winnersBlock.some(e => e.name === name) || state.losersBlock.some(e => e.name === name)) issues.push(`Player ${name} is active and waiting`);
+    });
+    if (state.session.fixedDuosEnabled){
+      (state.session.fixedDuos || []).forEach(d => {
+        const hasA = players.includes(d.a), hasB = players.includes(d.b);
+        if (hasA !== hasB) issues.push(`Fixed duo ${d.a} / ${d.b} was split on ${c.name}`);
+      });
+    }
+    if (state.session.skillLevelsEnabled && c.level && c.level !== 'Open') players.forEach(name => { if (!levelsMatch(getPlayerLevel(name), c.level)) issues.push(`Player ${name} does not match ${c.level} on ${c.name}`); });
+  });
+  seen.forEach((count,name) => { if (count > 1) issues.push(`Player ${name} was assigned to multiple courts`); });
+  const activeCourtIds = state.courts.filter(c => c.status === 'playing').map(c => c.id);
+  if (new Set(activeCourtIds).size !== activeCourtIds.length) issues.push('Duplicate court assignment detected');
+  if (state.courts.length < 1) issues.push('Court count is invalid');
+  const ids = new Set(); state.stack.forEach(e => { if (ids.has(e.id)) issues.push(`Duplicate queue entry ${e.name}`); ids.add(e.id); });
+  return { valid: issues.length === 0, issues };
+}
+function showMatchmakerValidationError(result){
+  const msg = result.issues[0] || 'Invalid match generation';
+  toast('Match generation prevented: ' + msg, 'error', {detailed:true});
+}
+
 async function generateMatchesFromWizard(){
   const d = generateWizardDraft;
   if (!d) return;
@@ -2166,6 +2251,7 @@ async function generateMatchesFromWizard(){
     return;
   }
   try{
+    const generationSnapshot = JSON.stringify(state);
     state.session.gameSize = d.gameSize;
     state.session.matchingStyle = d.matchingStyle;
     state.session.avoidRepeatTeammates = d.avoidRepeat;
@@ -2189,6 +2275,15 @@ async function generateMatchesFromWizard(){
       const before = court.status;
       callNext(court);
       if (before !== court.status && court.status === 'playing') started++;
+    }
+    const generatedCourtIds = new Set(state.courts.filter(c => c.status === 'playing' && c.startTime).map(c => c.id));
+    const validation = validateGeneratedMatches(null, generatedCourtIds);
+    if (!validation.valid){
+      state = JSON.parse(generationSnapshot);
+      closeGenerateWizard();
+      renderAll(); persist();
+      showMatchmakerValidationError(validation);
+      return;
     }
     closeGenerateWizard();
     setMobileTab('courts');
@@ -2750,8 +2845,8 @@ function detectCourtWinner(sc){
   if (!sc) return null;
   const target = getWinTarget();
   const a = safeN(sc.a), b = safeN(sc.b);
-  if (a >= target) return 'a';
-  if (b >= target) return 'b';
+  if (a >= target && a - b >= 2) return 'a';
+  if (b >= target && b - a >= 2) return 'b';
   return null;
 }
 
@@ -3022,14 +3117,14 @@ function adjustCourtScore(court, team, delta){
   }
   const key = team === 'A' ? 'a' : 'b';
   const target = getWinTarget();
-  sc[key] = Math.min(target, Math.max(0, safeN(sc[key]) + delta));
+  sc[key] = Math.max(0, safeN(sc[key]) + delta);
   const winnerNow = detectCourtWinner(sc);
   if (winnerNow && !sc.wonAt) sc.wonAt = Date.now(); // freeze the match clock right when the game is won
   if (!winnerNow) sc.wonAt = null; // corrected back below target — resume the clock
   persist();
   if (delta > 0){
     pointUpTone();
-    speakScoreOrMilestone(sc, sc[key]);
+    if (winnerNow) speakScoreUtterance('Congratulations!'); else speakScoreCall(sc);
     if (winnerNow) setTimeout(winTone, 140);
   } else {
     pointDownTone();
@@ -3128,7 +3223,7 @@ function scoreboardHtml(court){
           <div class="sbl-stepper">
             <button type="button" class="score-btn score-btn-minus" data-act="score-minus" data-team="A" aria-label="Decrease Team A score" ${(winnerSide || !servingA || safeN(sc.a) <= 0) ? 'disabled' : ''}>−</button>
             <span class="sbl-num">${safeN(sc.a)}</span>
-            <button type="button" class="score-btn score-btn-plus" data-act="score-plus" data-team="A" aria-label="Increase Team A score" ${(winnerSide || !servingA || safeN(sc.a) >= target) ? 'disabled' : ''}>+</button>
+            <button type="button" class="score-btn score-btn-plus" data-act="score-plus" data-team="A" aria-label="Increase Team A score" ${(winnerSide || !servingA) ? 'disabled' : ''}>+</button>
           </div>
         </div>
         <div class="sbl-team">
@@ -3137,7 +3232,7 @@ function scoreboardHtml(court){
           <div class="sbl-stepper">
             <button type="button" class="score-btn score-btn-minus" data-act="score-minus" data-team="B" aria-label="Decrease Team B score" ${(winnerSide || !servingB || safeN(sc.b) <= 0) ? 'disabled' : ''}>−</button>
             <span class="sbl-num">${safeN(sc.b)}</span>
-            <button type="button" class="score-btn score-btn-plus" data-act="score-plus" data-team="B" aria-label="Increase Team B score" ${(winnerSide || !servingB || safeN(sc.b) >= target) ? 'disabled' : ''}>+</button>
+            <button type="button" class="score-btn score-btn-plus" data-act="score-plus" data-team="B" aria-label="Increase Team B score" ${(winnerSide || !servingB) ? 'disabled' : ''}>+</button>
           </div>
         </div>
       </div>
@@ -3555,6 +3650,8 @@ function performSubstitution(entryId){
     if (!court.players[idx]) { toast('That slot is no longer open'); closeSubOverlay(); return; }
     const outgoingName = court.players[idx];
     removeWaitingEntryById(incoming.id); // pulls from stack or whichever block they were parked in
+    court.substitutionLog = Array.isArray(court.substitutionLog) ? court.substitutionLog : [];
+    court.substitutionLog.push({ original: outgoingName, substitute: incoming.name, idx, ts: Date.now() });
     court.players[idx] = incoming.name;
     // Same swap principle: the player coming off the live court takes the
     // spot the incoming sub vacated, rather than always joining the back
@@ -3743,6 +3840,7 @@ function renderCourts(){
         <div class="court-top">
           <span class="court-name-wrap">${courtIcon}<input class="court-name" value="${esc(court.name)}" data-act="rename" maxlength="24" aria-label="Court name"></span>
           <span class="level-badge court-level-badge ${levelClass(court.level)}" aria-label="Court skill level">${esc(levelLabel(court.level || 'Open'))}</span>
+          <button type="button" class="ondeck-info-btn court-match-info-btn" data-act="match-info" data-names="${enough && taken ? taken.map(p => esc(p.name)).join('|') : ''}" aria-label="Why this match?" title="Why this match?" ${enough ? '' : 'disabled'}><svg viewBox="0 0 24 24"><use href="#i-info"/></svg></button>
           <span class="status-badge open">Open</span>
         </div>
         ${lastResultHtml}
@@ -3789,6 +3887,7 @@ function renderCourts(){
           <span class="court-name-wrap">${courtIcon}<input class="court-name" value="${esc(court.name)}" data-act="rename" maxlength="24" aria-label="Court name"></span>
           <span class="level-badge court-level-badge ${levelClass(court.level)}" aria-label="Court skill level">${esc(levelLabel(court.level || 'Open'))}</span>
           <span class="court-top-right">
+            <button type="button" class="ondeck-info-btn court-match-info-btn" data-act="match-info" data-names="${court.players.map(esc).join('|')}" data-reasons="${(court.matchReason || []).map(esc).join('|')}" aria-label="Why this match?" title="Why this match?"><svg viewBox="0 0 24 24"><use href="#i-info"/></svg></button>
             <span class="status-badge playing${court.pauseStart ? ' paused' : ''}">${court.pauseStart ? 'Paused' : 'On court'}</span>
             ${timerChip}
           </span>
@@ -3886,24 +3985,19 @@ document.addEventListener('scroll', hidePlayerDetailsPreview, true);
    turn. Read-only, same as everything else in viewer mode. */
 let matchInfoEl = null;
 let matchInfoHideTimer = null;
-function showMatchInfoPreview(btn, names){
+function showMatchInfoPreview(btn, names, reasonsOverride){
   if (!matchInfoEl){
     matchInfoEl = document.createElement('div');
     matchInfoEl.className = 'player-details-pop match-info-pop';
     document.body.appendChild(matchInfoEl);
   }
-  matchInfoEl.innerHTML = `<div class="mi-title">Match Info</div>` + names.map(name => {
+  const reasons = Array.isArray(reasonsOverride) && reasonsOverride.length ? reasonsOverride : explainMatch(names);
+  matchInfoEl.innerHTML = `<div class="mi-title">Why this match?</div><div class="match-reason-list">${(reasons.length ? reasons : ['FIFO queue order']).map(r => `<div class="match-reason"><span>✓</span>${esc(r)}</div>`).join('')}</div>` + names.map(name => {
     const stats = state.playerStats[name] || {};
     const games = stats.games || 0;
     const wins = stats.wins || 0;
     const level = getPlayerLevel(name);
-    return `
-      <div class="mi-player-row">
-        ${avatarHtml(name)}
-        <span class="mi-player-name">${esc(name)}</span>
-        <span class="level-badge sm ${levelClass(level)}">${esc(levelLabel(level))}</span>
-        <span class="mi-player-stats">${games} ${games === 1 ? 'game' : 'games'} · ${wins} ${wins === 1 ? 'win' : 'wins'}</span>
-      </div>`;
+    return `<div class="mi-player-row">${avatarHtml(name)}<span class="mi-player-name">${esc(name)}</span><span class="level-badge sm ${levelClass(level)}">${esc(levelLabel(level))}</span><span class="mi-player-stats">${games} ${games === 1 ? 'game' : 'games'} · ${wins} ${wins === 1 ? 'win' : 'wins'}</span></div>`;
   }).join('');
   const r = btn.getBoundingClientRect();
   const half = Math.min(170, matchInfoEl.offsetWidth / 2 || 150);
@@ -3945,6 +4039,13 @@ if (historyList){
 courtsGrid.addEventListener('click', (e) => {
   const previewBtn = e.target.closest('button[data-act="preview-name"]');
   if (previewBtn){ showPlayerDetailsPreview(previewBtn, previewBtn.dataset.name); return; }
+  const infoBtn = e.target.closest('button[data-act="match-info"]');
+  if (infoBtn){
+    const names = (infoBtn.dataset.names || '').split('|').filter(Boolean);
+    const reasons = (infoBtn.dataset.reasons || '').split('|').filter(Boolean);
+    if (names.length) showMatchInfoPreview(infoBtn, names, reasons);
+    return;
+  }
   if (viewerMode) return;
   const btn = e.target.closest('button[data-act]');
   if (!btn) return;
@@ -4016,6 +4117,8 @@ function callNext(court){
     toast('Not enough players in the stack yet');
     return;
   }
+  const naturalNamesForReason = taken.map(p => p.name);
+  const matchReason = explainMatch(naturalNamesForReason);
   removeEntriesFromStack(taken);
   // Starting a fresh match on this court means any previous "undo the last
   // result" snapshot for it is no longer safe to restore (it would blow away
@@ -4033,6 +4136,9 @@ function callNext(court){
     ? court.previewOrder.slice()
     : pairing.order;
   court.players = chosenNames;
+  court.originalPlayers = chosenNames.slice();
+  court.substitutionLog = [];
+  court.matchReason = matchReason.slice();
   court.swapInfo = state.session.avoidRepeatTeammates ? buildSwapInfo(naturalNames, chosenNames, pairing.forcedDuo) : null;
   court.startTime = Date.now();
   court.pauseStart = null;
@@ -4208,6 +4314,15 @@ $('#endgameConfirm').addEventListener('click', async () => {
       toast('Tie scores are not allowed — adjust the score or clear both to skip');
       return;
     }
+    if (state.session.scoringEnabled){
+      const target = getWinTarget();
+      const lead = Math.abs(finalScoreA - finalScoreB);
+      const high = Math.max(finalScoreA, finalScoreB);
+      if (high < target || lead < 2){
+        toast(`A scored game must reach ${target} points and win by 2`);
+        return;
+      }
+    }
   } else if (endgameWinnerSide !== null){
     // Winner picked manually (by tapping a side) with no scores typed in —
     // record a default 11–5 scoreline so it still counts toward average score.
@@ -4246,7 +4361,10 @@ $('#endgameConfirm').addEventListener('click', async () => {
     winner: endgameWinnerSide, winnerNames: winnerNames ? winnerNames.slice() : null,
     scoreA: finalScoreA, scoreB: finalScoreB,
     startTime: court.startTime, endTime,
-    swapInfo: court.swapInfo || null
+    swapInfo: court.swapInfo || null,
+    originalPlayers: (court.originalPlayers || endgameTeams.flat()).slice(),
+    substitutionLog: Array.isArray(court.substitutionLog) ? court.substitutionLog.map(x => ({...x})) : [],
+    matchReason: Array.isArray(court.matchReason) ? court.matchReason.slice() : []
   });
   state.history = state.history.slice(0, 100);
 
@@ -4274,6 +4392,9 @@ $('#endgameConfirm').addEventListener('click', async () => {
   court.pauseStart = null;
   court.pausedMs = 0;
   court.swapInfo = null;
+  court.originalPlayers = null;
+  court.substitutionLog = [];
+  court.matchReason = [];
   court.score = null;
   court.previewOrder = null;
   court.previewSubMap = null;
@@ -4440,6 +4561,7 @@ function renderUpNext(){
         </span>
         <span class="ondeck-matchup">${matchup}</span>
         ${editBtnHtml}
+        <button type="button" class="ondeck-info-btn" data-act="match-info" data-names="${chosen.map(esc).join('|')}" aria-label="Why this match?" title="Why this match?"><svg viewBox="0 0 24 24"><use href="#i-info"/></svg></button>
         <span class="ondeck-meta"><svg viewBox="0 0 24 24"><use href="#i-user"/></svg>${chosen.length}</span>
       </div>`);
   });
@@ -4611,6 +4733,7 @@ function matchFullRowHtml(h){
     </div>
     <div class="match-full-meta">${scoreTxt} — ${dur} on court</div>
     ${showSwap ? swapNoteHtml(h.swapInfo) : ''}
+    ${(h.substitutionLog && h.substitutionLog.length) ? `<div class="sub-history"><span class="sub-history-title">Substitution History</span><div class="sub-history-recorded"><b>Recorded:</b> ${(h.originalPlayers || []).map(n => `<span>${esc(n)} = Game played</span>`).join(' ')} ${[...new Set(h.substitutionLog.map(s => s.substitute))].map(n => `<span>${esc(n)} = Substitute</span>`).join(' ')}</div>${h.substitutionLog.map(s => `<div class="sub-history-line"><b>${esc(s.original)}</b> → <b>${esc(s.substitute)}</b><span>Sub</span></div>`).join('')}</div>` : ''}
   </div>`;
 }
 
@@ -5292,7 +5415,7 @@ gameSizeSeg.addEventListener('click', (e) => {
 $('#courtPlus').addEventListener('click', () => {
   if (state.courts.length >= 24) return;
   const n = state.courts.length + 1;
-  const newCourt = { id: nextId('c'), name: 'Court ' + n, level: 'Open', status:'open', players:[], startTime:null, lastResult:null, swapInfo:null, score:null, previewOrder:null, previewSubMap:null, openedAt: Date.now(), pauseStart: null, pausedMs: 0 };
+  const newCourt = { id: nextId('c'), name: 'Court ' + n, level: 'Open', status:'open', players:[], startTime:null, lastResult:null, swapInfo:null, score:null, previewOrder:null, previewSubMap:null, originalPlayers:null, substitutionLog:[], matchReason:[], openedAt: Date.now(), pauseStart: null, pausedMs: 0 };
   state.courts.push(newCourt);
   courtCountNum.textContent = state.courts.length;
   renderCourtNameRows(); persist(); renderAll();
@@ -5438,7 +5561,7 @@ $('#importFile').addEventListener('change', async (e) => {
     if (!parsed.teammateHistory || typeof parsed.teammateHistory !== 'object') parsed.teammateHistory = {};
     if (!parsed.opponentHistory || typeof parsed.opponentHistory !== 'object') parsed.opponentHistory = {};
     if (!parsed.upNextSubMap || typeof parsed.upNextSubMap !== 'object') parsed.upNextSubMap = {};
-    parsed.courts.forEach(c => { if (!('lastResult' in c)) c.lastResult = null; if (!('swapInfo' in c)) c.swapInfo = null; if (!('previewOrder' in c)) c.previewOrder = null; if (!('previewSubMap' in c)) c.previewSubMap = null; });
+    parsed.courts.forEach(c => { if (!('lastResult' in c)) c.lastResult = null; if (!('swapInfo' in c)) c.swapInfo = null; if (!('previewOrder' in c)) c.previewOrder = null; if (!('previewSubMap' in c)) c.previewSubMap = null; if (!('originalPlayers' in c)) c.originalPlayers = null; if (!Array.isArray(c.substitutionLog)) c.substitutionLog = []; if (!Array.isArray(c.matchReason)) c.matchReason = []; });
     if (!parsed.session || typeof parsed.session.generationReady !== 'boolean') parsed.session = Object.assign({}, parsed.session || {}, { generationReady: false });
     parsed.stack.forEach(p => { if (!p.tag) p.tag = 'new'; });
     if (!parsed.session.status) parsed.session.status = 'active';
@@ -5489,7 +5612,7 @@ function startFreshSessionKeepingRoster(){
   // createdAt in place and the clock kept counting up from the *original*
   // session instead of restarting at 0 for the new one.
   state.session.createdAt = Date.now();
-  state.courts.forEach(c => { c.status = 'open'; c.players = []; c.startTime = null; c.lastResult = null; c.swapInfo = null; c.previewOrder = null; c.previewSubMap = null; c.openedAt = Date.now(); });
+  state.courts.forEach(c => { c.status = 'open'; c.players = []; c.startTime = null; c.lastResult = null; c.swapInfo = null; c.originalPlayers = null; c.substitutionLog = []; c.previewOrder = null; c.previewSubMap = null; c.openedAt = Date.now(); });
   persist();
   applySessionLockUI();
   renderRosterList();
@@ -8876,6 +8999,24 @@ document.addEventListener('visibilitychange', () => {
   if (hostSession && hostPollFn) hostPollFn();
 });
 
+function renderSessionDashboard(){
+  const el = $('#sessionDashboard'); if (!el) return;
+  const activeNames = new Set();
+  state.courts.forEach(c => (c.players || []).forEach(n => activeNames.add(n)));
+  const waitingNames = new Set([...state.stack, ...state.winnersBlock, ...state.losersBlock].map(e => e.name));
+  const sessionNames = new Set([...Object.keys(state.playerStats || {}), ...activeNames, ...waitingNames, ...(state.history || []).flatMap(h => [].concat(h.teamA || [], h.teamB || []))]);
+  const active = activeNames.size;
+  const waiting = waitingNames.size;
+  const finished = [...sessionNames].filter(n => !activeNames.has(n) && !waitingNames.has(n)).length;
+  const completed = state.history.length;
+  const waits = state.stack.map(e => Math.max(0, Date.now()-(e.joinedAt||Date.now())));
+  const avgWait = waits.length ? Math.round(waits.reduce((a,b)=>a+b,0)/waits.length/60000) : 0;
+  const longest = waits.length ? Math.round(Math.max(...waits)/60000) : 0;
+  const gameVals = [...sessionNames].map(n=>Number(getStats(n).games||0));
+  const avgGames = gameVals.length ? (gameVals.reduce((a,b)=>a+b,0)/gameVals.length).toFixed(1) : '0.0';
+  el.innerHTML = `<div class="session-dashboard-head"><span><b>PADDLESTACK</b><small>${esc(state.session.name || "Tonight's Session")}</small></span><span class="session-dashboard-live">LIVE</span></div><div class="session-dashboard-grid"><div><b>${sessionNames.size}</b><span>Players</span></div><div><b>${state.courts.length}</b><span>Courts</span></div><div><b>${completed}</b><span>Games</span></div><div><b>${avgWait}m</b><span>Avg Wait</span></div><div><b>${avgGames}</b><span>Avg Games</span></div><div><b>${longest}m</b><span>Longest Wait</span></div></div><div class="session-dashboard-status"><div><b>Currently Playing</b><span>${active} players</span></div><div><b>Waiting</b><span>${waiting} players</span></div><div><b>Finished</b><span>${finished} players</span></div></div>`;
+}
+
 /* ================= Render orchestration ================= */
 function renderAll(){
   applyLevelsVisibility();
@@ -8884,6 +9025,7 @@ function renderAll(){
   renderStack();
   renderCourts();
   renderCourtsStatsBar();
+  renderSessionDashboard();
   renderUpNext();
   renderArrivals();
   renderQuickAdd();
