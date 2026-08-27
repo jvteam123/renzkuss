@@ -2146,7 +2146,7 @@ async function applyWizardCourtCount(target){
   target = Math.max(1, Math.min(24, Number(target) || 1));
   while (state.courts.length < target){
     const n = state.courts.length + 1;
-    state.courts.push({ id: nextId('c'), name: 'Court ' + n, level: 'Open', status:'open', players:[], startTime:null, lastResult:null, swapInfo:null, score:null, previewOrder:null, previewSubMap:null, openedAt: null, pauseStart: null, pausedMs: 0 });
+    state.courts.push({ id: nextId('c'), name: 'Court ' + n, level: 'Open', status:'open', players:[], startTime:null, lastResult:null, swapInfo:null, score:null, previewOrder:null, previewSubMap:null, requeueOrder:null, openedAt: null, pauseStart: null, pausedMs: 0 });
   }
   while (state.courts.length > target){
     const last = state.courts[state.courts.length - 1];
@@ -4033,6 +4033,18 @@ function callNext(court){
     ? court.previewOrder.slice()
     : pairing.order;
   court.players = chosenNames;
+  // Keep the true FIFO arrival order separately from the (possibly
+  // teammate-reshuffled) display/team order above. "Avoid Repeating
+  // Teammates" only ever meant to decide TEAM assignment for this match —
+  // it was never supposed to change queue fairness. But court.players was
+  // also being used, further down, to decide what order these same four
+  // players get pushed back into the stack once the match ends — so a
+  // reshuffle made purely to avoid a repeat pairing was silently nudging
+  // some players ahead in line and others behind, run after run, compounding
+  // over a session into a real games-played gap. Requeuing must always
+  // follow this natural order instead, regardless of how the teams
+  // themselves were arranged for play.
+  court.requeueOrder = naturalNames.slice();
   court.swapInfo = state.session.avoidRepeatTeammates ? buildSwapInfo(naturalNames, chosenNames, pairing.forcedDuo) : null;
   court.startTime = Date.now();
   court.pauseStart = null;
@@ -4250,7 +4262,18 @@ $('#endgameConfirm').addEventListener('click', async () => {
   });
   state.history = state.history.slice(0, 100);
 
-  Object.entries(endgameChoices).forEach(([name, choice]) => {
+  // Requeue in the order these four players naturally arrived in (FIFO),
+  // never in court.players' team-paired order — see the comment on
+  // court.requeueOrder in callNext() for why that distinction matters.
+  // Falls back to endgameChoices' own key order for older in-flight
+  // matches saved before requeueOrder existed, and always covers any name
+  // requeueOrder might be missing (belt-and-suspenders, shouldn't happen).
+  const requeueNames = (court.requeueOrder && court.requeueOrder.length)
+    ? court.requeueOrder.slice()
+    : Object.keys(endgameChoices);
+  Object.keys(endgameChoices).forEach(name => { if (!requeueNames.includes(name)) requeueNames.push(name); });
+  requeueNames.forEach(name => {
+    const choice = endgameChoices[name];
     if (choice === 'requeue'){
       const entry = { id: nextId('p'), name, joinedAt: Date.now(), tag: 'queued' };
       if (winnerNames && getMatchingStyle() === 'winnersLosers'){
@@ -4277,6 +4300,7 @@ $('#endgameConfirm').addEventListener('click', async () => {
   court.score = null;
   court.previewOrder = null;
   court.previewSubMap = null;
+  court.requeueOrder = null;
   court.openedAt = Date.now(); // start the 2-minute auto-start window fresh from right now
   // Only check whether a block should force-flush (not enough players left
   // to ever fill both blocks) AFTER this court's own players are cleared
@@ -5438,7 +5462,7 @@ $('#importFile').addEventListener('change', async (e) => {
     if (!parsed.teammateHistory || typeof parsed.teammateHistory !== 'object') parsed.teammateHistory = {};
     if (!parsed.opponentHistory || typeof parsed.opponentHistory !== 'object') parsed.opponentHistory = {};
     if (!parsed.upNextSubMap || typeof parsed.upNextSubMap !== 'object') parsed.upNextSubMap = {};
-    parsed.courts.forEach(c => { if (!('lastResult' in c)) c.lastResult = null; if (!('swapInfo' in c)) c.swapInfo = null; if (!('previewOrder' in c)) c.previewOrder = null; if (!('previewSubMap' in c)) c.previewSubMap = null; });
+    parsed.courts.forEach(c => { if (!('lastResult' in c)) c.lastResult = null; if (!('swapInfo' in c)) c.swapInfo = null; if (!('previewOrder' in c)) c.previewOrder = null; if (!('previewSubMap' in c)) c.previewSubMap = null; if (!('requeueOrder' in c)) c.requeueOrder = null; });
     if (!parsed.session || typeof parsed.session.generationReady !== 'boolean') parsed.session = Object.assign({}, parsed.session || {}, { generationReady: false });
     parsed.stack.forEach(p => { if (!p.tag) p.tag = 'new'; });
     if (!parsed.session.status) parsed.session.status = 'active';
@@ -5489,7 +5513,7 @@ function startFreshSessionKeepingRoster(){
   // createdAt in place and the clock kept counting up from the *original*
   // session instead of restarting at 0 for the new one.
   state.session.createdAt = Date.now();
-  state.courts.forEach(c => { c.status = 'open'; c.players = []; c.startTime = null; c.lastResult = null; c.swapInfo = null; c.previewOrder = null; c.previewSubMap = null; c.openedAt = Date.now(); });
+  state.courts.forEach(c => { c.status = 'open'; c.players = []; c.startTime = null; c.lastResult = null; c.swapInfo = null; c.previewOrder = null; c.previewSubMap = null; c.requeueOrder = null; c.openedAt = Date.now(); });
   persist();
   applySessionLockUI();
   renderRosterList();
@@ -8998,7 +9022,7 @@ function renderCourtsStatsBar(){
       Object.keys(state.playerStats).forEach(n => names.add(n));
       state.roster = [...names];
     }
-    state.courts.forEach(c => { if (!('lastResult' in c)) c.lastResult = null; if (!('swapInfo' in c)) c.swapInfo = null; });
+    state.courts.forEach(c => { if (!('lastResult' in c)) c.lastResult = null; if (!('swapInfo' in c)) c.swapInfo = null; if (!('requeueOrder' in c)) c.requeueOrder = null; });
     state.stack.forEach(p => { if (!p.tag) p.tag = 'new'; });
     if (!state.session.status) state.session.status = 'active';
     if (typeof state.session.targetGamesEnabled !== 'boolean') state.session.targetGamesEnabled = false;

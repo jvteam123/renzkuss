@@ -734,12 +734,17 @@
     <div class="field settings-card">
       <div class="settings-card-head">
         <span class="settings-card-icon"><svg viewBox="0 0 24 24"><use href="#i-play"/></svg></span>
-        <div class="settings-card-head-text"><label style="margin:0">Match Start</label></div>
-        <span class="settings-lock-badge">MANUAL</span>
-        <input type="checkbox" id="autoStartToggle" checked disabled hidden>
+        <div class="settings-card-head-text"><label style="margin:0">Auto-start Ready Courts</label></div>
+        <label class="switch" style="margin-left:auto">
+          <input type="checkbox" id="autoStartToggle">
+          <span class="track"></span>
+        </label>
       </div>
-      <p class="add-hint" style="padding:0">Matches start only from the <b>Generate Match</b> setup wizard. Checking players in will never automatically start a game.</p>
-      <div class="target-sub" id="autoStartSub" hidden><input type="number" id="autoStartMinutesInput" value="1" hidden></div>
+      <p class="add-hint" style="padding:0">Matches always start from the <b>Generate Match</b> setup wizard or a manual <b>Start Game</b> tap. Turn this on to also auto-start an open court on its own once it's had enough waiting players for a while — handy backup if it's ever forgotten.</p>
+      <div class="target-sub" id="autoStartSub" hidden>
+        <label for="autoStartMinutesInput">Auto-start after (minutes)</label>
+        <input type="number" id="autoStartMinutesInput" min="1" max="60" step="1" value="1">
+      </div>
     </div>
 
     <div class="field settings-card">
