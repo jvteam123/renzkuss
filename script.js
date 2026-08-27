@@ -2132,7 +2132,7 @@ function renderGenerateWizard(){
 function openGenerateWizard(){
   if (viewerMode || isSessionEnded()) { toast('Match generation is unavailable right now'); return; }
   if (!state.stack.length){
-    toast('No players checked in yet — check players in before generating a match', 'warning', {detailed:true});
+    showAlert('Check players in before generating a match.', {title: 'No players checked in yet'});
     return;
   }
   generateWizardDraft = wizardDefaults();
