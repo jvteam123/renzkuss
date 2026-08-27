@@ -191,7 +191,7 @@ function defaultCourts(n){
 
 function freshState(){
   return {
-    session: { name: 'PaddleStack', club: '', description: '', createdAt: Date.now(), gameSize: 4, soundOn: true, notifyCallsEnabled: true, status: 'active', targetGamesEnabled: false, targetGamesPerPlayer: 7, avoidRepeatTeammates: false, fixedDuos: [], fixedDuosEnabled: false, scoringEnabled: true, winningScore: 11, autoStartEnabled: false, autoStartMinutes: 1, generationReady: false, matchingStyle: 'winnersLosers', skillLevelsEnabled: false, cohostPermissions: { allowSwap: true, allowSubstitution: true } }, // status: 'active' | 'ended'; matchingStyle: 'balanced' | 'winnersLosers'; skillLevelsEnabled: off by default — everyone plays Open Play until turned on; autoStartMinutes: how long an open, ready court waits before auto-starting (default 1 minute); soundOn: on-site voice announcement only; notifyCallsEnabled: phone notifications on call-up, independent of soundOn; cohostPermissions: what a co-host device is allowed to do beyond start/score — both default ON, host can turn either off per-session (see setCohostPermission); createdAt: when this session was created, used only for the viewer dashboard's "Session Time" stat — a saved session from before this field existed just won't show an accurate elapsed time, which is harmless; club/description: optional, set via the "Go live" session-name prompt — club shows on the shared-link preview banner, description rides along whenever the live link is copied/shared
+    session: { name: 'PaddleStack', club: '', description: '', createdAt: Date.now(), gameSize: 4, soundOn: true, notifyCallsEnabled: true, autoCallPlayersEnabled: false, status: 'active', targetGamesEnabled: false, targetGamesPerPlayer: 7, avoidRepeatTeammates: false, fixedDuos: [], fixedDuosEnabled: false, scoringEnabled: true, winningScore: 11, autoStartEnabled: false, autoStartMinutes: 1, generationReady: false, matchingStyle: 'winnersLosers', skillLevelsEnabled: false, cohostPermissions: { allowSwap: true, allowSubstitution: true } }, // status: 'active' | 'ended'; matchingStyle: 'balanced' | 'winnersLosers'; skillLevelsEnabled: off by default — everyone plays Open Play until turned on; autoStartMinutes: how long an open, ready court waits before auto-starting (default 1 minute); soundOn: on-site voice announcement only; notifyCallsEnabled: phone notifications on call-up, independent of soundOn; autoCallPlayersEnabled: fires the same Call Players action (voice + phone notify, whichever are on) automatically the instant a court clears, with no confirmation popup — off by default so nothing calls out unexpectedly for a host who hasn't opted in; cohostPermissions: what a co-host device is allowed to do beyond start/score — both default ON, host can turn either off per-session (see setCohostPermission); createdAt: when this session was created, used only for the viewer dashboard's "Session Time" stat — a saved session from before this field existed just won't show an accurate elapsed time, which is harmless; club/description: optional, set via the "Go live" session-name prompt — club shows on the shared-link preview banner, description rides along whenever the live link is copied/shared
     courts: defaultCourts(2),
     arrivals: [],        // {id, name, addedAt} — added but not yet checked in; not part of the live queue
     stack: [],           // {id, name, joinedAt, tag: 'new'|'queued'}
@@ -2872,13 +2872,15 @@ function speakCallPlayers(court, names){
 // Pulls straight from court.previewOrder, which renderCourts() keeps in
 // sync with whoever's actually about to be called up, so this always
 // announces exactly what the card is currently showing.
-function announceCallPlayers(court, btnEl){
+function announceCallPlayers(court, btnEl, opts){
+  opts = opts || {};
+  const silent = !!opts.silent;
   const names = court.previewOrder;
-  if (!names || names.length === 0){ toast('Not enough players in the stack yet'); return; }
+  if (!names || names.length === 0){ if (!silent) toast('Not enough players in the stack yet'); return; }
   const voiceOn = !!state.session.soundOn;
   const notifyOn = state.session.notifyCallsEnabled !== false;
   if (!voiceOn && !notifyOn){
-    toast('Turn on "Call-up voice" or "Notify players by phone" in Settings to use Call Players');
+    if (!silent) toast('Turn on "Call-up voice" or "Notify players by phone" in Settings to use Call Players');
     return;
   }
   if (voiceOn){
@@ -2894,6 +2896,13 @@ function announceCallPlayers(court, btnEl){
   // watching, i.e. this device is currently broadcasting live.
   if (notifyOn && hostSession){
     const calls = issuePlayerCall(names, { courtName: court.name });
+    if (silent){
+      // Auto Call Players: the whole point is to stay out of the host's
+      // way, so this skips the confirmation popup (and the per-player
+      // delivery lookup that only exists to fill that popup in) entirely
+      // — the call itself (voice + push) still goes out exactly as normal.
+      return;
+    }
     // Confirm the call with a themed popup right away; per-player delivery
     // status streams in and fills the dialog once presence resolves.
     openCallPlayersModal(subtitle);
@@ -2901,11 +2910,11 @@ function announceCallPlayers(court, btnEl){
   } else if (notifyOn && !hostSession && !voiceOn){
     // They're relying entirely on phone notifications but aren't hosting
     // live — nobody's watching yet, so say so instead of doing nothing.
-    toast('Go live in Host Online to notify players by phone');
+    if (!silent) toast('Go live in Host Online to notify players by phone');
   } else {
     // Voice-only call (not hosting live, or notifications turned off) —
     // still confirm on-screen what was just announced.
-    openCallPlayersModal(subtitle);
+    if (!silent) openCallPlayersModal(subtitle);
   }
 }
 
@@ -4331,6 +4340,14 @@ $('#endgameConfirm').addEventListener('click', async () => {
   endgameOverlay.hidden = true;
   toast(court.name + ' cleared');
   renderAll(); persist();
+  // Auto Call Players: renderAll() just recomputed court.previewOrder (the
+  // freshly cleared court's next lineup, if the queue already has enough
+  // waiting) — fire the same call announceCallPlayers() makes from a manual
+  // tap, just silent (no confirmation popup), so the host never has to
+  // remember to hit "Call Players" after every single match.
+  if (state.session.autoCallPlayersEnabled === true && court.previewOrder && court.previewOrder.length){
+    announceCallPlayers(court, null, { silent: true });
+  }
 });
 
 /* ================= Up Next (queue preview) =================
@@ -5185,6 +5202,7 @@ const courtCountNum = $('#courtCountNum');
 const courtNameRows = $('#courtNameRows');
 const soundToggle = $('#soundToggle');
 const notifyCallsToggle = $('#notifyCallsToggle');
+const autoCallPlayersToggle = $('#autoCallPlayersToggle');
 const targetGamesToggle = $('#targetGamesToggle');
 const targetGamesSub = $('#targetGamesSub');
 const targetGamesInput = $('#targetGamesInput');
@@ -5214,6 +5232,7 @@ function openSettings(){
   courtCountNum.textContent = state.courts.length;
   soundToggle.checked = state.session.soundOn;
   if (notifyCallsToggle) notifyCallsToggle.checked = state.session.notifyCallsEnabled !== false;
+  if (autoCallPlayersToggle) autoCallPlayersToggle.checked = state.session.autoCallPlayersEnabled === true;
   targetGamesToggle.checked = state.session.targetGamesEnabled;
   targetGamesSub.hidden = !state.session.targetGamesEnabled;
   targetGamesInput.value = state.session.targetGamesPerPlayer;
@@ -5394,6 +5413,13 @@ soundToggle.addEventListener('change', () => {
 if (notifyCallsToggle){
   notifyCallsToggle.addEventListener('change', () => {
     state.session.notifyCallsEnabled = notifyCallsToggle.checked;
+    persist();
+  });
+}
+
+if (autoCallPlayersToggle){
+  autoCallPlayersToggle.addEventListener('change', () => {
+    state.session.autoCallPlayersEnabled = autoCallPlayersToggle.checked;
     persist();
   });
 }
@@ -8280,6 +8306,50 @@ function enterViewerMode(code){
   function setMsg(text){ if (msgEl) msgEl.textContent = text; }
   viewerSetMsgFn = setMsg; // let the global 'offline' listener update this banner instantly
 
+  // ---- Session-ended status ----
+  // Flips the top banner's pulsing red "Live" badge to a neutral static
+  // "Ended" one, and shows a persistent card above the courts grid so the
+  // status is still visible even after someone closes the recap popup.
+  // Unlike the recap (opened once, dismissible), this stays up for as long
+  // as the person keeps this tab open.
+  const vbLiveBadge = $('#vbLiveBadge');
+  const vbLiveBadgeText = $('#vbLiveBadgeText');
+  const endedCard = $('#viewerEndedCard');
+  const endedRecapBtn = $('#viewerEndedRecapBtn');
+  let sessionHasEnded = false; // distinct from state.session.status — this tracks the
+                                // *hosted_sessions row's* status ('live' vs anything else),
+                                // which is what actually governs this dashboard
+  function showEndedStatus(){
+    sessionHasEnded = true;
+    if (vbLiveBadge) vbLiveBadge.classList.add('ended');
+    if (vbLiveBadgeText) vbLiveBadgeText.textContent = 'Ended';
+    if (endedCard) endedCard.hidden = false;
+    updateWaitingStatus();
+  }
+  if (endedRecapBtn){
+    endedRecapBtn.addEventListener('click', () => {
+      const recap = buildSessionRecap();
+      if (recap) openSessionRecap(recap, 'Close');
+      else toast('No matches were played this session');
+    });
+  }
+
+  // ---- "Waiting for host to generate a match" status ----
+  // The link can go live the instant the host taps "Go live", well before
+  // they've run the Generate Match wizard — courts exist by default
+  // (state.courts always seeds a couple), but computeOpenCourtQueue()
+  // deliberately returns nothing useful until generationReady flips true,
+  // so a spectator arriving early would otherwise just see empty-looking
+  // court cards with no explanation. This card fills that gap. Only
+  // updated after a render actually reflects real synced data (not the
+  // default freshState() placeholder), so it can't flash on for the brief
+  // instant before the first snapshot/poll lands.
+  const waitingCard = $('#viewerWaitingCard');
+  function updateWaitingStatus(){
+    if (!waitingCard) return;
+    waitingCard.hidden = sessionHasEnded || !!state.session.generationReady;
+  }
+
   /* ---- Connection error / connecting card ----
      Sits above the Courts grid. Only shown when there's nothing useful to
      look at yet (no cached snapshot and no live data) — normal "just
@@ -8335,6 +8405,8 @@ function enterViewerMode(code){
       // host side — instead of being overwritten with the session name
       // and a "· Live" suffix.
       renderAll();
+      if (cachedSnap.status && cachedSnap.status !== 'live') showEndedStatus();
+      updateWaitingStatus();
     }catch(e){
       console.error('[Viewer] failed to render cached snapshot \u2014 discarding it and continuing to poll', e);
       hasRenderableSnapshot = false;
@@ -8766,10 +8838,40 @@ function enterViewerMode(code){
       if (currentPollDelay !== VIEWER_POLL_INTERVAL_MS) scheduleNextPoll(VIEWER_POLL_INTERVAL_MS);
 
       if (row.status !== 'live'){
+        // The final state — full match history and player stats — was
+        // already pushed to this row by the host before it flipped out of
+        // 'live' (every state change pushes; stopping broadcast only ever
+        // patches status/ended_at, not state). Render it once so the
+        // recap and the courts view behind it reflect the real finish,
+        // not just whatever this device happened to have cached from the
+        // last successful poll.
+        const justEnded = lastStatus !== row.status;
         lastStatus = row.status;
         firstPoll = false;
         hideConnCard();
-        setMsg('Match ended');
+        setMsg('Session has ended');
+        showEndedStatus();
+        if (row.state){
+          try{
+            state = row.state;
+            hasRenderableSnapshot = true;
+            renderAll();
+            saveViewerSnapshotFor(code, {
+              state: row.state,
+              session_name: row.session_name || null,
+              status: row.status,
+              updated_at: row.updated_at,
+              cached_at: Date.now()
+            });
+          }catch(e){ console.error('[Viewer] failed to render final state', e); }
+        }
+        if (justEnded){
+          const recap = buildSessionRecap();
+          if (recap) openSessionRecap(recap, 'Close');
+        }
+        // Nothing further will change once the host has ended the session —
+        // stop polling instead of hitting this same branch every interval.
+        if (viewerPollTimer){ clearInterval(viewerPollTimer); viewerPollTimer = null; }
         return;
       }
 
@@ -8782,6 +8884,7 @@ function enterViewerMode(code){
       // and a "· Live" suffix.
       setMsg('Updated ' + new Date(row.updated_at).toLocaleTimeString());
       renderAll();
+      updateWaitingStatus();
       saveViewerSnapshotFor(code, {
         state: row.state,
         session_name: row.session_name || null,
@@ -9086,6 +9189,7 @@ function renderCourtsStatsBar(){
     normalizeCohostPermissions(state.session);
     if (typeof state.session.skillLevelsEnabled !== 'boolean') state.session.skillLevelsEnabled = false;
     if (typeof state.session.notifyCallsEnabled !== 'boolean') state.session.notifyCallsEnabled = true;
+    if (typeof state.session.autoCallPlayersEnabled !== 'boolean') state.session.autoCallPlayersEnabled = false;
     state.courts.forEach(c => { if (!('score' in c)) c.score = null; });
     if (!state.playerLevels || typeof state.playerLevels !== 'object') state.playerLevels = {};
     state.courts.forEach(c => { if (!c.level || !PLAYER_LEVELS.includes(c.level)) c.level = 'Open'; });

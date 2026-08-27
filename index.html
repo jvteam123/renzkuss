@@ -151,7 +151,7 @@
 
 <div class="viewer-banner viewer-dashboard-banner" id="viewerBanner" hidden>
   <div class="vb-status">
-    <span class="vb-live-badge"><span class="vb-live-dot"></span>Live</span>
+    <span class="vb-live-badge" id="vbLiveBadge"><span class="vb-live-dot"></span><span id="vbLiveBadgeText">Live</span></span>
     <span class="msg" id="viewerBannerMsg"></span>
   </div>
   <!-- Quick-action row (View/Theme/Notify/History) and the identity badge
@@ -308,6 +308,21 @@
       <p class="viewer-conn-card-title" id="viewerConnCardTitle"></p>
       <p class="viewer-conn-card-sub" id="viewerConnCardSub"></p>
       <button type="button" class="btn solid-turf sm" id="viewerConnRetryBtn" hidden>Retry now</button>
+    </div>
+    <div class="viewer-waiting-card" id="viewerWaitingCard" hidden>
+      <svg viewBox="0 0 24 24"><use href="#i-clock"/></svg>
+      <div class="viewer-waiting-text">
+        <p class="viewer-waiting-title">Waiting for the host</p>
+        <p class="viewer-waiting-sub">Players are checking in — courts will appear here once the host generates the first match.</p>
+      </div>
+    </div>
+    <div class="viewer-ended-card" id="viewerEndedCard" hidden>
+      <svg viewBox="0 0 24 24"><use href="#i-trophy"/></svg>
+      <div class="viewer-ended-text">
+        <p class="viewer-ended-title">Session has ended</p>
+        <p class="viewer-ended-sub">The host has wrapped up this match. Thanks for watching!</p>
+      </div>
+      <button type="button" class="btn ghost sm" id="viewerEndedRecapBtn">View recap</button>
     </div>
     <div class="courts-grid" id="courtsGrid"></div>
     <div class="courts-swipe-dots" id="courtsSwipeDots" hidden></div>
@@ -669,6 +684,14 @@
         </label>
       </div>
       <p class="add-hint" style="padding:0;margin-top:-.15rem">Sends a phone notification to a player's device when you call them, whether or not the voice above is on. Only reaches players who've selected their name on the spectator view.</p>
+      <div class="toggle-row" style="margin-top:.5rem">
+        <label style="margin:0">Auto Call Players</label>
+        <label class="switch">
+          <input type="checkbox" id="autoCallPlayersToggle">
+          <span class="track"></span>
+        </label>
+      </div>
+      <p class="add-hint" style="padding:0;margin-top:-.15rem">Automatically calls the next lineup the moment a court clears — same voice/phone call as tapping "Call Players" yourself, just silent: no confirmation popup, no manual tap needed.</p>
     </div>
 
     <div class="field settings-card">

@@ -686,6 +686,31 @@ button.level-badge{cursor:pointer;touch-action:manipulation;-webkit-user-select:
 .viewer-conn-card-title{font-weight:700;font-size:.95rem;margin:0 0 .35rem}
 .viewer-conn-card-sub{font-size:.82rem;color:var(--slate);margin:0 0 .9rem}
 .viewer-conn-card #viewerConnRetryBtn{margin:0 auto}
+.viewer-waiting-card{
+  display:flex;align-items:center;gap:.9rem;
+  background:var(--turf-pale);border:1.5px solid var(--turf);border-radius:var(--radius);
+  padding:1rem 1.2rem;margin:0 0 1.1rem;box-shadow:var(--shadow-sm);
+}
+.viewer-waiting-card[hidden]{display:none}
+.viewer-waiting-card > svg{width:26px;height:26px;flex-shrink:0;color:var(--turf-deep)}
+.viewer-waiting-text{flex:1 1 auto;min-width:0}
+.viewer-waiting-title{font-weight:700;font-size:.92rem;margin:0 0 .15rem;color:var(--turf-deep)}
+.viewer-waiting-sub{font-size:.8rem;color:var(--slate);margin:0}
+.viewer-ended-card{
+  display:flex;align-items:center;gap:.9rem;
+  background:var(--gold-pale);border:1.5px solid var(--gold-deep);border-radius:var(--radius);
+  padding:1rem 1.2rem;margin:0 0 1.1rem;box-shadow:var(--shadow-sm);
+}
+.viewer-ended-card[hidden]{display:none}
+.viewer-ended-card > svg{width:26px;height:26px;flex-shrink:0;color:var(--gold-ink)}
+.viewer-ended-text{flex:1 1 auto;min-width:0}
+.viewer-ended-title{font-weight:700;font-size:.92rem;margin:0 0 .15rem;color:var(--gold-ink)}
+.viewer-ended-sub{font-size:.8rem;color:var(--slate);margin:0}
+.viewer-ended-card #viewerEndedRecapBtn{flex-shrink:0}
+@media (max-width:520px){
+  .viewer-ended-card{flex-wrap:wrap}
+  .viewer-ended-card #viewerEndedRecapBtn{margin-left:auto}
+}
 .courts-grid{
   display:grid;grid-template-columns:repeat(auto-fill, minmax(340px,1fr));
   gap:1.35rem;
@@ -1857,6 +1882,9 @@ html[data-theme="dark"] .vb-live-badge{background:rgba(255,107,117,.16)}
 .vb-live-dot{width:6px;height:6px;border-radius:50%;background:var(--clay);animation:vbPulse 1.6s ease-in-out infinite}
 @keyframes vbPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.75)}}
 @media (prefers-reduced-motion:reduce){.vb-live-dot{animation:none}}
+.vb-live-badge.ended{color:var(--slate);background:var(--line)}
+.vb-live-badge.ended .vb-live-dot{background:var(--slate);animation:none}
+html[data-theme="dark"] .vb-live-badge.ended{background:rgba(255,255,255,.08)}
 .viewer-banner .msg{
   font-size:.8rem;font-weight:600;color:var(--slate);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;
