@@ -138,15 +138,18 @@ function levelClass(level){
 function levelsMatch(playerLevel, courtLevel){
   // "Balanced" matching style prioritizes fair teams/turns over strict skill
   // separation, so it ignores each court's assigned level entirely — any
-  // waiting player can fill any open court. Skill Separated and Winners/
-  // Losers both keep the original strict, exact-level match.
+  // waiting player can fill any open court. Winners/Losers keeps the
+  // original strict, exact-level match.
   if (getMatchingStyle() === 'balanced') return true;
   const pl = playerLevel || 'Open', cl = courtLevel || 'Open';
   return pl === cl;
 }
 function getMatchingStyle(){
   const s = state.session && state.session.matchingStyle;
-  return (s === 'balanced' || s === 'skillSeparated' || s === 'winnersLosers') ? s : 'winnersLosers';
+  // 'skillSeparated' was removed as a selectable style; a session saved
+  // while it still existed falls back to 'winnersLosers', which already
+  // shares the exact same strict level-matching behavior above.
+  return s === 'balanced' ? 'balanced' : 'winnersLosers';
 }
 function skillLevelsEnabled(){
   return !!(state.session && state.session.skillLevelsEnabled);
@@ -188,7 +191,7 @@ function defaultCourts(n){
 
 function freshState(){
   return {
-    session: { name: 'PaddleStack', club: '', description: '', createdAt: Date.now(), gameSize: 4, soundOn: true, notifyCallsEnabled: true, status: 'active', targetGamesEnabled: false, targetGamesPerPlayer: 7, avoidRepeatTeammates: false, fixedDuos: [], fixedDuosEnabled: false, scoringEnabled: true, winningScore: 11, autoStartEnabled: false, autoStartMinutes: 1, generationReady: false, matchingStyle: 'winnersLosers', skillLevelsEnabled: false, cohostPermissions: { allowSwap: true, allowSubstitution: true } }, // status: 'active' | 'ended'; matchingStyle: 'balanced' | 'skillSeparated' | 'winnersLosers'; skillLevelsEnabled: off by default — everyone plays Open Play until turned on; autoStartMinutes: how long an open, ready court waits before auto-starting (default 1 minute); soundOn: on-site voice announcement only; notifyCallsEnabled: phone notifications on call-up, independent of soundOn; cohostPermissions: what a co-host device is allowed to do beyond start/score — both default ON, host can turn either off per-session (see setCohostPermission); createdAt: when this session was created, used only for the viewer dashboard's "Session Time" stat — a saved session from before this field existed just won't show an accurate elapsed time, which is harmless; club/description: optional, set via the "Go live" session-name prompt — club shows on the shared-link preview banner, description rides along whenever the live link is copied/shared
+    session: { name: 'PaddleStack', club: '', description: '', createdAt: Date.now(), gameSize: 4, soundOn: true, notifyCallsEnabled: true, status: 'active', targetGamesEnabled: false, targetGamesPerPlayer: 7, avoidRepeatTeammates: false, fixedDuos: [], fixedDuosEnabled: false, scoringEnabled: true, winningScore: 11, autoStartEnabled: false, autoStartMinutes: 1, generationReady: false, matchingStyle: 'winnersLosers', skillLevelsEnabled: false, cohostPermissions: { allowSwap: true, allowSubstitution: true } }, // status: 'active' | 'ended'; matchingStyle: 'balanced' | 'winnersLosers'; skillLevelsEnabled: off by default — everyone plays Open Play until turned on; autoStartMinutes: how long an open, ready court waits before auto-starting (default 1 minute); soundOn: on-site voice announcement only; notifyCallsEnabled: phone notifications on call-up, independent of soundOn; cohostPermissions: what a co-host device is allowed to do beyond start/score — both default ON, host can turn either off per-session (see setCohostPermission); createdAt: when this session was created, used only for the viewer dashboard's "Session Time" stat — a saved session from before this field existed just won't show an accurate elapsed time, which is harmless; club/description: optional, set via the "Go live" session-name prompt — club shows on the shared-link preview banner, description rides along whenever the live link is copied/shared
     courts: defaultCourts(2),
     arrivals: [],        // {id, name, addedAt} — added but not yet checked in; not part of the live queue
     stack: [],           // {id, name, joinedAt, tag: 'new'|'queued'}
@@ -2121,7 +2124,7 @@ function renderGenerateWizard(){
   generateWizardBack.disabled = generateWizardStep === 1;
   generateWizardNext.textContent = generateWizardStep === 4 ? '⚡ Generate Match' : 'Continue';
   if (generateWizardStep === 4){
-    const styleLabel = generateWizardDraft.matchingStyle === 'balanced' ? 'Balanced' : generateWizardDraft.matchingStyle === 'skillSeparated' ? 'Skill Separated' : 'Winners / Losers';
+    const styleLabel = generateWizardDraft.matchingStyle === 'balanced' ? 'Balanced' : 'Winners / Losers';
     const duoCount = (generateWizardDraft.fixedDuos || []).length;
     wizardSummary.innerHTML = `<div><span>Skill levels</span><b>${generateWizardDraft.skillLevels ? 'ON' : 'OFF'}</b></div><div><span>Courts</span><b>${generateWizardDraft.courts}</b></div><div><span>Match type</span><b>${generateWizardDraft.gameSize === 4 ? '2v2 Doubles' : '1v1 Singles'}</b></div><div><span>Matching style</span><b>${styleLabel}</b></div><div><span>Avoid repeating teammates</span><b>${generateWizardDraft.avoidRepeat ? 'ON' : 'OFF'}</b></div><div><span>Fixed duos</span><b>${generateWizardDraft.avoidRepeat ? (duoCount ? `${duoCount} selected` : 'None') : 'OFF'}</b></div><div><span>Scoring</span><b>${generateWizardDraft.scoring ? 'ON' : 'OFF'}</b></div>`;
   }
@@ -5192,7 +5195,7 @@ function openSettings(){
   settingsOverlay.hidden = false;
 }
 
-/* ---- Matching style (Balanced / Skill Separated / Winners & Losers) ---- */
+/* ---- Matching style (Balanced / Winners & Losers) ---- */
 function renderMatchStyleGroup(){
   if (!matchStyleGroup) return;
   const current = getMatchingStyle();
@@ -9033,7 +9036,10 @@ function renderCourtsStatsBar(){
     if (!state.session.winningScore || state.session.winningScore < 1) state.session.winningScore = 11;
     if (typeof state.session.autoStartEnabled !== 'boolean') state.session.autoStartEnabled = false;
     if (!Number.isFinite(state.session.autoStartMinutes) || state.session.autoStartMinutes < 1) state.session.autoStartMinutes = 1;
-    if (state.session.matchingStyle !== 'balanced' && state.session.matchingStyle !== 'skillSeparated' && state.session.matchingStyle !== 'winnersLosers') state.session.matchingStyle = 'winnersLosers';
+    // 'skillSeparated' was removed as a selectable matching style; a
+    // session saved while it still existed migrates to 'winnersLosers',
+    // which already behaves identically (see getMatchingStyle/levelsMatch).
+    if (state.session.matchingStyle !== 'balanced' && state.session.matchingStyle !== 'winnersLosers') state.session.matchingStyle = 'winnersLosers';
     if (typeof state.session.club !== 'string') state.session.club = '';
     if (typeof state.session.description !== 'string') state.session.description = '';
     normalizeCohostPermissions(state.session);
