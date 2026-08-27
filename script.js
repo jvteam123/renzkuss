@@ -323,22 +323,22 @@ const syncUpdateBtn = $('#syncUpdateBtn');
 if (syncUpdateBtn){
   syncUpdateBtn.addEventListener('click', async () => {
     if (!('serviceWorker' in navigator)){
-      toast('Offline mode isn\u2019t supported in this browser.', 'warning');
+      showAlert('Offline mode isn\u2019t supported in this browser.', {title: 'Not supported'});
       return;
     }
     syncUpdateBtn.disabled = true;
     syncUpdateBtn.classList.add('spin');
     try {
       const reg = swRegistration || await navigator.serviceWorker.getRegistration();
-      if (!reg){ toast('Nothing to sync yet \u2014 try again in a moment.', 'warning'); return; }
+      if (!reg){ showAlert('Nothing to sync yet \u2014 try again in a moment.', {title: 'Not ready yet'}); return; }
       await reg.update();
       if (reg.waiting){
         showUpdateBanner(reg.waiting);
       } else {
-        toast('You\u2019re on the latest version.', 'success');
+        showAlert('You\u2019re running the latest version \u2014 no updates available right now.', {title: 'You\u2019re up to date'});
       }
     } catch {
-      toast('Couldn\u2019t check for updates \u2014 check your connection.', 'warning');
+      showAlert('Couldn\u2019t check for updates. Check your connection and try again.', {title: 'Update check failed'});
     } finally {
       syncUpdateBtn.disabled = false;
       syncUpdateBtn.classList.remove('spin');
