@@ -3712,7 +3712,13 @@ function renderCourts(){
       let matchupHtml;
       let swapHint = '';
       let autoStartHtml = '';
-      if (court.openedAt == null) court.openedAt = null; // match starts only through Generate Match
+      // A court's openedAt is normally stamped the moment it becomes 'open'
+      // (game ended, court added, wizard run) so the auto-start window is
+      // anchored to real elapsed time. The only case that can slip through
+      // is a session saved before this field existed — fall back to "now"
+      // rather than leaving it null, so a legacy save doesn't immediately
+      // auto-start (or permanently refuse to) the instant it's reopened.
+      if (court.openedAt == null) court.openedAt = Date.now();
 
       if (enough){
         const naturalNames = orderForTeammatePairing(taken.map(p => p.name));
@@ -3741,6 +3747,12 @@ function renderCourts(){
       } else {
         const lvlNote = court.level ? ` ${levelLabel(court.level)}` : '';
         matchupHtml = `<div class="matchup" style="align-items:center;justify-content:center"><span class="empty-slot">Needs ${Math.max(0, gameSize - slot.remaining)} more${lvlNote} in the stack</span></div>`;
+      }
+      if (state.session.autoStartEnabled && enough && !ended){
+        const msLeft = getAutoStartMs() - (Date.now() - court.openedAt);
+        if (msLeft > 0){
+          autoStartHtml = `<div class="auto-start-hint" data-role="auto-start-hint">Auto-starts in ${fmtClock(msLeft)}</div>`;
+        }
       }
       card.innerHTML = `
         <div class="court-top">
@@ -4952,13 +4964,42 @@ setInterval(() => {
 }, 1000);
 
 /* ================= Auto-start ready courts ================= */
-// Ticks the "auto-starts in…" countdown on any open court, and — if the
-// host really did just forget to tap Start Game — starts it for them once 2
-// minutes have passed since that court opened AND it currently has enough
-// players. Never runs for viewers (read-only) or after the session ends.
-// Automatic match starting is intentionally disabled. Hosts start matches only
-// through the Generate Match setup wizard. The old timer is not used so
-// checking players in can never unexpectedly start a court.
+// Ticks the "auto-starts in…" countdown on any open, ready court, and — if
+// the host really did just forget to tap Start Game — starts it for them
+// once the configured window has passed since that court opened AND it
+// still has enough players. Viewers only ever read state (poll, never
+// push), so letting their tick run harmlessly recomputes text nobody acts
+// on; the actual start is gated below so it only ever fires on this
+// session's own source of truth.
+//
+// On a live broadcast, a co-host device is a second read/write peer, not
+// just a display — if both the host's and a co-host's browser independently
+// noticed the window had elapsed, they could both call callNext() for the
+// same court a beat apart and race. So the trigger (not the display) only
+// ever runs on the device driving the session: local solo play, or the
+// broadcasting host — never a joined co-host.
+setInterval(() => {
+  if (!state.session.autoStartEnabled || isSessionEnded()) return;
+  document.querySelectorAll('.court-card[data-id]').forEach(card => {
+    const hint = card.querySelector('[data-role="auto-start-hint"]');
+    if (!hint) return;
+    const court = state.courts.find(c => c.id === card.dataset.id);
+    if (!court || court.status !== 'open' || court.openedAt == null) return;
+    const msLeft = getAutoStartMs() - (Date.now() - court.openedAt);
+    if (msLeft > 0){
+      hint.textContent = `Auto-starts in ${fmtClock(msLeft)}`;
+    }
+  });
+  if (cohostSession) return; // never trigger from a joined co-host device
+  state.courts.forEach(court => {
+    if (court.status !== 'open' || court.openedAt == null) return;
+    if (Date.now() - court.openedAt < getAutoStartMs()) return;
+    const openQueue = computeOpenCourtQueue(state.session.gameSize);
+    const slot = openQueue.get(court.id);
+    if (!slot || !slot.taken) return; // still not enough players — keep waiting
+    callNext(court); // handles its own toast/renderAll/persist
+  });
+}, 1000);
 
 
 /* ================= Session name ================= */
