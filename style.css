@@ -1648,6 +1648,22 @@ body.session-locked .paddle .reorder,body.session-locked .paddle .remove-btn{
 
 /* ---------- Toasts ---------- */
 .toast-wrap{position:fixed;bottom:1.2rem;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column-reverse;gap:.5rem;align-items:center;width:100%;pointer-events:none}
+/* While a modal is open, toasts anchored to the bottom of the viewport sit
+   right on top of that modal's own buttons — most noticeably the per-row
+   "Check in" button in the Check-in modal, since its success toast carries
+   an "Undo" action and lingers for 5s (see toast() in script.js), blocking
+   the very button someone would tap next to check in the next player. On
+   mobile the modal is a bottom sheet flush with the screen edge (see
+   `.overlay{align-items:flex-end}` below), so there's no bottom gap for a
+   toast to live in without overlapping it. Move toasts up to the top of
+   the screen instead whenever any modal is open — there's reliably clear
+   space there (.modal leaves a ~2.4rem gap from the top even at max
+   height) — and flip the stacking direction so the newest toast still
+   appears nearest the screen edge. */
+body:has(.overlay:not([hidden])) .toast-wrap{
+  top:calc(env(safe-area-inset-top, 0px) + .7rem);bottom:auto;
+  flex-direction:column;
+}
 /* Toasts are now just a small silent progress bar — no icon, no message
    text — a brief "something happened" pulse instead of a popup to read. */
 .toast{
