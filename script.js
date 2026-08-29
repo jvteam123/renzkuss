@@ -2052,7 +2052,11 @@ function wizardDefaults(){
     courts: Math.max(1, Math.min(6, state.courts.length || 1)),
     gameSize: state.session.gameSize || 4,
     matchingStyle: getMatchingStyle(),
-    avoidRepeat: !!state.session.avoidRepeatTeammates,
+    // Also default to ON if Fixed Duos already exist (e.g. set up in Settings
+    // before ever running Generate Match) — otherwise a first-time generation
+    // would see avoidRepeat=false, hide the Fixed Duo section, and (previously)
+    // wipe the duo list entirely. See generateMatchesFromWizard.
+    avoidRepeat: !!state.session.avoidRepeatTeammates || (Array.isArray(state.session.fixedDuos) && state.session.fixedDuos.length > 0),
     fixedDuos: Array.isArray(state.session.fixedDuos) ? state.session.fixedDuos.map(d => ({a:d.a,b:d.b})) : [],
     scoring: state.session.scoringEnabled !== false,
     skillLevels: !!state.session.skillLevelsEnabled,
@@ -2179,7 +2183,14 @@ async function generateMatchesFromWizard(){
     state.session.fixedDuosEnabled = d.avoidRepeat && (d.fixedDuos || []).length > 0;
     state.session.scoringEnabled = d.scoring;
     state.session.skillLevelsEnabled = !!d.skillLevels;
-    state.session.fixedDuos = d.avoidRepeat ? (d.fixedDuos || []).map(x => ({a:x.a,b:x.b})) : [];
+    // Don't wipe out already-saved Fixed Duos just because this particular
+    // wizard run had "Avoid Repeating Teammates" left off (e.g. a duo set up
+    // in Settings before ever generating a match, with the wizard's own
+    // toggle still at its default). Fixed Duos only take EFFECT while
+    // avoidRepeatTeammates is on (fixedDuosEnabled above, and every other
+    // fixed-duo check throughout the app), so it's safe to keep the list
+    // around either way — this only stops it from being silently deleted.
+    state.session.fixedDuos = (d.fixedDuos || []).map(x => ({a:x.a,b:x.b}));
     state.session.autoStartEnabled = false;
     state.session.generationReady = true;
     await applyWizardCourtCount(d.courts);
