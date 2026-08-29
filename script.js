@@ -9229,7 +9229,15 @@ function renderCourtsStatsBar(){
 
   idb = await openDB();
   const saved = await loadPersisted();
+  // Tracks whether we actually recovered a valid local snapshot below —
+  // used further down to decide how to seed lastHostStateAt for the host
+  // poll. A device that failed to load anything locally (cleared storage,
+  // private browsing, a write that didn't finish before this refresh, etc.)
+  // has nothing worth protecting, and must NOT block the first host poll
+  // from pulling the real, still-safe state back down from the server.
+  let localStateLoaded = false;
   if (saved && saved.session && Array.isArray(saved.courts) && Array.isArray(saved.stack)){
+    localStateLoaded = true;
     state = saved;
     if (!Array.isArray(state.history)) state.history = [];
     if (!Array.isArray(state.winnersBlock)) state.winnersBlock = [];
@@ -9309,10 +9317,24 @@ function renderCourtsStatsBar(){
   if (hostSession && !authSession) saveHostSession(null); // stale local session with no login to back it
   if (hostSession){
     checkHostStillLive(); // catch an idle/cron auto-stop that happened while this device was closed
-    lastHostStateAt = Date.now(); // baseline — anything checkHostStillLive/startHostPoll fetches
-                                   // from here on only overwrites local state if it's newer than this
+    // Baseline for startHostPoll's "only adopt a fetched snapshot if it's
+    // newer than this" guard. When the local load above actually succeeded,
+    // baseline to now — that local state is correct and must not be
+    // clobbered by a slower-arriving, older server response. But when the
+    // local load came back empty/failed (see localStateLoaded above), state
+    // was just reset to freshState() and there is nothing local worth
+    // protecting — baselining to "now" here would mean every future poll's
+    // fetched.updated_at_ms (always from some point in the past) reads as
+    // "older than now" and gets silently rejected forever, permanently
+    // stranding the host on an empty screen even though the real match data
+    // is still sitting safely on the server. Baselining to 0 instead lets
+    // the very next poll adopt it immediately.
+    lastHostStateAt = localStateLoaded ? Date.now() : 0;
     startHostPoll(); // pick up anything a co-host changed while this device was closed, and keep
                       // picking up co-host edits made while this device stays open (see startHostPoll)
+    // Local load failed — don't leave the screen sitting empty for a whole
+    // HOST_POLL_INTERVAL_MS before the first recovery poll fires.
+    if (!localStateLoaded && hostPollFn) hostPollFn();
   }
   if (authSession) checkDeviceStillActive(); // catch a takeover by another device that happened while this device was closed
 })();
