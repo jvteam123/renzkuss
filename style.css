@@ -3285,6 +3285,7 @@ html[data-theme="dark"] .generate-match-nav .generate-match-orb{
 .wizard-summary{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;background:var(--paper-2);border:1px solid var(--line);border-radius:14px;padding:.75rem}
 .wizard-summary div{display:flex;justify-content:space-between;gap:.5rem;padding:.45rem .55rem}.wizard-summary span{color:var(--slate);font-size:.76rem}.wizard-summary b{font-size:.78rem}
 .wizard-hint,.wizard-final-note{color:var(--slate);font-size:.76rem;line-height:1.45;margin:.75rem 0 0}.wizard-final-note{background:var(--turf-pale);border-radius:12px;padding:.7rem .8rem}
+.wizard-settings-only-btn{width:100%;margin-top:1rem;justify-content:center}
 .wizard-actions{margin-top:1.15rem;display:flex}.wizard-actions #generateWizardNext{margin-left:auto}
 @media (max-width:640px){.wizard-toggle-grid{grid-template-columns:1fr}.wizard-summary{grid-template-columns:1fr}.generate-wizard{max-height:92vh;overflow:auto}.generate-match-nav .generate-match-orb{width:50px;height:50px}}
 

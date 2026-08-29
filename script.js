@@ -2180,6 +2180,36 @@ async function applyWizardCourtCount(target){
     state.courts.pop();
   }
 }
+// Applies everything the wizard collected (match size, matching style, avoid
+// repeat/fixed duos, scoring, skill levels, court count + per-court levels)
+// to session/court state. Shared by both "Generate Match" (which goes on to
+// auto-assign players) and "Generate Settings Only" (which stops here and
+// leaves every court open for the host to fill by hand).
+async function applyWizardSettings(d){
+  state.session.gameSize = d.gameSize;
+  state.session.matchingStyle = d.matchingStyle;
+  state.session.avoidRepeatTeammates = d.avoidRepeat;
+  state.session.fixedDuosEnabled = d.avoidRepeat && (d.fixedDuos || []).length > 0;
+  state.session.scoringEnabled = d.scoring;
+  state.session.skillLevelsEnabled = !!d.skillLevels;
+  // Don't wipe out already-saved Fixed Duos just because this particular
+  // wizard run had "Avoid Repeating Teammates" left off (e.g. a duo set up
+  // in Settings before ever generating a match, with the wizard's own
+  // toggle still at its default). Fixed Duos only take EFFECT while
+  // avoidRepeatTeammates is on (fixedDuosEnabled above, and every other
+  // fixed-duo check throughout the app), so it's safe to keep the list
+  // around either way — this only stops it from being silently deleted.
+  state.session.fixedDuos = (d.fixedDuos || []).map(x => ({a:x.a,b:x.b}));
+  state.session.autoStartEnabled = false;
+  state.session.generationReady = true;
+  await applyWizardCourtCount(d.courts);
+  // Apply the per-court levels picked in step 1 (only meaningful once Skill
+  // Levels is on — otherwise every court just stays 'Open', same as today).
+  if (d.skillLevels && Array.isArray(d.courtLevels)){
+    state.courts.forEach((c,i) => { c.level = PLAYER_LEVELS.includes(d.courtLevels[i]) ? d.courtLevels[i] : 'Open'; });
+  }
+  state.courts.forEach(c => { if (c.status === 'open') { c.openedAt = null; c.previewOrder = null; c.previewSubMap = null; } });
+}
 async function generateMatchesFromWizard(){
   const d = generateWizardDraft;
   if (!d) return;
@@ -2188,29 +2218,7 @@ async function generateMatchesFromWizard(){
     return;
   }
   try{
-    state.session.gameSize = d.gameSize;
-    state.session.matchingStyle = d.matchingStyle;
-    state.session.avoidRepeatTeammates = d.avoidRepeat;
-    state.session.fixedDuosEnabled = d.avoidRepeat && (d.fixedDuos || []).length > 0;
-    state.session.scoringEnabled = d.scoring;
-    state.session.skillLevelsEnabled = !!d.skillLevels;
-    // Don't wipe out already-saved Fixed Duos just because this particular
-    // wizard run had "Avoid Repeating Teammates" left off (e.g. a duo set up
-    // in Settings before ever generating a match, with the wizard's own
-    // toggle still at its default). Fixed Duos only take EFFECT while
-    // avoidRepeatTeammates is on (fixedDuosEnabled above, and every other
-    // fixed-duo check throughout the app), so it's safe to keep the list
-    // around either way — this only stops it from being silently deleted.
-    state.session.fixedDuos = (d.fixedDuos || []).map(x => ({a:x.a,b:x.b}));
-    state.session.autoStartEnabled = false;
-    state.session.generationReady = true;
-    await applyWizardCourtCount(d.courts);
-    // Apply the per-court levels picked in step 1 (only meaningful once Skill
-    // Levels is on — otherwise every court just stays 'Open', same as today).
-    if (d.skillLevels && Array.isArray(d.courtLevels)){
-      state.courts.forEach((c,i) => { c.level = PLAYER_LEVELS.includes(d.courtLevels[i]) ? d.courtLevels[i] : 'Open'; });
-    }
-    state.courts.forEach(c => { if (c.status === 'open') { c.openedAt = null; c.previewOrder = null; c.previewSubMap = null; } });
+    await applyWizardSettings(d);
     persist();
     let started = 0;
     for (const court of state.courts){
@@ -2227,6 +2235,27 @@ async function generateMatchesFromWizard(){
   } catch (err){
     console.error('generateMatchesFromWizard failed:', err);
     toast('Something went wrong generating the match — please try again', 'error', {detailed:true});
+  }
+}
+// "Generate Settings Only": applies the exact same session/court settings as
+// Generate Match, but never calls callNext — every court is left 'open' and
+// empty so the host can hand-pick who plays first (via each open court's
+// normal substitution controls) instead of the automatic FIFO/duo pairing.
+// Useful on a first run when the host wants specific players on specific
+// courts right out of the gate.
+async function generateSettingsOnlyFromWizard(){
+  const d = generateWizardDraft;
+  if (!d) return;
+  try{
+    await applyWizardSettings(d);
+    persist();
+    closeGenerateWizard();
+    setMobileTab('courts');
+    renderAll();
+    toast('Settings applied — choose players for each court to start it', 'success', {detailed:true});
+  } catch (err){
+    console.error('generateSettingsOnlyFromWizard failed:', err);
+    toast('Something went wrong applying settings — please try again', 'error', {detailed:true});
   }
 }
 
@@ -2499,6 +2528,8 @@ if (wizardScoring) wizardScoring.addEventListener('change', () => {
 });
 if (generateWizardBack) generateWizardBack.addEventListener('click', () => { if (generateWizardStep > 1){ generateWizardStep--; renderGenerateWizard(); } });
 if (generateWizardNext) generateWizardNext.addEventListener('click', () => { if (generateWizardStep < 4){ generateWizardStep++; renderGenerateWizard(); } else generateMatchesFromWizard(); });
+const generateWizardSettingsOnlyBtn = $('#generateWizardSettingsOnlyBtn');
+if (generateWizardSettingsOnlyBtn) generateWizardSettingsOnlyBtn.addEventListener('click', () => generateSettingsOnlyFromWizard());
 
 /* ---- Add Player / Check In modals ---- */
 function openAddPlayerModal(){
