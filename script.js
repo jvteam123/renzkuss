@@ -2070,7 +2070,12 @@ function wizardDefaults(){
 function renderWizardFixedDuoOptions(){
   const a = $('#wizardFixedDuoNameA'), b = $('#wizardFixedDuoNameB');
   if (!a || !b) return;
-  const names = allKnownNames();
+  const duos = (generateWizardDraft && generateWizardDraft.fixedDuos) || [];
+  // Same rule as Settings: a player already locked into a duo for this
+  // generation can't be picked again for a different one.
+  const takenNames = new Set();
+  duos.forEach(d => { takenNames.add(d.a); takenNames.add(d.b); });
+  const names = allKnownNames().filter(n => !takenNames.has(n));
   const opts = names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
   a.innerHTML = '<option value="">Player A…</option>' + opts;
   b.innerHTML = '<option value="">Player B…</option>' + opts;
@@ -5298,7 +5303,12 @@ function allKnownNames(){
   return [...names].sort((a,b) => a.localeCompare(b));
 }
 function renderFixedDuoNameOptions(){
-  const names = allKnownNames();
+  const duos = state.session.fixedDuos || [];
+  // Anyone already half of a fixed duo can't be picked for a NEW duo — they're
+  // locked into the one they're already in (remove it first to free them up).
+  const takenNames = new Set();
+  duos.forEach(d => { takenNames.add(d.a); takenNames.add(d.b); });
+  const names = allKnownNames().filter(n => !takenNames.has(n));
   const opts = names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
   fixedDuoNameA.innerHTML = '<option value="">Player A…</option>' + opts;
   fixedDuoNameB.innerHTML = '<option value="">Player B…</option>' + opts;
@@ -5328,6 +5338,7 @@ $('#fixedDuoAddBtn').addEventListener('click', () => {
   if (inOtherDuo){ toast('One of those players is already in a fixed duo'); return; }
   duos.push({ a, b });
   fixedDuoNameA.value = ''; fixedDuoNameB.value = '';
+  renderFixedDuoNameOptions();
   renderFixedDuoList();
   persist();
   renderCourts();
@@ -5342,6 +5353,7 @@ fixedDuoList.addEventListener('click', async (e) => {
   if (!duo) return;
   if (!(await showConfirm('They\'ll go back to being paired up normally by the queue.', {title: 'Remove ' + duo.a + ' & ' + duo.b + ' as a fixed duo?', confirmLabel: 'Remove', danger: true}))) return;
   duos.splice(idx, 1);
+  renderFixedDuoNameOptions();
   renderFixedDuoList();
   persist();
   renderCourts();
