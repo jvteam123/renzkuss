@@ -2075,10 +2075,16 @@ function renderWizardFixedDuoOptions(){
   // generation can't be picked again for a different one.
   const takenNames = new Set();
   duos.forEach(d => { takenNames.add(d.a); takenNames.add(d.b); });
-  const names = allKnownNames().filter(n => !takenNames.has(n));
-  const opts = names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
-  a.innerHTML = '<option value="">Player A…</option>' + opts;
-  b.innerHTML = '<option value="">Player B…</option>' + opts;
+  const base = allKnownNames().filter(n => !takenNames.has(n));
+  // Also keep each dropdown from offering whoever's currently picked in the
+  // OTHER one, so the same player can't be chosen for both Player A and B
+  // of the same in-progress duo.
+  const currentA = a.value, currentB = b.value;
+  const optsFor = (excludeName) => base.filter(n => n !== excludeName).map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  a.innerHTML = '<option value="">Player A…</option>' + optsFor(currentB);
+  b.innerHTML = '<option value="">Player B…</option>' + optsFor(currentA);
+  a.value = base.includes(currentA) ? currentA : '';
+  b.value = base.includes(currentB) ? currentB : '';
 }
 function renderWizardFixedDuoList(){
   const list = $('#wizardFixedDuoList');
@@ -2480,6 +2486,12 @@ if (wizardAvoidRepeat) wizardAvoidRepeat.addEventListener('change', () => {
   }
   renderGenerateWizard();
 });
+// Re-filter each dropdown live as the host picks a name, so the same player
+// can't end up selected in both Player A and Player B at once (same rule as
+// the Settings duo picker).
+const wizardFixedDuoNameASelect = $('#wizardFixedDuoNameA'), wizardFixedDuoNameBSelect = $('#wizardFixedDuoNameB');
+if (wizardFixedDuoNameASelect) wizardFixedDuoNameASelect.addEventListener('change', renderWizardFixedDuoOptions);
+if (wizardFixedDuoNameBSelect) wizardFixedDuoNameBSelect.addEventListener('change', renderWizardFixedDuoOptions);
 if (wizardScoring) wizardScoring.addEventListener('change', () => {
   if (!generateWizardDraft) return;
   generateWizardDraft.scoring = wizardScoring.checked;
@@ -5308,10 +5320,16 @@ function renderFixedDuoNameOptions(){
   // locked into the one they're already in (remove it first to free them up).
   const takenNames = new Set();
   duos.forEach(d => { takenNames.add(d.a); takenNames.add(d.b); });
-  const names = allKnownNames().filter(n => !takenNames.has(n));
-  const opts = names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
-  fixedDuoNameA.innerHTML = '<option value="">Player A…</option>' + opts;
-  fixedDuoNameB.innerHTML = '<option value="">Player B…</option>' + opts;
+  const base = allKnownNames().filter(n => !takenNames.has(n));
+  // Also keep each dropdown from offering whoever's currently picked in the
+  // OTHER one — otherwise the same player could be chosen for both Player A
+  // and Player B of the same in-progress duo.
+  const currentA = fixedDuoNameA.value, currentB = fixedDuoNameB.value;
+  const optsFor = (excludeName) => base.filter(n => n !== excludeName).map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  fixedDuoNameA.innerHTML = '<option value="">Player A…</option>' + optsFor(currentB);
+  fixedDuoNameB.innerHTML = '<option value="">Player B…</option>' + optsFor(currentA);
+  fixedDuoNameA.value = base.includes(currentA) ? currentA : '';
+  fixedDuoNameB.value = base.includes(currentB) ? currentB : '';
 }
 function renderFixedDuoList(){
   const duos = state.session.fixedDuos || [];
@@ -5326,6 +5344,10 @@ function renderFixedDuoList(){
     </div>
   `).join('');
 }
+// Re-filter each dropdown live as the host picks a name, so the same
+// player can't end up selected in both Player A and Player B at once.
+fixedDuoNameA.addEventListener('change', renderFixedDuoNameOptions);
+fixedDuoNameB.addEventListener('change', renderFixedDuoNameOptions);
 $('#fixedDuoAddBtn').addEventListener('click', () => {
   const a = fixedDuoNameA.value;
   const b = fixedDuoNameB.value;
