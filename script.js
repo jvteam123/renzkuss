@@ -1430,6 +1430,25 @@ function blockListHtml(block, gameSize, blockKey, readOnly){
   }).join('');
 }
 
+// Reverse of every previewSubMap/upNextSubMap entry (incomingId -> outgoingId).
+// A sub is a swap in both directions — J leaving the winners block to fill a
+// court/on-deck slot should leave D sitting in J's old spot in that block,
+// not just an empty gap. Nothing physically moves until the match actually
+// starts (see callNext/removeEntriesFromStack), so this is display-only:
+// it tells renderBlocks who to show occupying a slot someone was claimed
+// out of.
+function getReverseSubClaims(){
+  const map = new Map(); // incomingId -> outgoingId
+  state.courts.forEach(court => {
+    if (court.status === 'open' && court.previewSubMap){
+      Object.keys(court.previewSubMap).forEach(outId => map.set(court.previewSubMap[outId], outId));
+    }
+  });
+  if (state.upNextSubMap){
+    Object.keys(state.upNextSubMap).forEach(outId => map.set(state.upNextSubMap[outId], outId));
+  }
+  return map;
+}
 function renderBlocks(){
   const gameSize = state.session.gameSize;
   // A block entry that's already been picked (via the Sub button on an
@@ -1438,9 +1457,21 @@ function renderBlocks(){
   // player into a preview left them listed here as still "waiting" right
   // up until the court's match actually started: visually duplicated on
   // both the block panel and the court they'd already been placed on.
+  // Rather than just dropping that slot, show the player who's actually
+  // taking it over (the outgoing court/on-deck player) so the swap is
+  // visible here too instead of the block quietly losing a member.
   const claimedIds = getPreviewClaimedIds();
-  const winnersWaiting = state.winnersBlock.filter(e => !claimedIds.has(e.id));
-  const losersWaiting = state.losersBlock.filter(e => !claimedIds.has(e.id));
+  const reverseClaims = getReverseSubClaims();
+  function swappedBlockView(block){
+    return block.map(e => {
+      if (!claimedIds.has(e.id)) return e;
+      const outgoingId = reverseClaims.get(e.id);
+      const found = outgoingId ? findWaitingEntryById(outgoingId) : null;
+      return found ? found.entry : null; // no known outgoing pick — just drop, as before
+    }).filter(Boolean);
+  }
+  const winnersWaiting = swappedBlockView(state.winnersBlock);
+  const losersWaiting = swappedBlockView(state.losersBlock);
   const hasAny = winnersWaiting.length > 0 || losersWaiting.length > 0;
   blocksPanel.hidden = !hasAny;
   if (hasAny){
@@ -4447,14 +4478,18 @@ function renderUpNext(){
   // host device is never coHostMode, so this is always true for the host.
   const subPermitted = !coHostMode || getCohostPermissions().allowSubstitution;
   // Drop any customize-slot picks that no longer make sense — either side
-  // having left state.stack entirely (started a match, got removed, etc).
+  // having left the waiting pool entirely (started a match, got removed,
+  // etc). A waiting player isn't necessarily in state.stack — they may be
+  // parked in an accumulating block (see findWaitingEntryById) — so check
+  // across all three waiting pools, not just the stack. Checking stack
+  // membership alone was silently deleting every pick where the incoming
+  // player was pulled from a winners/losers block, the instant it was made.
   // Lazy, cheap, and keeps this from silently accumulating dead entries.
   if (state.upNextSubMap && Object.keys(state.upNextSubMap).length){
-    const stackIds = new Set(state.stack.map(e => e.id));
     const pruned = {};
     Object.keys(state.upNextSubMap).forEach(outId => {
       const inId = state.upNextSubMap[outId];
-      if (stackIds.has(outId) && stackIds.has(inId)) pruned[outId] = inId;
+      if (findWaitingEntryById(outId) && findWaitingEntryById(inId)) pruned[outId] = inId;
     });
     state.upNextSubMap = pruned;
   }
@@ -4515,7 +4550,14 @@ function renderUpNext(){
     Object.keys(state.upNextSubMap).forEach(outId => {
       const incId = state.upNextSubMap[outId];
       if (!incId || usedIncoming.has(incId)) return;
-      const entry = onDeck.find(e => e.id === incId);
+      // The incoming player isn't always in onDeck/state.stack — a pick
+      // made from an accumulating block (see openUpNextSubPicker's
+      // getAllWaitingEntries candidate list) lives in state.winnersBlock
+      // or state.losersBlock instead. Look them up the same way
+      // computeOpenCourtQueue's reservation pre-pass does, or a block-
+      // sourced pick would never actually get applied here.
+      const found = onDeck.find(e => e.id === incId) ? { entry: onDeck.find(e => e.id === incId) } : findWaitingEntryById(incId);
+      const entry = found ? found.entry : null;
       if (!entry) return;
       upNextReserved.set(outId, entry);
       usedIncoming.add(incId);
