@@ -1138,7 +1138,14 @@ function getAllWaitingEntries(){
 // always dumping them at the back of the main stack and quietly shrinking
 // whichever block they were borrowed from.
 function insertIntoWaitingSource(srcKey, srcIdx, entry){
-  if (srcKey === 'stack'){ state.stack.push(entry); return; }
+  // Splice back in at the exact position the incoming player vacated — for
+  // every source, stack included. Pushing to state.stack unconditionally
+  // sent the outgoing player to the very back of the whole queue instead of
+  // the spot they were supposed to swap into, so a live-court sub pulling
+  // someone off On Deck would free that slot, then have it naturally
+  // refilled by whoever was actually next in line — never the outgoing
+  // player. That's what made it look like "the wrong name" showed up on
+  // deck instead of a clean swap.
   const arr = state[srcKey];
   const insertAt = Math.min(srcIdx, arr.length);
   arr.splice(insertAt, 0, entry);
