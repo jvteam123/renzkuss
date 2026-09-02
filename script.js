@@ -206,6 +206,10 @@ function freshState(){
                              // Mirrors a court's previewSubMap: the outgoing player simply keeps their spot in
                              // state.stack, the incoming player is claimed instead. Stale entries (either side
                              // no longer in state.stack) are pruned lazily in renderUpNext().
+    upNextGroups: [],       // array of arrays of waiting-entry ids — the actual, currently-shown roster of each
+                             // numbered "On deck" row, persisted so it stays locked in place across renders
+                             // (mirrors court.previewOrder). Without this, a sub anywhere else in the app could
+                             // silently reshuffle an on-deck row nobody touched. Reconciled fresh in renderUpNext().
     playerLevels: {},      // name -> skill level ('Open'|'Beginner'|'Advanced Beginner'|'Intermediate'|'Advanced')
     roster: [],            // known player names, kept across "new session" resets for quick re-adding
     playerCalls: []         // {id, name, court, title, body, ts} — recent "it's your turn" calls issued
@@ -1516,6 +1520,11 @@ function getPreviewClaimedIds(){
   computeOpenCourtQueue(state.session.gameSize).forEach(slot => {
     if (slot.taken) slot.taken.forEach(e => claimedIds.add(e.id));
   });
+  // Also anyone currently locked into an on-deck row (state.upNextGroups) —
+  // otherwise a block member subbed onto an on-deck slot kept showing as
+  // still "waiting" in the block panel at the same time they're shown on
+  // deck, instead of the panel reflecting where they actually are now.
+  (state.upNextGroups || []).forEach(row => row.forEach(id => claimedIds.add(id)));
   return claimedIds;
 }
 // Moves an entire block into the main queue, in order, as an intact group —
@@ -2769,18 +2778,41 @@ function computeOpenCourtQueue(gameSize){
   const reservedByCourtId = new Map(); // courtId -> [entries] guaranteed a seat
   const reservedIds = new Set();
   state.courts.forEach(court => {
-    if (court.status !== 'open' || !court.previewSubMap) return;
+    if (court.status !== 'open') return;
     const courtLevel = court.level || 'Open';
     const reserved = [];
-    Object.values(court.previewSubMap).forEach(incomingId => {
-      if (reservedIds.has(incomingId)) return; // already claimed by an earlier court this pass — stale duplicate
-      const entry = previewStack.find(e => e.id === incomingId)
-        || state.winnersBlock.find(e => e.id === incomingId)
-        || state.losersBlock.find(e => e.id === incomingId);
-      if (!entry || !levelsMatch(getPlayerLevel(entry.name), courtLevel)) return;
-      reserved.push(entry);
-      reservedIds.add(incomingId);
-    });
+    if (court.previewSubMap){
+      Object.values(court.previewSubMap).forEach(incomingId => {
+        if (reservedIds.has(incomingId)) return; // already claimed by an earlier court this pass — stale duplicate
+        const entry = previewStack.find(e => e.id === incomingId)
+          || state.winnersBlock.find(e => e.id === incomingId)
+          || state.losersBlock.find(e => e.id === incomingId);
+        if (!entry || !levelsMatch(getPlayerLevel(entry.name), courtLevel)) return;
+        reserved.push(entry);
+        reservedIds.add(incomingId);
+      });
+    }
+    // Everyone else already showing in this court's current preview lineup
+    // gets held onto too — not just the one seat a host explicitly subbed.
+    // Without this, a sub on a DIFFERENT court (or an Up Next pick) frees
+    // its outgoing player back into the shared pool, and this court's own
+    // natural draw can silently scoop that now-highest-priority player up,
+    // bumping whoever it was already showing out into On Deck — a lineup
+    // change on a court nobody touched, and the wrong name landing on deck
+    // instead of the player who actually got subbed out.
+    if (court.previewOrder){
+      const coveredNames = new Set(reserved.map(e => e.name));
+      court.previewOrder.forEach(name => {
+        if (coveredNames.has(name)) return; // seat already covered by an explicit sub above
+        const entry = previewStack.find(e => e.name === name && !reservedIds.has(e.id))
+          || state.winnersBlock.find(e => e.name === name && !reservedIds.has(e.id))
+          || state.losersBlock.find(e => e.name === name && !reservedIds.has(e.id));
+        if (!entry || !levelsMatch(getPlayerLevel(entry.name), courtLevel)) return; // no longer available/eligible — natural fill will replace them below
+        reserved.push(entry);
+        reservedIds.add(entry.id);
+        coveredNames.add(name);
+      });
+    }
     if (reserved.length) reservedByCourtId.set(court.id, reserved);
   });
   // Up Next picks aren't a claim on a court seat, but they're still a claim
@@ -3463,7 +3495,7 @@ function openUpNextSubPicker(entryIds, groupNum){
   if (!cohostActionAllowed('allowSubstitution', 'substitutions')) return;
   if (isSessionEnded()){ toast('Session has ended'); return; }
   if (!entryIds || entryIds.length === 0) return;
-  subTarget = { upNext: true, entryIds, groupNum, entryId: null };
+  subTarget = { upNext: true, entryIds, groupNum, groupIdx: Number(groupNum) - 1, entryId: null };
   renderUpNextSubChooser();
   subOverlay.hidden = false;
   if (subRefreshTimer) clearInterval(subRefreshTimer);
@@ -3610,13 +3642,32 @@ function performSubstitution(entryId){
   const incomingSrcKey = foundIncoming.src, incomingSrcIdx = foundIncoming.idx;
   if (subTarget.upNext){
     if (incoming.id === subTarget.entryId){ closeSubOverlay(); return; }
-    // Purely a "who fills this on-deck slot" preference — like a court's
-    // previewSubMap, this never touches state.stack directly. The outgoing
-    // player stays exactly where they are in the queue; renderUpNext()
-    // honors this pick on the next render, same as computeOpenCourtQueue
-    // does for a court's own preview.
+    // state.upNextSubMap still records the pick so computeOpenCourtQueue's
+    // reservation pre-pass keeps a court from grabbing the incoming player
+    // out from under this row, and so the Accumulating Block panel can show
+    // the outgoing player taking over the incoming player's old block spot
+    // (see getReverseSubClaims). Neither of those touches state.stack.
     state.upNextSubMap = state.upNextSubMap || {};
     state.upNextSubMap[subTarget.entryId] = incoming.id;
+    // The actual, immediate, locked-in swap: write incoming straight into
+    // this row's slot in state.upNextGroups, same as a court sub writes
+    // straight into court.previewOrder[idx] — this is what makes it a true
+    // position swap instead of a hint that only sometimes gets honored by
+    // the next natural draw.
+    state.upNextGroups = state.upNextGroups || [];
+    const row = state.upNextGroups[subTarget.groupIdx];
+    if (row){
+      const slotIdx = row.indexOf(subTarget.entryId);
+      if (slotIdx !== -1) row[slotIdx] = incoming.id;
+      // If the incoming player was already sitting in a DIFFERENT on-deck
+      // row, pull them out of it so they don't show up twice — that row
+      // simply tops back off naturally on the next render.
+      state.upNextGroups.forEach((otherRow, ri) => {
+        if (ri === subTarget.groupIdx) return;
+        const dupIdx = otherRow.indexOf(incoming.id);
+        if (dupIdx !== -1) otherRow.splice(dupIdx, 1);
+      });
+    }
     toast(`${incoming.name} will fill this on-deck spot`);
     closeSubOverlay();
     renderAll(); persist();
@@ -4521,7 +4572,8 @@ function renderUpNext(){
   // computeOpenCourtQueue already reserves any upNextSubMap pick out of the
   // court draw pool (see its reservation pre-pass), so a player the host has
   // earmarked for an on-deck slot is never also claimed by an open court's
-  // natural preview — they show up here, free, ready for the patch step below.
+  // natural preview — they show up here, free, ready for the sticky
+  // reconciliation below.
   const openQueue = computeOpenCourtQueue(gameSize);
   const claimed = new Set();
   openQueue.forEach(slot => { if (slot.taken) slot.taken.forEach(e => claimed.add(e.id)); });
@@ -4533,47 +4585,52 @@ function renderUpNext(){
       : '<div class="ondeck-empty">Everyone waiting is already lined up for an open court.</div>';
     if (expandBtn) expandBtn.hidden = true;
     upNextGroupClaimedIds = new Set();
+    state.upNextGroups = [];
     updateViewerUpNext();
     return;
   }
 
-  // Pull any "customize this on-deck slot" picks (state.upNextSubMap) out of
-  // the pool BEFORE the natural greedy fill below — same reservation
-  // principle as computeOpenCourtQueue. Without this, the incoming player
-  // could get naturally swept into some other group by priority order before
-  // the patch step ever runs, making a pick from another court's preview (or
-  // a different on-deck group) silently fail to land in the slot it was
-  // actually chosen for.
-  const upNextReserved = new Map(); // outgoingId -> incoming entry
-  if (state.upNextSubMap){
-    const usedIncoming = new Set();
-    Object.keys(state.upNextSubMap).forEach(outId => {
-      const incId = state.upNextSubMap[outId];
-      if (!incId || usedIncoming.has(incId)) return;
-      // The incoming player isn't always in onDeck/state.stack — a pick
-      // made from an accumulating block (see openUpNextSubPicker's
-      // getAllWaitingEntries candidate list) lives in state.winnersBlock
-      // or state.losersBlock instead. Look them up the same way
-      // computeOpenCourtQueue's reservation pre-pass does, or a block-
-      // sourced pick would never actually get applied here.
-      const found = onDeck.find(e => e.id === incId) ? { entry: onDeck.find(e => e.id === incId) } : findWaitingEntryById(incId);
-      const entry = found ? found.entry : null;
-      if (!entry) return;
-      upNextReserved.set(outId, entry);
-      usedIncoming.add(incId);
-    });
-  }
-  const reservedIncomingIds = new Set(Array.from(upNextReserved.values()).map(e => e.id));
-
-  // Build all the upcoming groups first, in order — a fixed duo split
-  // across two of THESE groups (each already fully formed) can't be caught
-  // by selectMatchEntries alone, since it only reaches players not yet
-  // claimed by any group. Reconciling afterward, across the whole set,
-  // is what lets Marcus (say, in group 1) actually end up with Logan
-  // (already locked into group 3) instead of the two staying split.
-  const groupCap = upNextExpanded ? 25 : 3;
+  // ---- Sticky on-deck rows ----------------------------------------------
+  // Each numbered "On deck" row keeps the exact roster it's already
+  // showing (state.upNextGroups persists it across renders, the same way
+  // court.previewOrder keeps a court's lineup stable) instead of being
+  // fully recomputed from scratch every render. Without this, freeing a
+  // player up anywhere else — a sub on a different row, a court sub, a
+  // block change — could silently pull a DIFFERENT player into a row
+  // nobody touched. A row's membership only changes when one of its own
+  // members actually becomes unavailable (started a match, left the
+  // queue) or when the host explicitly subs that row (see
+  // performSubstitution's subTarget.upNext branch, which edits
+  // state.upNextGroups directly, in the exact slot, immediately).
+  const onDeckIds = new Set(onDeck.map(e => e.id));
+  const byId = new Map(onDeck.map(e => [e.id, e]));
+  const usedIds = new Set();
   const groups = [];
-  let previewStack = onDeck.filter(e => !reservedIncomingIds.has(e.id));
+  (state.upNextGroups || []).forEach(idRow => {
+    const kept = idRow.filter(id => onDeckIds.has(id) && !usedIds.has(id));
+    kept.forEach(id => usedIds.add(id));
+    if (kept.length > 0) groups.push(kept.map(id => byId.get(id)));
+  });
+
+  const groupCap = upNextExpanded ? 25 : 3;
+  // Top off any row that lost a member (natural fairness draw, same
+  // priority order as a brand-new row below), then build brand-new rows
+  // from whoever's left over.
+  let previewStack = onDeck.filter(e => !usedIds.has(e.id));
+  groups.forEach(group => {
+    while (group.length < gameSize && previewStack.length > 0){
+      const picked = selectMatchEntries(1, previewStack)[0];
+      if (!picked) break;
+      group.push(picked);
+      usedIds.add(picked.id);
+      previewStack = previewStack.filter(e => e.id !== picked.id);
+    }
+  });
+  // A row that still can't reach a full lineup (not enough players left
+  // right now) isn't a real match yet — same as before, don't show it.
+  for (let i = groups.length - 1; i >= 0; i--){
+    if (groups[i].length < gameSize) groups.splice(i, 1);
+  }
   while (previewStack.length >= gameSize && groups.length < groupCap){
     const chosen = selectMatchEntries(gameSize, previewStack);
     const chosenIds = new Set(chosen.map(e => e.id));
@@ -4581,24 +4638,9 @@ function renderUpNext(){
     groups.push(chosen);
   }
   const reconciled = reconcileFixedDuosAcrossGroups(groups, onDeck, gameSize);
-
-  // Apply the reserved on-deck picks. Same mechanics as a court's
-  // previewSubMap: the outgoing player is simply left where they are in
-  // state.stack (so they naturally get picked up somewhere else), the
-  // incoming player — already pulled out of the natural draw above — takes
-  // this exact slot. A pick that's gone stale (outgoing no longer in any
-  // group, e.g. they left the queue) is silently skipped.
-  if (upNextReserved.size){
-    reconciled.forEach(group => {
-      for (let outIdx = 0; outIdx < group.length; outIdx++){
-        const outgoing = group[outIdx];
-        const incomingEntry = upNextReserved.get(outgoing.id);
-        if (!incomingEntry) continue;
-        if (isInFixedDuo(outgoing.name) || isInFixedDuo(incomingEntry.name)) continue;
-        group[outIdx] = incomingEntry;
-      }
-    });
-  }
+  // Persist exactly what's about to be shown, so it's what stays sticky
+  // on the next render.
+  state.upNextGroups = reconciled.map(g => g.map(e => e.id));
   upNextGroupClaimedIds = new Set();
   reconciled.forEach(g => g.forEach(e => upNextGroupClaimedIds.add(e.id)));
 
@@ -5683,6 +5725,7 @@ $('#importFile').addEventListener('change', async (e) => {
     if (!parsed.teammateHistory || typeof parsed.teammateHistory !== 'object') parsed.teammateHistory = {};
     if (!parsed.opponentHistory || typeof parsed.opponentHistory !== 'object') parsed.opponentHistory = {};
     if (!parsed.upNextSubMap || typeof parsed.upNextSubMap !== 'object') parsed.upNextSubMap = {};
+    if (!Array.isArray(parsed.upNextGroups)) parsed.upNextGroups = [];
     parsed.courts.forEach(c => { if (!('lastResult' in c)) c.lastResult = null; if (!('swapInfo' in c)) c.swapInfo = null; if (!('previewOrder' in c)) c.previewOrder = null; if (!('previewSubMap' in c)) c.previewSubMap = null; if (!('requeueOrder' in c)) c.requeueOrder = null; });
     if (!parsed.session || typeof parsed.session.generationReady !== 'boolean') parsed.session = Object.assign({}, parsed.session || {}, { generationReady: false });
     parsed.stack.forEach(p => { if (!p.tag) p.tag = 'new'; });
@@ -5727,6 +5770,7 @@ function startFreshSessionKeepingRoster(){
   state.teammateHistory = {};
   state.opponentHistory = {};
   state.upNextSubMap = {};
+  state.upNextGroups = [];
   state.session.status = 'active';
   // Session Time on the spectator dashboard is computed from this
   // timestamp (see the ~line-8839 stat4 block) — without resetting it
@@ -9318,6 +9362,7 @@ function renderCourtsStatsBar(){
     if (!state.teammateHistory || typeof state.teammateHistory !== 'object') state.teammateHistory = {};
     if (!state.opponentHistory || typeof state.opponentHistory !== 'object') state.opponentHistory = {};
     if (!state.upNextSubMap || typeof state.upNextSubMap !== 'object') state.upNextSubMap = {};
+    if (!Array.isArray(state.upNextGroups)) state.upNextGroups = [];
     if (!Array.isArray(state.roster)){
       // Backfill roster for older saves from every name we can find, so no one is lost.
       const names = new Set();
